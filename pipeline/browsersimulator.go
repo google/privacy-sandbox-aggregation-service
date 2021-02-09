@@ -207,6 +207,7 @@ func writePartialReport(s beam.Scope, output beam.PCollection, outputTextName st
 	textio.Write(s, outputTextName, formattedOutput)
 }
 
+// testing 1,2,3
 func splitRawConversion(s beam.Scope, lines beam.PCollection, helper1, helper2 *ServerPublicInfo) (beam.PCollection, beam.PCollection) {
 	s = s.Scope("SplitRawConversion")
 

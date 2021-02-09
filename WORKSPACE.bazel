@@ -1,0 +1,168 @@
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "io_bazel_rules_go",
+    sha256 = "6f111c57fd50baf5b8ee9d63024874dd2a014b069426156c55adbf6d3d22cb7b",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.25.0/rules_go-v0.25.0.tar.gz",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.25.0/rules_go-v0.25.0.tar.gz",
+    ],
+)
+
+load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
+
+go_rules_dependencies()
+
+go_register_toolchains(version = "1.15.5")
+
+http_archive(
+    name = "bazel_gazelle",
+    sha256 = "b85f48fa105c4403326e9525ad2b2cc437babaa6e15a3fc0b1dbab0ab064bc7c",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.22.2/bazel-gazelle-v0.22.2.tar.gz",
+        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.22.2/bazel-gazelle-v0.22.2.tar.gz",
+    ],
+)
+
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
+
+gazelle_dependencies(go_repository_default_config = "@//:WORKSPACE.bazel")
+
+go_repository(
+    name = "com_github_google_go_cmp",
+    importpath = "github.com/google/go-cmp",
+    sum = "h1:pJfrTSHC+QpCQplFZqzlwihfc+0Oty0ViHPHPxXj0SI=",
+    version = "v0.5.3-0.20201020212313-ab46b8bd0abd",
+)
+
+go_repository(
+    name = "com_github_google_uuid",
+    importpath = "github.com/google/uuid",
+    sum = "h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=",
+    version = "v1.1.1",
+)
+
+go_repository(
+    name = "com_github_pborman_uuid",
+    importpath = "github.com/pborman/uuid",
+    sum = "h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=",
+    version = "v1.2.0",
+)
+
+go_repository(
+    name = "org_golang_google_protobuf",
+    importpath = "google.golang.org/protobuf",
+    sum = "h1:jEdfCm+8YTWSYgU4L7Nq0jjU+q9RxIhi0cXLTY+Ih3A=",
+    version = "v1.25.1-0.20201020201750-d3470999428b",
+)
+
+git_repository(
+    name = "com_google_absl",
+    remote = "https://github.com/abseil/abseil-cpp.git",
+    commit = "0f3bb466b868b523cf1dc9b2aaaed65c77b28862",
+    shallow_since = "1603283562 -0400",
+)
+
+git_repository(
+    name = "private_join_and_compute",
+    commit = "458ea22489f7e0bca193af3b3049a035249d2e84",
+    remote = "https://github.com/google/private-join-and-compute.git",
+)
+
+http_archive(
+    name = "com_github_glog_glog",
+    sha256 = "cbba86b5a63063999e0fc86de620a3ad22d6fd2aa5948bff4995dcd851074a0b",
+    strip_prefix = "glog-c8f8135a5720aee7de8328b42e4c43f8aa2e60aa",
+    urls = ["https://github.com/google/glog/archive/c8f8135a5720aee7de8328b42e4c43f8aa2e60aa.zip"],
+)
+
+http_archive(
+    name = "com_github_grpc_grpc",
+    sha256 = "2060769f2d4b0d3535ba594b2ab614d7f68a492f786ab94b4318788d45e3278a",
+    strip_prefix = "grpc-1.33.2",
+    urls = [
+        "https://github.com/grpc/grpc/archive/v1.33.2.tar.gz",
+    ],
+)
+
+load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+
+grpc_deps()
+
+load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
+
+grpc_extra_deps()
+
+http_archive(
+    name = "tink_base",
+    urls = ["https://github.com/google/tink/archive/master.zip"],
+    strip_prefix = "tink-master/",
+)
+
+load("@tink_base//:tink_base_deps.bzl", "tink_base_deps")
+tink_base_deps()
+load("@tink_base//:tink_base_deps_init.bzl", "tink_base_deps_init")
+tink_base_deps_init()
+
+http_archive(
+    name = "com_github_google_tink_go",
+    urls = ["https://github.com/google/tink/archive/master.zip"],
+    strip_prefix = "tink-master/go",
+)
+
+load("@com_github_google_tink_go//:tink_go_deps_init.bzl", "tink_go_deps_init")
+tink_go_deps_init()
+
+go_repository(
+    name = "com_github_apache_beam",
+    build_file_proto_mode = "disable",
+    importpath = "github.com/apache/beam",
+    sum = "h1:Y8Q9pZ9V8IKM8EDNOE314D6cJE0neJooK+MxBvCcs1M=",
+    version = "v2.25.0",
+)
+
+git_repository(
+    name = "com_github_google_differential_privacy",
+    remote = "https://github.com/google/differential-privacy.git",
+    commit = "8c3e89314c6d29dd9c01792122c2398da587d442",
+)
+
+go_repository(
+    name = "com_github_googleapis_gax_go",
+    importpath = "github.com/googleapis/gax-go",
+    sum = "h1:silFMLAnr330+NRuag/VjIGF7TLp/LBrV2CJKFLWEww=",
+    version = "v2.0.2",
+)
+
+go_repository(
+    name = "com_github_googleapis_gax_go_v2",
+    importpath = "github.com/googleapis/gax-go/v2",
+    sum = "h1:/rNgUniLy2vDXiK2xyJOcirGpC3G99dtK1NWx26WZ8Y=",
+    version = "v2.0.2",
+)
+
+go_repository(
+    name = "com_google_cloud_go",
+    importpath = "cloud.google.com/go",
+    sum = "h1:e0WKqKTd5BnrG8aKH3J3h+QvEIQtSUcf2n5UZ5ZgLtQ=",
+    version = "v0.26.0",
+)
+
+git_repository(
+    name = "com_google_go_differential_privacy",
+    remote = "https://github.com/google/differential-privacy.git",
+    # Workaround from https://github.com/bazelbuild/bazel/issues/10062#issuecomment-642144553
+    patch_cmds = ["mv go/* ."],
+    commit = "8c3e89314c6d29dd9c01792122c2398da587d442",
+)
+
+load("@com_google_go_differential_privacy//:go_differential_privacy_deps.bzl", "go_differential_privacy_deps")
+go_differential_privacy_deps()
+
+git_repository(
+    name = "com_github_google_differential_privacy_privacy_on_beam",
+    remote = "https://github.com/google/differential-privacy.git",
+    strip_prefix = "privacy-on-beam/",
+    commit = "8c3e89314c6d29dd9c01792122c2398da587d442",
+)

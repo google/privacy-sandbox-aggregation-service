@@ -60,6 +60,7 @@ var (
 )
 
 func main() {
+	// testing
 	flag.Parse()
 	beam.Init()
 	ctx := context.Background()

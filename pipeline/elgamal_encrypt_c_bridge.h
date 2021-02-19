@@ -16,8 +16,6 @@
 
 // This is a C wrapper of the C++ functions in elgamal_encrypt.h, which will be
 // called from a Go library through CGO.
-//
-// TODO: investigate the performance of calling C++ functions via CGO.
 #ifndef CHROME_PRIVACY_SANDBOX_POTASSIUM_AGGREGATION_INFRA_SERVER_ELGAMAL_ENCRYPT_C_BRIDGE_H_
 #define CHROME_PRIVACY_SANDBOX_POTASSIUM_AGGREGATION_INFRA_SERVER_ELGAMAL_ENCRYPT_C_BRIDGE_H_
 

@@ -16,11 +16,11 @@
 
 #include <stdio.h>
 
-#include <cstring>
 #include <iostream>
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "pipeline/cbytes_utils.h"
 #include "pipeline/elgamal_encrypt.h"
 
 using convagg::crypto::Decrypt;
@@ -33,19 +33,7 @@ using convagg::crypto::ExponentiateOnECPointStr;
 using convagg::crypto::GenerateElGamalKeyPair;
 using convagg::crypto::GenerateSecret;
 using convagg::crypto::GetHashedECPointStrForTesting;
-
-bool StrToCBytes(const std::string &str, CBytes *out_cb) {
-  size_t size = str.size();
-  // The memory will be freed in the GO code.
-  char *copy = static_cast<char *>(malloc(size));
-  if (copy == nullptr) {
-    return false;
-  }
-  memcpy(copy, str.data(), size);
-  out_cb->c = copy;
-  out_cb->l = size;
-  return true;
-}
+using convagg::crypto::StrToCBytes;
 
 bool CGenerateElGamalKeyPair(struct CElGamalKeys *out_elgamal_keys) {
   auto maybe_key_pair = GenerateElGamalKeyPair();

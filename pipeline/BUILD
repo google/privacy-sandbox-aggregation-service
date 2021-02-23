@@ -138,10 +138,26 @@ cc_library(
 )
 
 cc_library(
+    name = "cbytes",
+    hdrs = ["cbytes.h"],
+)
+
+cc_library(
+    name = "cbytes_utils",
+    srcs = ["cbytes_utils.cc"],
+    hdrs = ["cbytes_utils.h"],
+    deps = [
+        ":cbytes",
+    ],
+)
+
+cc_library(
     name = "elgamal_encrypt_c_bridge",
     srcs = ["elgamal_encrypt_c_bridge.cc"],
     hdrs = ["elgamal_encrypt_c_bridge.h"],
     deps = [
+        ":cbytes",
+        ":cbytes_utils",
         ":cc_elgamal_encrypt",
         "@com_google_absl//absl/strings",
     ],

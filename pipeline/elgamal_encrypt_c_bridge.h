@@ -19,16 +19,11 @@
 #ifndef CHROME_PRIVACY_SANDBOX_POTASSIUM_AGGREGATION_INFRA_SERVER_ELGAMAL_ENCRYPT_C_BRIDGE_H_
 #define CHROME_PRIVACY_SANDBOX_POTASSIUM_AGGREGATION_INFRA_SERVER_ELGAMAL_ENCRYPT_C_BRIDGE_H_
 
+#include "pipeline/cbytes.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// CharLen records the binary data with a char array and the length of original
-// data. The char array needs to be freed by the Go callers.
-struct CBytes {
-  char *c;
-  int l;
-};
 
 // CCiphertext, CHEPublicKey, and CHEPrivateKey convert types in crypto.proto
 // between C++ and C.

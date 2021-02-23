@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 )
 
 func TestRandomKeySecretGeneration(t *testing.T) {
@@ -81,9 +82,9 @@ func TestEncryptAndDecrypt(t *testing.T) {
 		t.Fatalf("same encrypted results for the same messages %s", message1)
 	}
 
-	hashedMessage, err := GetHashedECPointStrForTesting(message1)
+	hashedMessage, err := elgamalencrypttesting.GetHashedECPointStrForTesting(message1)
 	if err != nil {
-		t.Fatalf("GetHashedECPointStrForTesting(%s) = %s", message1, err)
+		t.Fatalf("elgamalencrypttesting.GetHashedECPointStrForTesting(%s) = %s", message1, err)
 	}
 	decrypted, err := Decrypt(encrypted1, priv)
 	if err != nil {

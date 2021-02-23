@@ -160,14 +160,5 @@ StatusOr<std::string> ExponentiateOnECPointStr(
   return exponentiated_bytes;
 }
 
-StatusOr<std::string> GetHashedECPointStrForTesting(absl::string_view message,
-                                                    int curve_id) {
-  Context context;
-  ASSIGN_OR_RETURN(auto ec_group, ECGroup::Create(curve_id, &context));
-  ASSIGN_OR_RETURN(auto message_hashed_to_curve,
-                   ec_group.GetPointByHashingToCurveSha256(message));
-  return message_hashed_to_curve.ToBytesCompressed();
-}
-
 }  // namespace crypto
 }  // namespace convagg

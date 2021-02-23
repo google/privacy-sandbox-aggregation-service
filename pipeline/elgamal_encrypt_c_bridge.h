@@ -70,9 +70,6 @@ bool CExponentiateOnECPointStr(const struct CBytes *value_str,
                                const struct CBytes *secret_exponent_c,
                                struct CBytes *out_result_c);
 
-bool CGetHashedECPointStrForTesting(const struct CBytes *message_c,
-                                    struct CBytes *out_hashed_message_c);
-
 #ifdef __cplusplus
 }
 #endif

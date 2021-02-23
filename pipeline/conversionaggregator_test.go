@@ -24,6 +24,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/browsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/conversion"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
@@ -44,7 +45,7 @@ type idAggregation struct {
 }
 
 func calculateAggID(key, secret1, secret2 string) (string, error) {
-	hased, err := elgamalencrypt.GetHashedECPointStrForTesting(key)
+	hased, err := elgamalencrypttesting.GetHashedECPointStrForTesting(key)
 	if err != nil {
 		return "", err
 	}

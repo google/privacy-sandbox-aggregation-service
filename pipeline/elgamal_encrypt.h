@@ -78,14 +78,6 @@ private_join_and_compute::StatusOr<std::string> ExponentiateOnECPointStr(
     absl::string_view ec_point_str, absl::string_view secret_exponent_str,
     int curve_id = kDefaultCurveId);
 
-// GetHashedECPointStr gets the string representation of the ECPoint hashed from
-// the given message. This method is used for testing the C++ code, and will
-// also be exposed for Go tests.
-//
-// TODO: separate the test-only functions in another library.
-private_join_and_compute::StatusOr<std::string> GetHashedECPointStrForTesting(
-    absl::string_view message, int curve_id = kDefaultCurveId);
-
 }  // namespace crypto
 }  // namespace convagg
 

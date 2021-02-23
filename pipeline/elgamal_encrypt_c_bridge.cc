@@ -32,7 +32,6 @@ using convagg::crypto::ExponentiateOnCiphertext;
 using convagg::crypto::ExponentiateOnECPointStr;
 using convagg::crypto::GenerateElGamalKeyPair;
 using convagg::crypto::GenerateSecret;
-using convagg::crypto::GetHashedECPointStrForTesting;
 using convagg::crypto::StrToCBytes;
 
 bool CGenerateElGamalKeyPair(struct CElGamalKeys *out_elgamal_keys) {
@@ -127,14 +126,4 @@ bool CExponentiateOnECPointStr(const struct CBytes *value_str,
     return false;
   }
   return StrToCBytes(maybe_result.value(), out_result_c);
-}
-
-bool CGetHashedECPointStrForTesting(const struct CBytes *message_c,
-                                    struct CBytes *out_hashed_message_c) {
-  std::string message = std::string(message_c->c, message_c->l);
-  auto maybe_hashed_message = GetHashedECPointStrForTesting(message);
-  if (!maybe_hashed_message.ok()) {
-    return false;
-  }
-  return StrToCBytes(maybe_hashed_message.value(), out_hashed_message_c);
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
@@ -65,7 +66,7 @@ func TestExponentiateKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hashed, err := elgamalencrypt.GetHashedECPointStrForTesting(key)
+	hashed, err := elgamalencrypttesting.GetHashedECPointStrForTesting(key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +132,7 @@ func TestRekeyByAggregationID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hashed, err := elgamalencrypt.GetHashedECPointStrForTesting(conversionKey)
+	hashed, err := elgamalencrypttesting.GetHashedECPointStrForTesting(conversionKey)
 	if err != nil {
 		t.Fatal(err)
 	}

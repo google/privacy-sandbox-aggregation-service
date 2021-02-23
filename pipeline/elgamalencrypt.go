@@ -171,21 +171,3 @@ func ExponentiateOnECPointStr(value, exponent string) (string, error) {
 	defer C.free(unsafe.Pointer(resultC.c))
 	return output, nil
 }
-
-// GetHashedECPointStrForTesting gets the string-represented ECPoint of the hashed message.
-//
-// This function is only used for test.
-func GetHashedECPointStrForTesting(message string) (string, error) {
-	mC := C.CString(message)
-	defer C.free(unsafe.Pointer(mC))
-	messageC := C.struct_CBytes{c: mC, l: C.int(len(message))}
-
-	resultC := C.struct_CBytes{}
-	if !C.CGetHashedECPointStrForTesting(&messageC, &resultC) {
-		return "", fmt.Errorf("fail when getting hashed ECPoint for message %s", message)
-	}
-
-	result := C.GoStringN(resultC.c, resultC.l)
-	defer C.free(unsafe.Pointer(resultC.c))
-	return result, nil
-}

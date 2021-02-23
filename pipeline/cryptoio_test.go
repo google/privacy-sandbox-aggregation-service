@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 )
 
@@ -83,9 +84,9 @@ func TestKeyGeneration(t *testing.T) {
 	if message != string(sDecrypted) {
 		t.Fatalf("want standard decrypted message %s, got %s", message, string(sDecrypted))
 	}
-	messageHashed, err := elgamalencrypt.GetHashedECPointStrForTesting(message)
+	messageHashed, err := elgamalencrypttesting.GetHashedECPointStrForTesting(message)
 	if err != nil {
-		t.Fatalf("elgamalencrypt.GetHashedECPointStrForTesting() = %s", err)
+		t.Fatalf("elgamalencrypttesting.GetHashedECPointStrForTesting() = %s", err)
 	}
 	eDecrypted, err := elgamalencrypt.Decrypt(eEncrypted, ePriv)
 	if err != nil {

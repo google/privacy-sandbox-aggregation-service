@@ -152,6 +152,20 @@ cc_library(
 )
 
 cc_library(
+    name = "cc_elgamal_encrypt_testing",
+    testonly = True,
+    srcs = ["elgamal_encrypt_testing.cc"],
+    hdrs = ["elgamal_encrypt_testing.h"],
+    deps = [
+        ":cc_elgamal_encrypt",
+        "@com_google_absl//absl/strings",
+        "@private_join_and_compute//crypto:bn_util",
+        "@private_join_and_compute//crypto:ec_util",
+        "@private_join_and_compute//util:status_includes",
+    ],
+)
+
+cc_library(
     name = "elgamal_encrypt_c_bridge",
     srcs = ["elgamal_encrypt_c_bridge.cc"],
     hdrs = ["elgamal_encrypt_c_bridge.h"],
@@ -160,6 +174,18 @@ cc_library(
         ":cbytes_utils",
         ":cc_elgamal_encrypt",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "elgamal_encrypt_testing_c_bridge",
+    testonly = True,
+    srcs = ["elgamal_encrypt_testing_c_bridge.cc"],
+    hdrs = ["elgamal_encrypt_testing_c_bridge.h"],
+    deps = [
+        ":cbytes",
+        ":cbytes_utils",
+        ":cc_elgamal_encrypt_testing",
     ],
 )
 
@@ -180,9 +206,21 @@ go_test(
     srcs = ["elgamalencrypt_test.go"],
     embed = [":elgamalencrypt"],
     deps = [
+        ":elgamalencrypttesting",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@org_golang_google_protobuf//testing/protocmp",
     ],
+)
+
+go_library(
+    name = "elgamalencrypttesting",
+    testonly = True,
+    srcs = ["elgamalencrypttesting.go"],
+    cdeps = [
+        ":elgamal_encrypt_testing_c_bridge",  # keep
+    ],
+    cgo = 1,
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting",
 )
 
 go_library(
@@ -207,6 +245,7 @@ go_test(
     embed = [":cryptoio"],
     deps = [
         ":elgamalencrypt",
+        ":elgamalencrypttesting",
         ":standardencrypt",
     ],
 )
@@ -242,6 +281,7 @@ go_test(
     deps = [
         ":crypto_go_proto",
         ":elgamalencrypt",
+        ":elgamalencrypttesting",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
@@ -258,6 +298,7 @@ go_test(
         ":conversion",
         ":crypto_go_proto",
         ":elgamalencrypt",
+        ":elgamalencrypttesting",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",

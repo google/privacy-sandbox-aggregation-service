@@ -195,7 +195,7 @@ go_library(
     cdeps = [
         ":elgamal_encrypt_c_bridge",  # keep
     ],
-    cgo = 1,
+    cgo = True,
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt",
     deps = [":crypto_go_proto"],
 )
@@ -219,7 +219,7 @@ go_library(
     cdeps = [
         ":elgamal_encrypt_testing_c_bridge",  # keep
     ],
-    cgo = 1,
+    cgo = True,
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting",
 )
 

@@ -24,9 +24,13 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/go-cmp/cmp"
+	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/conversion"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/conversionaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/secretshare"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
@@ -155,11 +159,8 @@ func TestSplitAndEncryption(t *testing.T) {
 	rawConversions := beam.ParDo(scope, parseRawConversionFn, lines)
 	pr1, pr2 := splitRawConversion(scope, rawConversions, pubInfo1, pubInfo2)
 
-	formattedPr1 := beam.ParDo(scope, formatPartialReportFn, pr1)
-	formattedPr2 := beam.ParDo(scope, formatPartialReportFn, pr2)
-
-	prDecrypted1 := conversion.DecryptPartialReport(scope, formattedPr1, privInfo1.StandardPrivateKey)
-	prDecrypted2 := conversion.DecryptPartialReport(scope, formattedPr2, privInfo2.StandardPrivateKey)
+	prDecrypted1 := conversion.DecryptPartialReport(scope, pr1, privInfo1.StandardPrivateKey)
+	prDecrypted2 := conversion.DecryptPartialReport(scope, pr2, privInfo2.StandardPrivateKey)
 
 	joined := beam.CoGroupByKey(scope, prDecrypted1, prDecrypted2)
 	conversions := beam.ParDo(scope, mergeReportFn, joined)
@@ -168,5 +169,101 @@ func TestSplitAndEncryption(t *testing.T) {
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func createServerInfo() (*conversion.ServerPrivateInfo, *ServerPublicInfo, error) {
+	ePriv, ePub, err := elgamalencrypt.GenerateElGamalKeyPair()
+	if err != nil {
+		return nil, nil, err
+	}
+	secret, err := elgamalencrypt.GenerateSecret()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sPriv, sPub, err := standardencrypt.GenerateStandardKeyPair()
+	if err != nil {
+		return nil, nil, err
+	}
+	return &conversion.ServerPrivateInfo{
+			ElGamalPrivateKey:  ePriv,
+			StandardPrivateKey: sPriv,
+			Secret:             secret,
+		}, &ServerPublicInfo{
+			ElGamalPublicKey:  ePub,
+			StandardPublicKey: sPub,
+		}, nil
+}
+
+func createConversions(n int) ([]rawConversion, []conversionaggregator.CompleteResult) {
+	var conversions []rawConversion
+	var results []conversionaggregator.CompleteResult
+	for i := 0; i < (n+9)/10; i++ {
+		key := uuid.New()
+		sum := 0
+		for j := 0; j < n/10; j++ {
+			if len(conversions) >= n {
+				continue
+			}
+			conversions = append(conversions, rawConversion{Key: key, Value: uint16(1)})
+			sum++
+		}
+		results = append(results, conversionaggregator.CompleteResult{ConversionKey: key, Sum: uint32(sum), Count: int64(sum * 2)})
+
+		if len(conversions) >= n {
+			break
+		}
+	}
+	return conversions, results
+}
+
+func TestAggregationPipeline(t *testing.T) {
+	testAggregationPipeline(t)
+}
+
+func testAggregationPipeline(t testing.TB) {
+	privInfo1, pubInfo1, err := createServerInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privInfo2, pubInfo2, err := createServerInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conversionArray, wantArray := createConversions(100)
+
+	beam.Init()
+	pipeline, scope := beam.NewPipelineWithRoot()
+
+	conversions := beam.CreateList(scope, conversionArray)
+	want := beam.CreateList(scope, wantArray)
+	ePr1, ePr2 := splitRawConversion(scope, conversions, pubInfo1, pubInfo2)
+
+	pr1 := conversion.DecryptPartialReport(scope, ePr1, privInfo1.StandardPrivateKey)
+	pr2 := conversion.DecryptPartialReport(scope, ePr2, privInfo2.StandardPrivateKey)
+
+	idKey1 := conversion.ExponentiateKey(scope, pr1, privInfo1.Secret, pubInfo2.ElGamalPublicKey)
+	idKey2 := conversion.ExponentiateKey(scope, pr2, privInfo2.Secret, pubInfo1.ElGamalPublicKey)
+
+	idKeyShare1, aggData1 := conversion.RekeyByAggregationID(scope, idKey2, pr1, privInfo1.ElGamalPrivateKey, privInfo1.Secret)
+	idKeyShare2, aggData2 := conversion.RekeyByAggregationID(scope, idKey1, pr2, privInfo2.ElGamalPrivateKey, privInfo2.Secret)
+
+	pAgg1 := conversionaggregator.AggregateDataShare(scope, idKeyShare1, aggData1, true /*ignorePrivacy*/, conversionaggregator.PrivacyParams{})
+	pAgg2 := conversionaggregator.AggregateDataShare(scope, idKeyShare2, aggData2, true /*ignorePrivacy*/, conversionaggregator.PrivacyParams{})
+
+	got := conversionaggregator.MergeAggregation(scope, pAgg1, pAgg2)
+
+	passert.Equals(scope, got, want)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func BenchmarkPipeline(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		testAggregationPipeline(b)
 	}
 }

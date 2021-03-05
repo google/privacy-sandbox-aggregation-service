@@ -18,6 +18,7 @@ package conversion
 import (
 	"encoding/base64"
 	"fmt"
+	"path"
 	"reflect"
 	"strings"
 
@@ -43,34 +44,41 @@ func init() {
 	beam.RegisterFunction(formatExponentiatedKeyFn)
 }
 
-type decryptPartialReportFn struct {
-	StandardPrivateKey *pb.StandardPrivateKey
-}
-
-// Decrypt the partial reports sent to the helper.
-//
-// Each line contains a report ID and encrypted partial report (base64-encoded) separated by a comma.
-func (fn *decryptPartialReportFn) ProcessElement(line string, emit func(string, *pb.PartialReport)) error {
+func parseEncryptedPartialReportFn(line string, emit func(string, *pb.StandardCiphertext)) error {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
 		return fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
 	reportID := cols[0]
-	marshalledBytes, err := base64.StdEncoding.DecodeString(cols[1])
+	bsc, err := base64.StdEncoding.DecodeString(cols[1])
 	if err != nil {
 		return err
 	}
 
 	ciphertext := &pb.StandardCiphertext{}
-	if err := proto.Unmarshal(marshalledBytes, ciphertext); err != nil {
+	if err := proto.Unmarshal(bsc, ciphertext); err != nil {
 		return err
 	}
+	emit(reportID, ciphertext)
+	return nil
+}
 
-	// Decrypt to get the PartialReport.
-	b, err := standardencrypt.Decrypt(ciphertext, fn.StandardPrivateKey)
+func readPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
+	allFiles := strings.ReplaceAll(partialReportFile, path.Ext(partialReportFile), "*"+path.Ext(partialReportFile))
+	lines := textio.Read(scope, allFiles)
+	return beam.ParDo(scope, parseEncryptedPartialReportFn, lines)
+}
+
+type decryptPartialReportFn struct {
+	StandardPrivateKey *pb.StandardPrivateKey
+}
+
+// Decrypt the partial reports sent to the helper.
+func (fn *decryptPartialReportFn) ProcessElement(reportID string, encrypted *pb.StandardCiphertext, emit func(string, *pb.PartialReport)) error {
+	b, err := standardencrypt.Decrypt(encrypted, fn.StandardPrivateKey)
 	if err != nil {
-		return fmt.Errorf("decrypt failed for cipherText: %s", ciphertext.String())
+		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}
 
 	partialReport := &pb.PartialReport{}
@@ -83,9 +91,9 @@ func (fn *decryptPartialReportFn) ProcessElement(line string, emit func(string, 
 }
 
 // DecryptPartialReport decrypts the input data to get the PCollection<reportId, *pb.PartialReport>
-func DecryptPartialReport(s beam.Scope, lines beam.PCollection, standardPrivateKey *pb.StandardPrivateKey) beam.PCollection {
+func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standardPrivateKey *pb.StandardPrivateKey) beam.PCollection {
 	s = s.Scope("DecryptPartialReport")
-	return beam.ParDo(s, &decryptPartialReportFn{StandardPrivateKey: standardPrivateKey}, lines)
+	return beam.ParDo(s, &decryptPartialReportFn{StandardPrivateKey: standardPrivateKey}, encryptedReport)
 }
 
 type exponentiateKeyFn struct {
@@ -118,8 +126,8 @@ func writeExponentiatedKey(s beam.Scope, col beam.PCollection, outputName string
 	textio.Write(s, outputName, formattedOutput)
 }
 
-// exponentiateKey outputs a PCollection<reportID, *pb.ElGamalCiphertext> for the other helper.
-func exponentiateKey(s beam.Scope, col beam.PCollection, secret string, publicKey *pb.ElGamalPublicKey) beam.PCollection {
+// ExponentiateKey outputs a PCollection<reportID, *pb.ElGamalCiphertext> for the other helper.
+func ExponentiateKey(s beam.Scope, col beam.PCollection, secret string, publicKey *pb.ElGamalPublicKey) beam.PCollection {
 	s = s.Scope("ExponentiateKey")
 	return beam.ParDo(s, &exponentiateKeyFn{Secret: secret, ElGamalPublicKey: publicKey}, col)
 }
@@ -156,11 +164,11 @@ func GetPrivateInfo(privateKeyDir string) (*ServerPrivateInfo, error) {
 func ExponentiateConversionKey(scope beam.Scope, partialReportFile, exponentiatedKeyFile string, helperInfo *ServerPrivateInfo, otherPublicKey *pb.ElGamalPublicKey) {
 	scope = scope.Scope("ExponentiateConversionKey")
 
-	lines := textio.Read(scope, partialReportFile)
-	resharded := beam.Reshuffle(scope, lines)
+	encrypted := readPartialReport(scope, partialReportFile)
+	resharded := beam.Reshuffle(scope, encrypted)
 
 	partialReport := DecryptPartialReport(scope, resharded, helperInfo.StandardPrivateKey)
-	idKeys := exponentiateKey(scope, partialReport, helperInfo.Secret, otherPublicKey)
+	idKeys := ExponentiateKey(scope, partialReport, helperInfo.Secret, otherPublicKey)
 
 	writeExponentiatedKey(scope, idKeys, exponentiatedKeyFile)
 }

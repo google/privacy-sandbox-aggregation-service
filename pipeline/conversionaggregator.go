@@ -196,8 +196,8 @@ func findKeyShareWithMaximumReportIDFn(aggID string, idKeyShareIter func(*conver
 	return aggID, aggKeyShare
 }
 
-// aggregateDataShare outputs a PCollection<AggID, PartialAggregation> for the input data, applying differential privacy or not based on the input parameters.
-func aggregateDataShare(s beam.Scope, aggIDKeyShare, aggData beam.PCollection, ignorePrivacy bool, params PrivacyParams) beam.PCollection {
+// AggregateDataShare outputs a PCollection<AggID, PartialAggregation> for the input data, applying differential privacy or not based on the input parameters.
+func AggregateDataShare(s beam.Scope, aggIDKeyShare, aggData beam.PCollection, ignorePrivacy bool, params PrivacyParams) beam.PCollection {
 	s = s.Scope("AggregateShares")
 	aggIDKeys := beam.GroupByKey(s, aggIDKeyShare)
 	aggregatedKeyShares := beam.ParDo(s, findKeyShareWithMaximumReportIDFn, aggIDKeys)
@@ -246,7 +246,7 @@ func AggregatePartialReport(scope beam.Scope, aggParams *AggregateParams, privac
 	partialReport := conversion.DecryptPartialReport(scope, resharded, aggParams.HelperInfo.StandardPrivateKey)
 
 	aggIDKeyShare, aggData := conversion.RekeyByAggregationID(scope, reportIDKeys, partialReport, aggParams.HelperInfo.ElGamalPrivateKey, aggParams.HelperInfo.Secret)
-	partialAggregation := aggregateDataShare(scope, aggIDKeyShare, aggData, aggParams.IgnorePrivacy, privacyParams)
+	partialAggregation := AggregateDataShare(scope, aggIDKeyShare, aggData, aggParams.IgnorePrivacy, privacyParams)
 
 	writePartialAggregation(scope, partialAggregation, aggParams.PartialAggregation)
 }
@@ -281,14 +281,14 @@ func readPartialAggregation(s beam.Scope, partialAggregationFile string) beam.PC
 	return beam.ParDo(s, parsePartialAggregationFn, lines)
 }
 
-// completeResult contains the final aggregation result for each conversion key.
-type completeResult struct {
+// CompleteResult contains the final aggregation result for each conversion key.
+type CompleteResult struct {
 	ConversionKey string
 	Sum           uint32
 	Count         int64
 }
 
-func mergeAggregationFn(aggID string, pAggIter1 func(**pb.PartialAggregation) bool, pAggIter2 func(**pb.PartialAggregation) bool, emit func(completeResult)) error {
+func mergeAggregationFn(aggID string, pAggIter1 func(**pb.PartialAggregation) bool, pAggIter2 func(**pb.PartialAggregation) bool, emit func(CompleteResult)) error {
 	aggregation1 := &pb.PartialAggregation{}
 	if !pAggIter1(&aggregation1) {
 		log.Printf("expect two shares for aggregation ID %q, missing from helper1", aggID)
@@ -304,7 +304,7 @@ func mergeAggregationFn(aggID string, pAggIter1 func(**pb.PartialAggregation) bo
 		return err
 	}
 
-	emit(completeResult{
+	emit(CompleteResult{
 		ConversionKey: string(conversionKey),
 		Sum:           secretshare.CombineIntShares(aggregation1.GetPartialSum(), aggregation2.GetPartialSum()),
 		Count:         aggregation1.GetPartialCount() + aggregation2.GetPartialCount(),
@@ -312,13 +312,14 @@ func mergeAggregationFn(aggID string, pAggIter1 func(**pb.PartialAggregation) bo
 	return nil
 }
 
-func mergeAggregation(s beam.Scope, pAgg1, pAgg2 beam.PCollection) beam.PCollection {
+// MergeAggregation combines the partial aggregations to get the complete results.
+func MergeAggregation(s beam.Scope, pAgg1, pAgg2 beam.PCollection) beam.PCollection {
 	s = s.Scope("MergePartialAggregations")
 	joined := beam.CoGroupByKey(s, pAgg1, pAgg2)
 	return beam.ParDo(s, mergeAggregationFn, joined)
 }
 
-func formatCompleteAggregationFn(result completeResult) string {
+func formatCompleteAggregationFn(result CompleteResult) string {
 	return fmt.Sprintf("%s,%d,%d", string(result.ConversionKey), result.Count, result.Sum)
 }
 
@@ -334,6 +335,6 @@ func MergePartialAggregation(scope beam.Scope, partialAggregationFile1, partialA
 
 	partialAggregation1 := readPartialAggregation(scope, partialAggregationFile1)
 	partialAggregation2 := readPartialAggregation(scope, partialAggregationFile2)
-	completeAggregation := mergeAggregation(scope, partialAggregation1, partialAggregation2)
+	completeAggregation := MergeAggregation(scope, partialAggregation1, partialAggregation2)
 	writeCompleteAggregation(scope, completeAggregation, completeAggregationFile)
 }

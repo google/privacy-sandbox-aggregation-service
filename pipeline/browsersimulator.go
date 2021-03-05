@@ -141,27 +141,19 @@ type encryptConversionFn struct {
 // Apply standard public key encryption for the partial report.
 //
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
-func encryptPartialReport(partialReport *pb.PartialReport, key *pb.StandardPublicKey) (string, error) {
+func encryptPartialReport(partialReport *pb.PartialReport, key *pb.StandardPublicKey) (*pb.StandardCiphertext, error) {
 	bPartialReport, err := proto.Marshal(partialReport)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	encrypted, err := standardencrypt.Encrypt(bPartialReport, key)
-	if err != nil {
-		return "", err
-	}
-	bEncrypted, err := proto.Marshal(encrypted)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(bEncrypted), nil
+	return standardencrypt.Encrypt(bPartialReport, key)
 }
 
 // Generate encrypted partial report from the key/value shares.
-func genPartialReport(key string, keyShare []byte, valueShare uint32, destServer *ServerPublicInfo, otherServer *ServerPublicInfo) (string, error) {
+func genPartialReport(key string, keyShare []byte, valueShare uint32, destServer *ServerPublicInfo, otherServer *ServerPublicInfo) (*pb.StandardCiphertext, error) {
 	encryptedKey, err := elgamalencrypt.Encrypt(key, otherServer.ElGamalPublicKey)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return encryptPartialReport(
 		&pb.PartialReport{
@@ -172,7 +164,7 @@ func genPartialReport(key string, keyShare []byte, valueShare uint32, destServer
 		destServer.StandardPublicKey)
 }
 
-func (fn *encryptConversionFn) ProcessElement(c rawConversion, emit1 func(string, string), emit2 func(string, string)) error {
+func (fn *encryptConversionFn) ProcessElement(c rawConversion, emit1 func(string, *pb.StandardCiphertext), emit2 func(string, *pb.StandardCiphertext)) error {
 	keyShare1, keyShare2, err := SplitIntoByteShares([]byte(c.Key))
 	if err != nil {
 		return err
@@ -197,8 +189,13 @@ func (fn *encryptConversionFn) ProcessElement(c rawConversion, emit1 func(string
 	return nil
 }
 
-func formatPartialReportFn(reportID, encrypted string) string {
-	return fmt.Sprintf("%s,%s", reportID, encrypted)
+func formatPartialReportFn(reportID, encrypted *pb.StandardCiphertext, emit func(string)) error {
+	bEncrypted, err := proto.Marshal(encrypted)
+	if err != nil {
+		return err
+	}
+	emit(fmt.Sprintf("%s,%s", reportID, base64.StdEncoding.EncodeToString(bEncrypted)))
+	return nil
 }
 
 func writePartialReport(s beam.Scope, output beam.PCollection, outputTextName string) {

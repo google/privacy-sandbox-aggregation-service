@@ -119,7 +119,7 @@ func TestAggregatePartialReport(t *testing.T) {
 	}, pInput)
 
 	aggIDKeyShare, aggData := conversion.RekeyByAggregationID(scope, exponentiatedKey, partialReport, priv, secret2)
-	partialAggregation := aggregateDataShare(scope, aggIDKeyShare, aggData, true /*ignorePrivacy*/, PrivacyParams{})
+	partialAggregation := AggregateDataShare(scope, aggIDKeyShare, aggData, true /*ignorePrivacy*/, PrivacyParams{})
 
 	got := beam.ParDo(scope, func(aggID string, result *pb.PartialAggregation) idAggregation {
 		return idAggregation{AggID: base64.StdEncoding.EncodeToString([]byte(aggID)), Aggregation: result}
@@ -155,9 +155,9 @@ func TestMergeAggregation(t *testing.T) {
 	partialAgg2 := beam.ParDo(scope, toTableFn, beam.CreateList(scope, []idAggregation{
 		{AggID: "keep", Aggregation: &pb.PartialAggregation{KeyShare: keyShare2, PartialCount: 2, PartialSum: 2}},
 	}))
-	gotResult := mergeAggregation(scope, partialAgg1, partialAgg2)
+	gotResult := MergeAggregation(scope, partialAgg1, partialAgg2)
 
-	passert.Equals(scope, gotResult, completeResult{ConversionKey: wantKey, Sum: 3, Count: 3})
+	passert.Equals(scope, gotResult, CompleteResult{ConversionKey: wantKey, Sum: 3, Count: 3})
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
 	}

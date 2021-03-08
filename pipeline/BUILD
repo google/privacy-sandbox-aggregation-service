@@ -79,6 +79,7 @@ go_library(
     srcs = ["browsersimulator.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/browsersimulator",
     deps = [
+        ":conversion",
         ":crypto_go_proto",
         ":cryptoio",
         ":elgamalencrypt",
@@ -287,8 +288,12 @@ go_test(
         ":elgamalencrypt",
         ":elgamalencrypttesting",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
     ],
 )
 

@@ -56,6 +56,8 @@ var (
 
 	publicKeyDir1 = flag.String("public_key_dir1", "", "Directory for public keys from helper 1.")
 	publicKeyDir2 = flag.String("public_key_dir2", "", "Directory for public keys from helper 2.")
+
+	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
 
 func main() {
@@ -76,7 +78,7 @@ func main() {
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
 
-	browsersimulator.GeneratePartialReport(scope, *conversionFile, *partialReportFile1, *partialReportFile2, helperInfo1, helperInfo2)
+	browsersimulator.GeneratePartialReport(scope, *conversionFile, *partialReportFile1, *partialReportFile2, helperInfo1, helperInfo2, *fileShards)
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)
 	}

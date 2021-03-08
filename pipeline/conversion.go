@@ -18,7 +18,9 @@ package conversion
 import (
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -34,8 +36,10 @@ import (
 )
 
 func init() {
+	beam.RegisterType(reflect.TypeOf((*addShardKeyFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*decryptPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*exponentiateKeyFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*getShardFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*rekeyByAggregationIDFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.ElGamalCiphertext)(nil)).Elem())
@@ -120,10 +124,10 @@ func formatExponentiatedKeyFn(reportID string, encryptedKey *pb.ElGamalCiphertex
 	return nil
 }
 
-func writeExponentiatedKey(s beam.Scope, col beam.PCollection, outputName string) {
+func writeExponentiatedKey(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
 	s = s.Scope("WriteExponentiatedKey")
 	formattedOutput := beam.ParDo(s, formatExponentiatedKeyFn, col)
-	textio.Write(s, outputName, formattedOutput)
+	WriteNShardedFiles(s, outputName, shards, formattedOutput)
 }
 
 // ExponentiateKey outputs a PCollection<reportID, *pb.ElGamalCiphertext> for the other helper.
@@ -161,7 +165,7 @@ func GetPrivateInfo(privateKeyDir string) (*ServerPrivateInfo, error) {
 }
 
 // ExponentiateConversionKey applies the exponential operation on the conversion keys with a secret.
-func ExponentiateConversionKey(scope beam.Scope, partialReportFile, exponentiatedKeyFile string, helperInfo *ServerPrivateInfo, otherPublicKey *pb.ElGamalPublicKey) {
+func ExponentiateConversionKey(scope beam.Scope, partialReportFile, exponentiatedKeyFile string, helperInfo *ServerPrivateInfo, otherPublicKey *pb.ElGamalPublicKey, shards int64) {
 	scope = scope.Scope("ExponentiateConversionKey")
 
 	encrypted := readPartialReport(scope, partialReportFile)
@@ -170,7 +174,7 @@ func ExponentiateConversionKey(scope beam.Scope, partialReportFile, exponentiate
 	partialReport := DecryptPartialReport(scope, resharded, helperInfo.StandardPrivateKey)
 	idKeys := ExponentiateKey(scope, partialReport, helperInfo.Secret, otherPublicKey)
 
-	writeExponentiatedKey(scope, idKeys, exponentiatedKeyFile)
+	writeExponentiatedKey(scope, idKeys, exponentiatedKeyFile, shards)
 }
 
 func parseExponentiatedKeyFn(line string, emit func(string, *pb.ElGamalCiphertext)) error {
@@ -267,4 +271,45 @@ func RekeyByAggregationID(s beam.Scope, externalKey, report beam.PCollection, pr
 		ElGamalPrivateKey: privateKey,
 		Secret:            secret,
 	}, joined)
+}
+
+type addShardKeyFn struct {
+	TotalShards int64
+}
+
+func (fn *addShardKeyFn) ProcessElement(line string, emit func(int64, string)) {
+	emit(rand.Int63n(fn.TotalShards), line)
+}
+
+type getShardFn struct {
+	Shard int64
+}
+
+func (fn *getShardFn) ProcessElement(key int64, line string, emit func(string)) {
+	if fn.Shard == key {
+		emit(line)
+	}
+}
+
+// WriteNShardedFiles writes the text files in shards.
+func WriteNShardedFiles(s beam.Scope, outputName string, n int64, lines beam.PCollection) {
+	s = s.Scope("WriteNShardedFiles")
+
+	if n == 1 {
+		textio.Write(s, outputName, lines)
+		return
+	}
+	keyed := beam.ParDo(s, &addShardKeyFn{TotalShards: n}, lines)
+	for i := int64(0); i < n; i++ {
+		shard := beam.ParDo(s, &getShardFn{Shard: i}, keyed)
+		textio.Write(s, addStrInPath(outputName, fmt.Sprintf("-%d-%d", i+1, n)), shard)
+	}
+}
+
+// addStrInPath adds a string in the file name before the file extension.
+//
+// For example: addStringInPath("/foo/x.bar", "_baz") = "/foo/x_baz.bar"
+func addStrInPath(path, str string) string {
+	ext := filepath.Ext(path)
+	return path[:len(path)-len(ext)] + str + ext
 }

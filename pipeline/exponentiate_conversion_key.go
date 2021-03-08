@@ -53,6 +53,7 @@ var (
 	reencryptedKeyFile = flag.String("reencrypted_key_file", "", "Output reencrypted conversion keys.")
 	privateKeyDir      = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
 	otherPublicKeyDir  = flag.String("other_public_key_dir", "", "Directory for the ElGamal public key from the other helper.")
+	fileShards         = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
 
 func main() {
@@ -73,7 +74,7 @@ func main() {
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
 
-	conversion.ExponentiateConversionKey(scope, *partialReportFile, *reencryptedKeyFile, helperInfo, otherPublicKey)
+	conversion.ExponentiateConversionKey(scope, *partialReportFile, *reencryptedKeyFile, helperInfo, otherPublicKey, *fileShards)
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)
 	}

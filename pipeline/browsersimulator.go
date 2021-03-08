@@ -29,6 +29,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
 	"github.com/pborman/uuid"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/conversion"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/secretshare"
@@ -198,10 +199,10 @@ func formatPartialReportFn(reportID, encrypted *pb.StandardCiphertext, emit func
 	return nil
 }
 
-func writePartialReport(s beam.Scope, output beam.PCollection, outputTextName string) {
+func writePartialReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
 	s = s.Scope("WriteEncryptedPartialReport")
 	formattedOutput := beam.ParDo(s, formatPartialReportFn, output)
-	textio.Write(s, outputTextName, formattedOutput)
+	conversion.WriteNShardedFiles(s, outputTextName, shards, formattedOutput)
 }
 
 func splitRawConversion(s beam.Scope, lines beam.PCollection, helper1, helper2 *ServerPublicInfo) (beam.PCollection, beam.PCollection) {
@@ -218,7 +219,7 @@ func splitRawConversion(s beam.Scope, lines beam.PCollection, helper1, helper2 *
 // GeneratePartialReport splits the raw conversion records and encrypts partial reports for both helpers.
 //
 // The input conversionFile should contains rows with a string key and uint16 integer separated by a comma. There should be no header in the file.
-func GeneratePartialReport(scope beam.Scope, conversionFile, partialReportFile1, partialReportFile2 string, helperInfo1, helperInfo2 *ServerPublicInfo) {
+func GeneratePartialReport(scope beam.Scope, conversionFile, partialReportFile1, partialReportFile2 string, helperInfo1, helperInfo2 *ServerPublicInfo, shards int64) {
 	scope = scope.Scope("GeneratePartialReports")
 
 	lines := textio.ReadSdf(scope, conversionFile)
@@ -227,6 +228,6 @@ func GeneratePartialReport(scope beam.Scope, conversionFile, partialReportFile1,
 	resharded := beam.Reshuffle(scope, rawConversions)
 
 	partialReport1, partialReport2 := splitRawConversion(scope, resharded, helperInfo1, helperInfo2)
-	writePartialReport(scope, partialReport1, partialReportFile1)
-	writePartialReport(scope, partialReport2, partialReportFile2)
+	writePartialReport(scope, partialReport1, partialReportFile1, shards)
+	writePartialReport(scope, partialReport2, partialReportFile2, shards)
 }

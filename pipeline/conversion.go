@@ -66,7 +66,7 @@ func parseEncryptedPartialReportFn(line string, emit func(string, *pb.StandardCi
 
 func readPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	allFiles := strings.ReplaceAll(partialReportFile, path.Ext(partialReportFile), "*"+path.Ext(partialReportFile))
-	lines := textio.Read(scope, allFiles)
+	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, parseEncryptedPartialReportFn, lines)
 }
 
@@ -196,7 +196,7 @@ func parseExponentiatedKeyFn(line string, emit func(string, *pb.ElGamalCiphertex
 // ReadExponentiatedKeys reads the exponentiated conversion keys from the other helper.
 func ReadExponentiatedKeys(s beam.Scope, inputName string) beam.PCollection {
 	s = s.Scope("ReadExponentiatedKey")
-	lines := textio.Read(s, inputName)
+	lines := textio.ReadSdf(s, inputName)
 	return beam.ParDo(s, parseExponentiatedKeyFn, lines)
 }
 

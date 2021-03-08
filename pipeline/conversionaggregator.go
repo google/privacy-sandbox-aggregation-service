@@ -241,7 +241,7 @@ func AggregatePartialReport(scope beam.Scope, aggParams *AggregateParams, privac
 
 	reportIDKeys := conversion.ReadExponentiatedKeys(scope, aggParams.ReencryptedKey)
 
-	lines := textio.Read(scope, aggParams.PartialReport)
+	lines := textio.ReadSdf(scope, aggParams.PartialReport)
 	resharded := beam.Reshuffle(scope, lines)
 	partialReport := conversion.DecryptPartialReport(scope, resharded, aggParams.HelperInfo.StandardPrivateKey)
 
@@ -277,7 +277,7 @@ func parsePartialAggregationFn(line string, emit func(string, *pb.PartialAggrega
 
 func readPartialAggregation(s beam.Scope, partialAggregationFile string) beam.PCollection {
 	s = s.Scope("ReadPartialAggregation")
-	lines := textio.Read(s, partialAggregationFile)
+	lines := textio.ReadSdf(s, partialAggregationFile)
 	return beam.ParDo(s, parsePartialAggregationFn, lines)
 }
 

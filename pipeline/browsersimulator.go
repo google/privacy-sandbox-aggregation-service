@@ -221,7 +221,7 @@ func splitRawConversion(s beam.Scope, lines beam.PCollection, helper1, helper2 *
 func GeneratePartialReport(scope beam.Scope, conversionFile, partialReportFile1, partialReportFile2 string, helperInfo1, helperInfo2 *ServerPublicInfo) {
 	scope = scope.Scope("GeneratePartialReports")
 
-	lines := textio.Read(scope, conversionFile)
+	lines := textio.ReadSdf(scope, conversionFile)
 	rawConversions := beam.ParDo(scope, parseRawConversionFn, lines)
 	// Reshuffle here to avoid fusing the file-reading and partial report generation together for better parallelization.
 	resharded := beam.Reshuffle(scope, rawConversions)

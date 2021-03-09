@@ -41,8 +41,9 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*exponentiateKeyFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*getShardFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*rekeyByAggregationIDFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*pb.PartialReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.ElGamalCiphertext)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.PartialReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 
 	beam.RegisterFunction(parseExponentiatedKeyFn)
 	beam.RegisterFunction(formatExponentiatedKeyFn)
@@ -68,7 +69,8 @@ func parseEncryptedPartialReportFn(line string, emit func(string, *pb.StandardCi
 	return nil
 }
 
-func readPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
+// ReadPartialReport reads lines from partial reports and parses them into reportID and encrypted report table.
+func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	allFiles := strings.ReplaceAll(partialReportFile, path.Ext(partialReportFile), "*"+path.Ext(partialReportFile))
 	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, parseEncryptedPartialReportFn, lines)
@@ -168,7 +170,7 @@ func GetPrivateInfo(privateKeyDir string) (*ServerPrivateInfo, error) {
 func ExponentiateConversionKey(scope beam.Scope, partialReportFile, exponentiatedKeyFile string, helperInfo *ServerPrivateInfo, otherPublicKey *pb.ElGamalPublicKey, shards int64) {
 	scope = scope.Scope("ExponentiateConversionKey")
 
-	encrypted := readPartialReport(scope, partialReportFile)
+	encrypted := ReadPartialReport(scope, partialReportFile)
 	resharded := beam.Reshuffle(scope, encrypted)
 
 	partialReport := DecryptPartialReport(scope, resharded, helperInfo.StandardPrivateKey)

@@ -241,8 +241,8 @@ func AggregatePartialReport(scope beam.Scope, aggParams *AggregateParams, privac
 
 	reportIDKeys := conversion.ReadExponentiatedKeys(scope, aggParams.ReencryptedKey)
 
-	lines := textio.ReadSdf(scope, aggParams.PartialReport)
-	resharded := beam.Reshuffle(scope, lines)
+	encrypted := conversion.ReadPartialReport(scope, aggParams.PartialReport)
+	resharded := beam.Reshuffle(scope, encrypted)
 	partialReport := conversion.DecryptPartialReport(scope, resharded, aggParams.HelperInfo.StandardPrivateKey)
 
 	aggIDKeyShare, aggData := conversion.RekeyByAggregationID(scope, reportIDKeys, partialReport, aggParams.HelperInfo.ElGamalPrivateKey, aggParams.HelperInfo.Secret)

@@ -39,6 +39,7 @@ import (
 )
 
 func init() {
+	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*rawConversion)(nil)))
 	beam.RegisterType(reflect.TypeOf((*encryptConversionFn)(nil)).Elem())
 	beam.RegisterFunction(parseRawConversionFn)
@@ -190,7 +191,8 @@ func (fn *encryptConversionFn) ProcessElement(c rawConversion, emit1 func(string
 	return nil
 }
 
-func formatPartialReportFn(reportID, encrypted *pb.StandardCiphertext, emit func(string)) error {
+// TODO: cover the reading/writing functions with unit test.
+func formatPartialReportFn(reportID string, encrypted *pb.StandardCiphertext, emit func(string)) error {
 	bEncrypted, err := proto.Marshal(encrypted)
 	if err != nil {
 		return err

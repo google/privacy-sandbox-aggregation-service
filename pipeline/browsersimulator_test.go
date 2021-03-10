@@ -156,7 +156,7 @@ func TestSplitAndEncryption(t *testing.T) {
 		"foo,1",
 		"bar,2",
 	})
-	rawConversions := beam.ParDo(scope, parseRawConversionFn, lines)
+	rawConversions := beam.ParDo(scope, &parseRawConversionFn{}, lines)
 	pr1, pr2 := splitRawConversion(scope, rawConversions, pubInfo1, pubInfo2)
 
 	prDecrypted1 := conversion.DecryptPartialReport(scope, pr1, privInfo1.StandardPrivateKey)

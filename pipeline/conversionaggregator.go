@@ -16,6 +16,7 @@
 package conversionaggregator
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -47,9 +48,9 @@ const (
 )
 
 func init() {
+	beam.RegisterType(reflect.TypeOf((*assemblePartialAggregationFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*combineKeyShareWithMaximumReportIDFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregation)(nil)).Elem())
-	beam.RegisterFunction(assemblePartialAggregationFn)
 	beam.RegisterFunction(assembleSingleAggregatedReportFn)
 	beam.RegisterFunction(extractAggregationKeyValuesFn)
 	beam.RegisterFunction(formatCompleteAggregationFn)
@@ -106,13 +107,22 @@ func aggregateCountDP(s beam.Scope, pCol pbeam.PrivatePCollection, params Privac
 	})
 }
 
-func assemblePartialAggregationFn(aggID string, countIter, sumIter func(*int64) bool, emit func(string, *pb.PartialAggregation)) {
+type assemblePartialAggregationFn struct {
+	uniqueAggIDCounter beam.Counter
+}
+
+func (fn *assemblePartialAggregationFn) Setup() {
+	fn.uniqueAggIDCounter = beam.NewCounter("aggregation-prototype", "unique-aggid-count")
+}
+
+func (fn *assemblePartialAggregationFn) ProcessElement(ctx context.Context, aggID string, countIter, sumIter func(*int64) bool, emit func(string, *pb.PartialAggregation)) {
 	var c int64
 	countIter(&c)
 
 	var s int64
 	sumIter(&s)
 
+	fn.uniqueAggIDCounter.Inc(ctx, 1)
 	emit(aggID, &pb.PartialAggregation{
 		// The int64 summation is directly cast into uint32 intentionally. We are using the overflow behavior of uint32 to handle the summation of secret shares.
 		PartialSum:   uint32(s),
@@ -139,7 +149,7 @@ func aggregateOrig(s beam.Scope, col beam.PCollection) beam.PCollection {
 	aggSum := stats.SumPerKey(s, sCol)
 
 	joined := beam.CoGroupByKey(s, aggCount, aggSum)
-	return beam.ParDo(s, assemblePartialAggregationFn, joined)
+	return beam.ParDo(s, &assemblePartialAggregationFn{}, joined)
 }
 
 // aggregateDP calculates the count and sum for each unique AggID in the input PCollection<AggData> WITH differential privacy.
@@ -164,10 +174,9 @@ func aggregateDP(s beam.Scope, col beam.PCollection, params PrivacyParams) beam.
 	})
 
 	joined := beam.CoGroupByKey(s, aggCount, aggSum)
-	return beam.ParDo(s, assemblePartialAggregationFn, joined)
+	return beam.ParDo(s, &assemblePartialAggregationFn{}, joined)
 }
 
-// Associate the aggregation results with the aggregated key shares.
 func assembleSingleAggregatedReportFn(aggID string, keySharesIter func(*string) bool, resultsIter func(**pb.PartialAggregation) bool, emit func(string, *pb.PartialAggregation)) {
 	var keyShare string
 	keySharesIter(&keyShare)

@@ -17,6 +17,7 @@
 package browsersimulator
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
@@ -42,7 +43,7 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*rawConversion)(nil)))
 	beam.RegisterType(reflect.TypeOf((*encryptConversionFn)(nil)).Elem())
-	beam.RegisterFunction(parseRawConversionFn)
+	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())
 	beam.RegisterFunction(formatPartialReportFn)
 }
 
@@ -91,7 +92,15 @@ type rawConversion struct {
 	Value uint16
 }
 
-func parseRawConversionFn(line string, emit func(rawConversion)) error {
+type parseRawConversionFn struct {
+	rawConversionCounter beam.Counter
+}
+
+func (fn *parseRawConversionFn) Setup() {
+	fn.rawConversionCounter = beam.NewCounter("aggregation-prototype", "raw-conversion-count")
+}
+
+func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(rawConversion)) error {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
 		return fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
@@ -103,6 +112,7 @@ func parseRawConversionFn(line string, emit func(rawConversion)) error {
 		return err
 	}
 
+	fn.rawConversionCounter.Inc(ctx, 1)
 	emit(rawConversion{
 		Key:   key,
 		Value: uint16(value16),
@@ -136,8 +146,13 @@ func GetPublicInfo(publicKeyDir string) (*ServerPublicInfo, error) {
 //
 // All beam DoFn structs are suffixed with "Fn" to distinguish them from normal structs.
 type encryptConversionFn struct {
-	Helper1 *ServerPublicInfo
-	Helper2 *ServerPublicInfo
+	Helper1                *ServerPublicInfo
+	Helper2                *ServerPublicInfo
+	encryptedReportCounter beam.Counter
+}
+
+func (fn *encryptConversionFn) Setup() {
+	fn.encryptedReportCounter = beam.NewCounter("aggregation-prototype", "encrypted-report-count")
 }
 
 // Apply standard public key encryption for the partial report.
@@ -166,7 +181,7 @@ func genPartialReport(key string, keyShare []byte, valueShare uint32, destServer
 		destServer.StandardPublicKey)
 }
 
-func (fn *encryptConversionFn) ProcessElement(c rawConversion, emit1 func(string, *pb.StandardCiphertext), emit2 func(string, *pb.StandardCiphertext)) error {
+func (fn *encryptConversionFn) ProcessElement(ctx context.Context, c rawConversion, emit1 func(string, *pb.StandardCiphertext), emit2 func(string, *pb.StandardCiphertext)) error {
 	keyShare1, keyShare2, err := SplitIntoByteShares([]byte(c.Key))
 	if err != nil {
 		return err
@@ -181,12 +196,14 @@ func (fn *encryptConversionFn) ProcessElement(c rawConversion, emit1 func(string
 	if err != nil {
 		return err
 	}
+	fn.encryptedReportCounter.Inc(ctx, 1)
 	emit1(reportID, encryptedReport1)
 
 	encryptedReport2, err := genPartialReport(c.Key, keyShare2, valueShare2, fn.Helper2, fn.Helper1)
 	if err != nil {
 		return err
 	}
+	fn.encryptedReportCounter.Inc(ctx, 1)
 	emit2(reportID, encryptedReport2)
 	return nil
 }
@@ -225,7 +242,7 @@ func GeneratePartialReport(scope beam.Scope, conversionFile, partialReportFile1,
 	scope = scope.Scope("GeneratePartialReports")
 
 	lines := textio.ReadSdf(scope, conversionFile)
-	rawConversions := beam.ParDo(scope, parseRawConversionFn, lines)
+	rawConversions := beam.ParDo(scope, &parseRawConversionFn{}, lines)
 	// Reshuffle here to avoid fusing the file-reading and partial report generation together for better parallelization.
 	resharded := beam.Reshuffle(scope, rawConversions)
 

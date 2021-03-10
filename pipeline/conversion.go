@@ -16,6 +16,7 @@
 package conversion
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"math/rand"
@@ -49,7 +50,15 @@ func init() {
 	beam.RegisterFunction(formatExponentiatedKeyFn)
 }
 
-func parseEncryptedPartialReportFn(line string, emit func(string, *pb.StandardCiphertext)) error {
+type parseEncryptedPartialReportFn struct {
+	partialReportCounter beam.Counter
+}
+
+func (fn *parseEncryptedPartialReportFn) Setup() {
+	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "partial-report-count")
+}
+
+func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(string, *pb.StandardCiphertext)) error {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
 		return fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
@@ -65,6 +74,7 @@ func parseEncryptedPartialReportFn(line string, emit func(string, *pb.StandardCi
 	if err := proto.Unmarshal(bsc, ciphertext); err != nil {
 		return err
 	}
+	fn.partialReportCounter.Inc(ctx, 1)
 	emit(reportID, ciphertext)
 	return nil
 }
@@ -73,15 +83,20 @@ func parseEncryptedPartialReportFn(line string, emit func(string, *pb.StandardCi
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	allFiles := strings.ReplaceAll(partialReportFile, path.Ext(partialReportFile), "*"+path.Ext(partialReportFile))
 	lines := textio.ReadSdf(scope, allFiles)
-	return beam.ParDo(scope, parseEncryptedPartialReportFn, lines)
+	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
 }
 
 type decryptPartialReportFn struct {
-	StandardPrivateKey *pb.StandardPrivateKey
+	StandardPrivateKey     *pb.StandardPrivateKey
+	decryptedReportCounter beam.Counter
+}
+
+func (fn *decryptPartialReportFn) Setup() {
+	fn.decryptedReportCounter = beam.NewCounter("aggregation-prototype", "decrypted-report-count")
 }
 
 // Decrypt the partial reports sent to the helper.
-func (fn *decryptPartialReportFn) ProcessElement(reportID string, encrypted *pb.StandardCiphertext, emit func(string, *pb.PartialReport)) error {
+func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, reportID string, encrypted *pb.StandardCiphertext, emit func(string, *pb.PartialReport)) error {
 	b, err := standardencrypt.Decrypt(encrypted, fn.StandardPrivateKey)
 	if err != nil {
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
@@ -91,6 +106,7 @@ func (fn *decryptPartialReportFn) ProcessElement(reportID string, encrypted *pb.
 	if err := proto.Unmarshal(b, partialReport); err != nil {
 		return err
 	}
+	fn.decryptedReportCounter.Inc(ctx, 1)
 	emit(reportID, partialReport)
 
 	return nil
@@ -104,15 +120,21 @@ func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standa
 
 type exponentiateKeyFn struct {
 	// The index of the exponentiation.
-	Secret           string
-	ElGamalPublicKey *pb.ElGamalPublicKey
+	Secret                  string
+	ElGamalPublicKey        *pb.ElGamalPublicKey
+	exponentiatedKeyCounter beam.Counter
 }
 
-func (fn *exponentiateKeyFn) ProcessElement(reportID string, pr *pb.PartialReport, emit func(string, *pb.ElGamalCiphertext)) error {
+func (fn *exponentiateKeyFn) Setup() {
+	fn.exponentiatedKeyCounter = beam.NewCounter("aggregation-prototype", "exponentiated-key-count")
+}
+
+func (fn *exponentiateKeyFn) ProcessElement(ctx context.Context, reportID string, pr *pb.PartialReport, emit func(string, *pb.ElGamalCiphertext)) error {
 	exponentiated, err := elgamalencrypt.ExponentiateOnCiphertext(pr.EncryptedConversionKey, fn.ElGamalPublicKey, fn.Secret)
 	if err != nil {
 		return err
 	}
+	fn.exponentiatedKeyCounter.Inc(ctx, 1)
 	emit(reportID, exponentiated)
 	return nil
 }
@@ -224,12 +246,17 @@ type IDKeyShare struct {
 }
 
 type rekeyByAggregationIDFn struct {
-	ElGamalPrivateKey *pb.ElGamalPrivateKey
-	Secret            string
+	ElGamalPrivateKey     *pb.ElGamalPrivateKey
+	Secret                string
+	generatedAggIDCounter beam.Counter
+}
+
+func (fn *rekeyByAggregationIDFn) Setup() {
+	fn.generatedAggIDCounter = beam.NewCounter("aggregation-prototype", "generated-aggid-count")
 }
 
 // Join the exponentiated key from the other helper with the partial report using the report ID, and calculate the aggregation IDs for the key/value shares.
-func (fn *rekeyByAggregationIDFn) ProcessElement(id string, encryptedKeyIter func(**pb.ElGamalCiphertext) bool, partialReportIter func(**pb.PartialReport) bool, emitIDKey func(string, IDKeyShare), emitAggData func(AggData)) error {
+func (fn *rekeyByAggregationIDFn) ProcessElement(ctx context.Context, id string, encryptedKeyIter func(**pb.ElGamalCiphertext) bool, partialReportIter func(**pb.PartialReport) bool, emitIDKey func(string, IDKeyShare), emitAggData func(AggData)) error {
 	var exponentiatedKey *pb.ElGamalCiphertext
 	if !encryptedKeyIter(&exponentiatedKey) {
 		return fmt.Errorf("no matched exponentiated key")
@@ -248,6 +275,7 @@ func (fn *rekeyByAggregationIDFn) ProcessElement(id string, encryptedKeyIter fun
 	if err != nil {
 		return err
 	}
+	fn.generatedAggIDCounter.Inc(ctx, 1)
 
 	emitIDKey(aggID, IDKeyShare{
 		ReportID: id,

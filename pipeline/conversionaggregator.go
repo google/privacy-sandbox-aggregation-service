@@ -47,11 +47,11 @@ const (
 )
 
 func init() {
+	beam.RegisterType(reflect.TypeOf((*combineKeyShareWithMaximumReportIDFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregation)(nil)).Elem())
 	beam.RegisterFunction(assemblePartialAggregationFn)
 	beam.RegisterFunction(assembleSingleAggregatedReportFn)
 	beam.RegisterFunction(extractAggregationKeyValuesFn)
-	beam.RegisterFunction(findKeyShareWithMaximumReportIDFn)
 	beam.RegisterFunction(formatCompleteAggregationFn)
 	beam.RegisterFunction(formatPartialAggregationFn)
 	beam.RegisterFunction(mergeAggregationFn)
@@ -184,23 +184,23 @@ func assembleSingleAggregatedReportFn(aggID string, keySharesIter func(*string) 
 }
 
 // For the same conversion key, we keep the key share with the maximum ephemeral report ID.
-func findKeyShareWithMaximumReportIDFn(aggID string, idKeyShareIter func(*conversion.IDKeyShare) bool) (string, string) {
-	var maxID, aggKeyShare string
-	var idKeyShare conversion.IDKeyShare
-	for idKeyShareIter(&idKeyShare) {
-		if idKeyShare.ReportID > maxID {
-			aggKeyShare = string(idKeyShare.KeyShare)
-			maxID = idKeyShare.ReportID
-		}
+type combineKeyShareWithMaximumReportIDFn struct{}
+
+func (fn *combineKeyShareWithMaximumReportIDFn) MergeAccumulators(a, b conversion.IDKeyShare) conversion.IDKeyShare {
+	if a.ReportID > b.ReportID {
+		return a
 	}
-	return aggID, aggKeyShare
+	return b
+}
+
+func (fn *combineKeyShareWithMaximumReportIDFn) ExtractOutput(idKeyShare conversion.IDKeyShare) string {
+	return string(idKeyShare.KeyShare)
 }
 
 // AggregateDataShare outputs a PCollection<AggID, PartialAggregation> for the input data, applying differential privacy or not based on the input parameters.
 func AggregateDataShare(s beam.Scope, aggIDKeyShare, aggData beam.PCollection, ignorePrivacy bool, params PrivacyParams) beam.PCollection {
 	s = s.Scope("AggregateShares")
-	aggIDKeys := beam.GroupByKey(s, aggIDKeyShare)
-	aggregatedKeyShares := beam.ParDo(s, findKeyShareWithMaximumReportIDFn, aggIDKeys)
+	aggregatedKeyShares := beam.CombinePerKey(s, &combineKeyShareWithMaximumReportIDFn{}, aggIDKeyShare)
 
 	var aggIDResult beam.PCollection
 	if ignorePrivacy {

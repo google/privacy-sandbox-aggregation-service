@@ -185,12 +185,12 @@ func assembleSingleAggregatedReportFn(aggID string, keySharesIter func(*string) 
 
 // For the same conversion key, we keep the key share with the maximum ephemeral report ID.
 func findKeyShareWithMaximumReportIDFn(aggID string, idKeyShareIter func(*conversion.IDKeyShare) bool) (string, string) {
-	var minID, aggKeyShare string
+	var maxID, aggKeyShare string
 	var idKeyShare conversion.IDKeyShare
 	for idKeyShareIter(&idKeyShare) {
-		if idKeyShare.ReportID > minID {
+		if idKeyShare.ReportID > maxID {
 			aggKeyShare = string(idKeyShare.KeyShare)
-			minID = idKeyShare.ReportID
+			maxID = idKeyShare.ReportID
 		}
 	}
 	return aggID, aggKeyShare

@@ -20,7 +20,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
-	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -41,6 +40,7 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*decryptPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*exponentiateKeyFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*getShardFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*parseEncryptedPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*rekeyByAggregationIDFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.ElGamalCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReport)(nil)).Elem())
@@ -81,7 +81,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 
 // ReadPartialReport reads lines from partial reports and parses them into reportID and encrypted report table.
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
-	allFiles := strings.ReplaceAll(partialReportFile, path.Ext(partialReportFile), "*"+path.Ext(partialReportFile))
+	allFiles := addStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
 }
@@ -224,7 +224,8 @@ func parseExponentiatedKeyFn(line string, emit func(string, *pb.ElGamalCiphertex
 // ReadExponentiatedKeys reads the exponentiated conversion keys from the other helper.
 func ReadExponentiatedKeys(s beam.Scope, inputName string) beam.PCollection {
 	s = s.Scope("ReadExponentiatedKey")
-	lines := textio.ReadSdf(s, inputName)
+	allFiles := addStrInPath(inputName, "*")
+	lines := textio.ReadSdf(s, allFiles)
 	return beam.ParDo(s, parseExponentiatedKeyFn, lines)
 }
 

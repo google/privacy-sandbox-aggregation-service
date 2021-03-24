@@ -19,13 +19,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
-	"path/filepath"
 	"reflect"
 	"strings"
 
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
@@ -36,10 +35,8 @@ import (
 )
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*addShardKeyFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*decryptPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*exponentiateKeyFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*getShardFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseEncryptedPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*rekeyByAggregationIDFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.ElGamalCiphertext)(nil)).Elem())
@@ -81,7 +78,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 
 // ReadPartialReport reads lines from partial reports and parses them into reportID and encrypted report table.
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
-	allFiles := addStrInPath(partialReportFile, "*")
+	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
 }
@@ -151,7 +148,7 @@ func formatExponentiatedKeyFn(reportID string, encryptedKey *pb.ElGamalCiphertex
 func writeExponentiatedKey(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
 	s = s.Scope("WriteExponentiatedKey")
 	formattedOutput := beam.ParDo(s, formatExponentiatedKeyFn, col)
-	WriteNShardedFiles(s, outputName, shards, formattedOutput)
+	ioutils.WriteNShardedFiles(s, outputName, shards, formattedOutput)
 }
 
 // ExponentiateKey outputs a PCollection<reportID, *pb.ElGamalCiphertext> for the other helper.
@@ -224,7 +221,7 @@ func parseExponentiatedKeyFn(line string, emit func(string, *pb.ElGamalCiphertex
 // ReadExponentiatedKeys reads the exponentiated conversion keys from the other helper.
 func ReadExponentiatedKeys(s beam.Scope, inputName string) beam.PCollection {
 	s = s.Scope("ReadExponentiatedKey")
-	allFiles := addStrInPath(inputName, "*")
+	allFiles := ioutils.AddStrInPath(inputName, "*")
 	lines := textio.ReadSdf(s, allFiles)
 	return beam.ParDo(s, parseExponentiatedKeyFn, lines)
 }
@@ -302,45 +299,4 @@ func RekeyByAggregationID(s beam.Scope, externalKey, report beam.PCollection, pr
 		ElGamalPrivateKey: privateKey,
 		Secret:            secret,
 	}, joined)
-}
-
-type addShardKeyFn struct {
-	TotalShards int64
-}
-
-func (fn *addShardKeyFn) ProcessElement(line string, emit func(int64, string)) {
-	emit(rand.Int63n(fn.TotalShards), line)
-}
-
-type getShardFn struct {
-	Shard int64
-}
-
-func (fn *getShardFn) ProcessElement(key int64, line string, emit func(string)) {
-	if fn.Shard == key {
-		emit(line)
-	}
-}
-
-// WriteNShardedFiles writes the text files in shards.
-func WriteNShardedFiles(s beam.Scope, outputName string, n int64, lines beam.PCollection) {
-	s = s.Scope("WriteNShardedFiles")
-
-	if n == 1 {
-		textio.Write(s, outputName, lines)
-		return
-	}
-	keyed := beam.ParDo(s, &addShardKeyFn{TotalShards: n}, lines)
-	for i := int64(0); i < n; i++ {
-		shard := beam.ParDo(s, &getShardFn{Shard: i}, keyed)
-		textio.Write(s, addStrInPath(outputName, fmt.Sprintf("-%d-%d", i+1, n)), shard)
-	}
-}
-
-// addStrInPath adds a string in the file name before the file extension.
-//
-// For example: addStringInPath("/foo/x.bar", "_baz") = "/foo/x_baz.bar"
-func addStrInPath(path, str string) string {
-	ext := filepath.Ext(path)
-	return path[:len(path)-len(ext)] + str + ext
 }

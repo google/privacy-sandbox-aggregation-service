@@ -24,6 +24,7 @@ go_library(
         ":crypto_go_proto",
         ":cryptoio",
         ":elgamalencrypt",
+        ":ioutils",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
@@ -79,10 +80,10 @@ go_library(
     srcs = ["browsersimulator.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/browsersimulator",
     deps = [
-        ":conversion",
         ":crypto_go_proto",
         ":cryptoio",
         ":elgamalencrypt",
+        ":ioutils",
         ":secretshare",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
@@ -289,11 +290,8 @@ go_test(
         ":elgamalencrypttesting",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
-        "@com_github_google_go_cmp//cmp:go_default_library",
-        "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
     ],
 )
 
@@ -357,5 +355,31 @@ go_binary(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_library(
+    name = "ioutils",
+    srcs = ["ioutils.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils",
+    deps = [
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+    ],
+)
+
+go_test(
+    name = "ioutils_test",
+    size = "small",
+    srcs = ["ioutils_test.go"],
+    embed = [":ioutils"],
+    deps = [
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
     ],
 )

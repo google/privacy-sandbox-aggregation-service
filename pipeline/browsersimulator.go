@@ -30,9 +30,9 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
 	"github.com/pborman/uuid"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/conversion"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/secretshare"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
@@ -221,7 +221,7 @@ func formatPartialReportFn(reportID string, encrypted *pb.StandardCiphertext, em
 func writePartialReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
 	s = s.Scope("WriteEncryptedPartialReport")
 	formattedOutput := beam.ParDo(s, formatPartialReportFn, output)
-	conversion.WriteNShardedFiles(s, outputTextName, shards, formattedOutput)
+	ioutils.WriteNShardedFiles(s, outputTextName, shards, formattedOutput)
 }
 
 func splitRawConversion(s beam.Scope, lines beam.PCollection, helper1, helper2 *ServerPublicInfo) (beam.PCollection, beam.PCollection) {

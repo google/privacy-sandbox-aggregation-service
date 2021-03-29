@@ -383,8 +383,3 @@ go_test(
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
     ],
 )
-
-go_proto_library(
-    name = "distributed_point_function_go_proto",
-    protos = ["//third_party/private_statistics/dpf:distributed_point_function_proto"],
-)

@@ -17,10 +17,12 @@
 #include <cstring>
 #include <string>
 
+#include "absl/strings/string_view.h"
+
 namespace convagg {
 namespace crypto {
 
-bool StrToCBytes(const std::string &str, CBytes *out_cb) {
+bool StrToCBytes(absl::string_view str, CBytes *out_cb) {
   size_t size = str.size();
   // The memory will be freed in the GO code.
   char *copy = static_cast<char *>(malloc(size));

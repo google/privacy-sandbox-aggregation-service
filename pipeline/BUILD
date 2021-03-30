@@ -154,6 +154,7 @@ cc_library(
     hdrs = ["cbytes_utils.h"],
     deps = [
         ":cbytes",
+        "@com_google_absl//absl/strings",
     ],
 )
 

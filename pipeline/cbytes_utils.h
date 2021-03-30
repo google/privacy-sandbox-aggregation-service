@@ -19,12 +19,13 @@
 
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "pipeline/cbytes.h"
 
 namespace convagg {
 namespace crypto {
 
-bool StrToCBytes(const std::string &str, CBytes *out_cb);
+bool StrToCBytes(absl::string_view str, CBytes *out_cb);
 
 }  // namespace crypto
 }  // namespace convagg

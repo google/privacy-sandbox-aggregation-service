@@ -384,3 +384,52 @@ go_test(
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
     ],
 )
+
+cc_library(
+    name = "distributed_point_function_c_bridge",
+    srcs = ["distributed_point_function_c_bridge.cc"],
+    hdrs = ["distributed_point_function_c_bridge.h"],
+    deps = [
+        ":cbytes",
+        ":cbytes_utils",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "distributed_point_function_c_bridge_test",
+    srcs = ["distributed_point_function_c_bridge_test.cc"],
+    deps = [
+        ":distributed_point_function_c_bridge",
+        "@com_github_google_googletest//:gtest_main",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+go_library(
+    name = "incrementaldpf",
+    srcs = ["incrementaldpf.go"],
+    cdeps = [
+        ":distributed_point_function_c_bridge",  # keep
+    ],
+    cgo = True,
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf",
+    deps = ["@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto"],
+)
+
+go_test(
+    name = "incrementaldpf_test",
+    size = "small",
+    srcs = ["incrementaldpf_test.go"],
+    embed = [":incrementaldpf"],
+    deps = [
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+    ],
+)

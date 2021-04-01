@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package convagg.crypto;
 
+import "dpf/distributed_point_function.proto";
+
 // For serialization of elgamal::Ciphertext
 // http://google3/privacy/blinders/cpp/crypto/elgamal.h?rcl=321831591&l=39
 message ElGamalCiphertext {
@@ -68,4 +70,17 @@ message StandardPublicKey {
 // Private key in ECIES-HKDF-AES128GCM encryption scheme.
 message StandardPrivateKey {
   bytes key = 1 ;
+}
+
+// The DPF key shares for 'SUM' and 'COUNT' from a conversion record.
+message PartialReportDpf {
+  private_statistics.dpf.DpfKey sum_key = 1;
+  private_statistics.dpf.DpfKey count_key = 2;
+}
+
+// PartialAggregationDpf contains the aggregation results from one of the helpers
+// for one specific bucket of the histogram.
+message PartialAggregationDpf {
+  uint64 partial_sum = 1;
+  uint64 partial_count = 2;
 }

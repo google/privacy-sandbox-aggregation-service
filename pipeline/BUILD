@@ -500,3 +500,38 @@ go_test(
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
     ],
 )
+
+go_binary(
+    name = "dpf_aggregate_partial_report",
+    srcs = ["dpf_aggregate_partial_report.go"],
+    deps = [
+        ":cryptoio",
+        ":dpfaggregator",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "dpf_generate_partial_report",
+    srcs = ["dpf_generate_partial_report.go"],
+    deps = [
+        ":cryptoio",
+        ":dpfbrowsersimulator",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "dpf_merge_partial_aggregation",
+    srcs = ["dpf_merge_partial_aggregation.go"],
+    deps = [
+        ":dpfaggregator",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)

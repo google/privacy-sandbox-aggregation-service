@@ -1,0 +1,87 @@
+// Copyright 2021 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// This binary aggregates the partial report for each aggregation ID, which is calculated from the exponentiated conversion keys from the other helper.
+// The pipeline can be executed in two ways:
+//
+// 1. Directly on local
+// /path/to/dpf_aggregate_partial_report \
+// --partial_report_file=/path/to/partial_report_file.txt \
+// --partial_histogram_file=/path/to/partial_histogram_file.txt \
+// --private_key_dir=/path/to/private_key_dir \
+// --runner=direct
+//
+// 2. Dataflow on cloud
+// /path/to/dpf_aggregate_partial_report \
+// --partial_report_file=gs://<helper bucket>/partial_report_file.txt \
+// --partial_histogram_file=gs://<helper bucket>/partial_histogram_file.txt \
+// --private_key_dir=/path/to/private_key_dir \
+// --runner=dataflow \
+// --project=<GCP project> \
+// --temp_location=gs://<dataflow temp dir> \
+// --staging_location=gs://<dataflow temp dir> \
+// --worker_binary=/path/to/dpf_aggregate_partial_report
+package main
+
+import (
+	"context"
+	"flag"
+
+	"github.com/apache/beam/sdks/go/pkg/beam"
+	"github.com/apache/beam/sdks/go/pkg/beam/log"
+	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+)
+
+var (
+	partialReportFile    = flag.String("partial_report_file", "", "Input partial reports.")
+	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
+	privateKeyDir        = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
+
+	logN                = flag.Uint64("log_n", 20, "Bits of the aggregation domain size.")
+	logElementSizeSum   = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
+	logElementSizeCount = flag.Uint64("log_element_size_count", 6, "Bits of element size for COUNT aggregation.")
+
+	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
+
+	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
+)
+
+func main() {
+	flag.Parse()
+	beam.Init()
+	ctx := context.Background()
+	helperPrivKey, err := cryptoio.ReadStandardPrivateKey(*privateKeyDir)
+	if err != nil {
+		log.Exit(ctx, err)
+	}
+	pipeline := beam.NewPipeline()
+	scope := pipeline.Root()
+	dpfaggregator.AggregatePartialReport(
+		scope,
+		&dpfaggregator.AggregatePartialReportParams{
+			PartialReportFile:    *partialReportFile,
+			PartialHistogramFile: *partialHistogramFile,
+			LogN:                 *logN,
+			LogElementSizeSum:    *logElementSizeSum,
+			LogElementSizeCount:  *logElementSizeCount,
+			HelperPrivateKey:     helperPrivKey,
+			DirectCombine:        *directCombine,
+			Shards:               *fileShards,
+		})
+	if err := beamx.Run(ctx, pipeline); err != nil {
+		log.Exitf(ctx, "Failed to execute job: %s", err)
+	}
+}

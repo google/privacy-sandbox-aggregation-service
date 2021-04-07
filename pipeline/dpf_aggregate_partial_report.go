@@ -54,7 +54,8 @@ var (
 	logElementSizeSum   = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
 	logElementSizeCount = flag.Uint64("log_element_size_count", 6, "Bits of element size for COUNT aggregation.")
 
-	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
+	directCombine    = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
+	logSegmentLength = flag.Uint64("log_segment_length", 15, "Bits of the segment to split the original vectors.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -79,6 +80,7 @@ func main() {
 			LogElementSizeCount:  *logElementSizeCount,
 			HelperPrivateKey:     helperPrivKey,
 			DirectCombine:        *directCombine,
+			LogSegmentLength:     *logSegmentLength,
 			Shards:               *fileShards,
 		})
 	if err := beamx.Run(ctx, pipeline); err != nil {

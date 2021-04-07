@@ -63,8 +63,11 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*combineVectorSegmentFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*expandDpfKeyFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*decryptPartialReportFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*formatCompleteHistogramFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*formatHistogramFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*mergeHistogramFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseEncryptedPartialReportFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*parsePartialHistogramFn)(nil)).Elem())
 
 	beam.RegisterType(reflect.TypeOf((*expandedVec)(nil)))
 }

@@ -234,3 +234,44 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	})
 	return nil
 }
+
+func TestPartialAggregationAndMerge(t *testing.T) {
+	want := []CompleteHistogram{
+		{Index: 1, Sum: 10, Count: 10},
+	}
+	var reports []rawConversion
+	for _, h := range want {
+		for i := uint64(0); i < h.Count; i++ {
+			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
+		}
+	}
+
+	logN := uint64(8)
+	logElementSizeSum := uint64(6)
+	logElementSizeCount := uint64(6)
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	conversions := beam.CreateList(scope, reports)
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{
+		LogN:                logN,
+		LogElementSizeSum:   logElementSizeSum,
+		LogElementSizeCount: logElementSizeCount,
+	}, conversions)
+	params := &AggregatePartialReportParams{
+		LogN:                logN,
+		LogElementSizeSum:   logElementSizeSum,
+		LogElementSizeCount: logElementSizeCount,
+		DirectCombine:       true,
+	}
+	partialResult1 := ExpandAndCombineHistogram(scope, partialReport1, params)
+	partialResult2 := ExpandAndCombineHistogram(scope, partialReport2, params)
+
+	joined := beam.CoGroupByKey(scope, partialResult1, partialResult2)
+	got := beam.ParDo(scope, &mergeHistogramFn{}, joined)
+
+	passert.Equals(scope, got, beam.CreateList(scope, want))
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}

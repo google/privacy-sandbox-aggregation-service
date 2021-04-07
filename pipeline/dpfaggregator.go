@@ -28,6 +28,9 @@
 // Finally, the SUM and COUNT results are stored in a PartialAggregationDpf for each bucket ID. The
 // buket ID and it's corresponding PartialAggregationDpf in wire-format is written as a line in the
 // output file.
+//
+// Function MergePartialHistogram() reads the partial aggregation results from different helpers,
+// and gets the complete histograms by adding the SUM and COUNT results.
 package dpfaggregator
 
 import (
@@ -35,6 +38,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
@@ -48,6 +53,10 @@ import (
 )
 
 func init() {
+	beam.RegisterType(reflect.TypeOf((*pb.PartialReportDpf)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregationDpf)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
+
 	beam.RegisterType(reflect.TypeOf((*alignVectorFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*alignVectorSegmentFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*combineVectorFn)(nil)).Elem())
@@ -381,4 +390,120 @@ func writeHistogram(s beam.Scope, col beam.PCollection, outputName string, shard
 	s = s.Scope("WriteHistogram")
 	formatted := beam.ParDo(s, &formatHistogramFn{}, col)
 	ioutils.WriteNShardedFiles(s, outputName, shards, formatted)
+}
+
+// parsePartialHistogramFn parses each line from the partial aggregation file, and gets a pair of bucket ID and PartialAggregationDpf.
+type parsePartialHistogramFn struct {
+	countBucket beam.Counter
+}
+
+func (fn *parsePartialHistogramFn) Setup() {
+	fn.countBucket = beam.NewCounter("aggregation", "parsePartialHistogramFn_bucket_count")
+}
+
+func (fn *parsePartialHistogramFn) ProcessElement(ctx context.Context, line string, emit func(uint64, *pb.PartialAggregationDpf)) error {
+	cols := strings.Split(line, ",")
+	if got, want := len(cols), 2; got != want {
+		return fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
+	}
+
+	index, err := strconv.ParseUint(cols[0], 10, 64)
+	if err != nil {
+		return err
+	}
+
+	bResult, err := base64.StdEncoding.DecodeString(cols[1])
+	if err != nil {
+		return err
+	}
+
+	aggregation := &pb.PartialAggregationDpf{}
+	if err := proto.Unmarshal(bResult, aggregation); err != nil {
+		return err
+	}
+	fn.countBucket.Inc(ctx, 1)
+	emit(index, aggregation)
+	return nil
+}
+
+func readPartialHistogram(s beam.Scope, partialHistogramFile string) beam.PCollection {
+	s = s.Scope("ReadPartialHistogram")
+	allFiles := ioutils.AddStrInPath(partialHistogramFile, "*")
+	lines := textio.ReadSdf(s, allFiles)
+	return beam.ParDo(s, &parsePartialHistogramFn{}, lines)
+}
+
+// CompleteHistogram represents the final aggregation result in a histogram.
+type CompleteHistogram struct {
+	Index uint64
+	Sum   uint64
+	Count uint64
+}
+
+// mergeHistogramFn merges the two PartialAggregationDpf messages for the same bucket ID by summing the SUM and COUNT results.
+type mergeHistogramFn struct {
+	countBucket beam.Counter
+}
+
+func (fn *mergeHistogramFn) Setup() {
+	fn.countBucket = beam.NewCounter("aggregation", "mergeHistogramFn_bucket_count")
+}
+
+func (fn *mergeHistogramFn) ProcessElement(ctx context.Context, index uint64, pHisIter1 func(**pb.PartialAggregationDpf) bool, pHisIter2 func(**pb.PartialAggregationDpf) bool, emit func(CompleteHistogram)) error {
+	var hist1 *pb.PartialAggregationDpf
+	if !pHisIter1(&hist1) {
+		return fmt.Errorf("expect two shares for bucket ID %d, missing from helper1", index)
+	}
+	var hist2 *pb.PartialAggregationDpf
+	if !pHisIter2(&hist2) {
+		return fmt.Errorf("expect two shares for bucket ID %d, missing from helper2", index)
+	}
+
+	if hist1.PartialCount+hist2.PartialCount == 0 {
+		return nil
+	}
+
+	fn.countBucket.Inc(ctx, 1)
+	emit(CompleteHistogram{
+		Index: index,
+		Sum:   hist1.PartialSum + hist2.PartialSum,
+		Count: hist1.PartialCount + hist2.PartialCount,
+	})
+	return nil
+}
+
+// MergeHistogram merges the partial aggregation results in histograms.
+func MergeHistogram(s beam.Scope, pHist1, pHist2 beam.PCollection) beam.PCollection {
+	s = s.Scope("MergePartialHistograms")
+	joined := beam.CoGroupByKey(s, pHist1, pHist2)
+	return beam.ParDo(s, &mergeHistogramFn{}, joined)
+}
+
+// formatCompleteHistogramFn converts the complete aggregation result into a string of format: bucket ID, SUM, COUNT.
+type formatCompleteHistogramFn struct {
+	countBucket beam.Counter
+}
+
+func (fn *formatCompleteHistogramFn) Setup() {
+	fn.countBucket = beam.NewCounter("aggregation", "formatCompleteHistogramFn_bucket_count")
+}
+
+func (fn *formatCompleteHistogramFn) ProcessElement(ctx context.Context, result CompleteHistogram) string {
+	return fmt.Sprintf("%d,%d,%d", result.Index, result.Sum, result.Count)
+}
+
+func writeCompleteHistogram(s beam.Scope, indexResult beam.PCollection, fileName string) {
+	s = s.Scope("WriteCompleteHistogram")
+	formatted := beam.ParDo(s, &formatCompleteHistogramFn{}, indexResult)
+	textio.Write(s, fileName, formatted)
+}
+
+// MergePartialHistogram reads the partial aggregated histograms and merges them to get the complete histogram.
+func MergePartialHistogram(scope beam.Scope, partialHistFile1, partialHistFile2, completeHistFile string) {
+	scope = scope.Scope("MergePartialHistogram")
+
+	partialHist1 := readPartialHistogram(scope, partialHistFile1)
+	partialHist2 := readPartialHistogram(scope, partialHistFile2)
+	completeHistogram := MergeHistogram(scope, partialHist1, partialHist2)
+	writeCompleteHistogram(scope, completeHistogram, completeHistFile)
 }

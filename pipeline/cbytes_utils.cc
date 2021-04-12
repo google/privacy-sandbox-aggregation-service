@@ -14,10 +14,12 @@
 
 #include "pipeline/cbytes_utils.h"
 
+#include <cstddef>
 #include <cstring>
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "pipeline/cbytes.h"
 
 namespace convagg {
 namespace crypto {
@@ -31,6 +33,15 @@ bool StrToCBytes(absl::string_view str, CBytes *out_cb) {
   }
   memcpy(copy, str.data(), size);
   out_cb->c = copy;
+  out_cb->l = size;
+  return true;
+}
+
+bool AllocateCBytes(size_t size, CBytes *out_cb) {
+  out_cb->c = static_cast<char *>(malloc(size));
+  if (out_cb->c == nullptr) {
+    return false;
+  }
   out_cb->l = size;
   return true;
 }

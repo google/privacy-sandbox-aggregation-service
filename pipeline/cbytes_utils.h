@@ -27,6 +27,8 @@ namespace crypto {
 
 bool StrToCBytes(absl::string_view str, CBytes *out_cb);
 
+bool AllocateCBytes(size_t size, CBytes *out_cb);
+
 }  // namespace crypto
 }  // namespace convagg
 

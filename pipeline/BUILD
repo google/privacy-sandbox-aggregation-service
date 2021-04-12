@@ -408,7 +408,11 @@ cc_test(
     name = "distributed_point_function_c_bridge_test",
     srcs = ["distributed_point_function_c_bridge_test.cc"],
     deps = [
+        ":cbytes",
+        ":cbytes_utils",
         ":distributed_point_function_c_bridge",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
         "@com_github_google_googletest//:gtest_main",
         "@com_google_absl//absl/status",
     ],
@@ -422,7 +426,10 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf",
-    deps = ["@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto"],
+    deps = [
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@org_golang_google_protobuf//proto",
+    ],
 )
 
 go_test(

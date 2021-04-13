@@ -36,9 +36,7 @@ go_library(
     name = "conversionaggregator",
     srcs = ["conversionaggregator.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/conversionaggregator",
-    visibility = [
-        "//third_party/privacy_sandbox_aggregation/service:__subpackages__",
-    ],
+    visibility = ["//visibility:private"],
     deps = [
         ":conversion",
         ":crypto_go_proto",

@@ -74,8 +74,8 @@ message StandardPrivateKey {
 
 // The DPF key shares for 'SUM' and 'COUNT' from a conversion record.
 message PartialReportDpf {
-  private_statistics.dpf.DpfKey sum_key = 1;
-  private_statistics.dpf.DpfKey count_key = 2;
+  distributed_point_functions.DpfKey sum_key = 1;
+  distributed_point_functions.DpfKey count_key = 2;
 }
 
 // PartialAggregationDpf contains the aggregation results from one of the helpers

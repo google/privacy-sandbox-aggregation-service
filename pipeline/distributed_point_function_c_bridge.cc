@@ -21,10 +21,10 @@
 
 using ::convagg::crypto::AllocateCBytes;
 using ::convagg::crypto::StrToCBytes;
-using ::private_statistics::dpf::DistributedPointFunction;
-using ::private_statistics::dpf::DpfKey;
-using ::private_statistics::dpf::DpfParameters;
-using ::private_statistics::dpf::EvaluationContext;
+using ::distributed_point_functions::DistributedPointFunction;
+using ::distributed_point_functions::DpfKey;
+using ::distributed_point_functions::DpfParameters;
+using ::distributed_point_functions::EvaluationContext;
 
 int CGenerateKeys(const struct CBytes* param, uint64_t alpha, uint64_t beta,
                   struct CBytes* out_key1, struct CBytes* out_key2,

@@ -14,7 +14,7 @@
 
 namespace {
 using ::convagg::crypto::StrToCBytes;
-using ::private_statistics::dpf::DpfParameters;
+using ::distributed_point_functions::DpfParameters;
 
 TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
   DpfParameters params;

@@ -151,7 +151,7 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.
 		LogDomainSize:  int32(fn.LogN),
 		ElementBitsize: 1 << fn.LogElementSizeSum,
 	}
-	sumCtx, err := incrementaldpf.CreateEvaluationContext(sumParams, partialReport.GetSumKey())
+	sumCtx, err := incrementaldpf.CreateEvaluationContext([]*dpfpb.DpfParameters{sumParams}, partialReport.GetSumKey())
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.
 		LogDomainSize:  int32(fn.LogN),
 		ElementBitsize: 1 << fn.LogElementSizeCount,
 	}
-	countCtx, err := incrementaldpf.CreateEvaluationContext(countParams, partialReport.GetCountKey())
+	countCtx, err := incrementaldpf.CreateEvaluationContext([]*dpfpb.DpfParameters{countParams}, partialReport.GetCountKey())
 	if err != nil {
 		return err
 	}

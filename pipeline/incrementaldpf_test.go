@@ -15,6 +15,7 @@
 package incrementaldpf
 
 import (
+	"os"
 	"testing"
 
 	pb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -22,11 +23,11 @@ import (
 )
 
 func TestDpfGenEvalFunctions(t *testing.T) {
-	params := &pb.DpfParameters{
-		LogDomainSize:  20,
-		ElementBitsize: 64,
+	os.Setenv("GODEBUG", "cgocheck=2")
+	params := []*pb.DpfParameters{
+		{LogDomainSize: 20, ElementBitsize: 64},
 	}
-	k1, k2, err := GenerateKeys(params, 0, 1)
+	k1, k2, err := GenerateKeys(params, 0, []uint64{1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +54,101 @@ func TestDpfGenEvalFunctions(t *testing.T) {
 	for i := 0; i < len(expanded1); i++ {
 		got[i] = expanded1[i] + expanded2[i]
 	}
-	want := make([]uint64, 1<<params.GetLogDomainSize())
+	want := make([]uint64, 1<<params[0].GetLogDomainSize())
 	want[0] = 1
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+}
+
+func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
+	os.Setenv("GODEBUG", "cgocheck=2")
+	params := []*pb.DpfParameters{
+		{LogDomainSize: 2, ElementBitsize: 64},
+		{LogDomainSize: 4, ElementBitsize: 64},
+	}
+	alpha, beta := uint64(8), uint64(1)
+	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta, beta})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx1, err := CreateEvaluationContext(params, k1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx2, err := CreateEvaluationContext(params, k2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prefixes := [][]uint64{{}, {0, 2}}
+	// First level of expansion for the first two bits.
+	expanded1, err := EvaluateNext64(prefixes[0], evalCtx1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expanded2, err := EvaluateNext64(prefixes[0], evalCtx2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]uint64, len(expanded1))
+	for i := range expanded1 {
+		got[i] = expanded1[i] + expanded2[i]
+	}
+	want := make([]uint64, 1<<params[0].GetLogDomainSize())
+	want[2] = 1
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+
+	// Second level of expansion for all four bits of two prefixes: 0 (00**) and 2 (10**).
+	expanded1, err = EvaluateNext64(prefixes[1], evalCtx1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expanded2, err = EvaluateNext64(prefixes[1], evalCtx2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotMap := make(map[uint64]uint64)
+	ids, err := CalculateBucketID(params, prefixes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ids == nil {
+		t.Fatalf("bucket IDs should not be empty")
+	}
+	for i := range expanded1 {
+		result := expanded1[i] + expanded2[i]
+		if result != 0 {
+			gotMap[ids[i]] = result
+		}
+	}
+	wantMap := make(map[uint64]uint64)
+	wantMap[alpha] = beta
+	if diff := cmp.Diff(wantMap, gotMap); diff != "" {
+		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+}
+
+func TestCalculateBucketID(t *testing.T) {
+	params := []*pb.DpfParameters{
+		{LogDomainSize: 2, ElementBitsize: 64},
+		{LogDomainSize: 3, ElementBitsize: 64},
+	}
+	prefixes := [][]uint64{{}, {1, 3}}
+	want := []uint64{2, 3, 6, 7}
+
+	got, err := CalculateBucketID(params, prefixes)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}

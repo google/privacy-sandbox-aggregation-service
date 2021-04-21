@@ -111,17 +111,21 @@ func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(&dpfpb.DpfParameters{
-		LogDomainSize:  int32(fn.LogN),
-		ElementBitsize: 1 << fn.LogElementSizeSum,
-	}, c.Index, c.Value)
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys([]*dpfpb.DpfParameters{
+		{
+			LogDomainSize:  int32(fn.LogN),
+			ElementBitsize: 1 << fn.LogElementSizeSum,
+		},
+	}, c.Index, []uint64{c.Value})
 	if err != nil {
 		return err
 	}
-	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys(&dpfpb.DpfParameters{
-		LogDomainSize:  int32(fn.LogN),
-		ElementBitsize: 1 << fn.LogElementSizeCount,
-	}, c.Index, 1)
+	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys([]*dpfpb.DpfParameters{
+		{
+			LogDomainSize:  int32(fn.LogN),
+			ElementBitsize: 1 << fn.LogElementSizeCount,
+		},
+	}, c.Index, []uint64{1})
 	if err != nil {
 		return err
 	}

@@ -20,12 +20,17 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
+	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
-func createConversionsDpf(n int) ([]rawConversion, []dpfaggregator.CompleteHistogram) {
-	var conversions []rawConversion
+func createConversionsDpf(n int) ([]RawConversion, []dpfaggregator.CompleteHistogram) {
+	var conversions []RawConversion
 	var results []dpfaggregator.CompleteHistogram
 	for i := 0; i < (n+9)/10; i++ {
 		sum := 0
@@ -33,7 +38,7 @@ func createConversionsDpf(n int) ([]rawConversion, []dpfaggregator.CompleteHisto
 			if len(conversions) >= n {
 				continue
 			}
-			conversions = append(conversions, rawConversion{Index: uint64(i), Value: uint64(1)})
+			conversions = append(conversions, RawConversion{Index: uint64(i), Value: uint64(1)})
 			sum++
 		}
 		results = append(results, dpfaggregator.CompleteHistogram{Index: uint64(i), Sum: uint64(sum), Count: uint64(sum)})
@@ -101,5 +106,78 @@ func testAggregationPipelineDPF(t testing.TB) {
 func BenchmarkPipeline(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		testAggregationPipelineDPF(b)
+	}
+}
+
+func TestPrefixGeneration(t *testing.T) {
+	// Create the prefix tree.
+	root := &PrefixNode{Class: "root"}
+	// Suppose the first 4 bits represent the campaign ID, and only 4 IDs have data.
+	for i := 0; i < 4; i++ {
+		child := root.AddChildNode("campaignid", 4 /*bitSize*/, uint64(i) /*value*/)
+		// Following 3 bits representing geo, and only 1 location have data.
+		child.AddChildNode("geo", 3 /*bitSize*/, uint64(0) /*value*/)
+	}
+
+	wantPrefixes := &pb.HierarchicalPrefixes{
+		Prefixes: []*pb.DomainPrefixes{
+			{},
+			{Prefix: []uint64{0, 1, 2, 3}},
+			{Prefix: []uint64{0, 8, 16, 24}},
+		},
+	}
+
+	prefixes, prefixBits := CalculatePrefixes(root)
+	if diff := cmp.Diff(wantPrefixes, prefixes, protocmp.Transform()); diff != "" {
+		t.Fatalf("incorrect prefixes (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]uint64{4, 7}, prefixBits); diff != "" {
+		t.Fatalf("incorrect prefix bits (-want +got):\n%s", diff)
+	}
+
+	sumParams, countParams := CalculateParameters(prefixBits, 20, 6, 6)
+	want := &pb.IncrementalDpfParameters{
+		Params: []*dpfpb.DpfParameters{
+			{LogDomainSize: 4, ElementBitsize: 6},
+			{LogDomainSize: 7, ElementBitsize: 6},
+			{LogDomainSize: 20, ElementBitsize: 6},
+		},
+	}
+	if diff := cmp.Diff(want, sumParams, protocmp.Transform()); diff != "" {
+		t.Errorf("sumParams diff (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(want, countParams, protocmp.Transform()); diff != "" {
+		t.Errorf("countParams diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestConversionIndexGeneration(t *testing.T) {
+	prefixes := map[uint64]bool{111: true}
+	var wantPrefixes []uint64
+	for k := range prefixes {
+		wantPrefixes = append(wantPrefixes, k)
+	}
+
+	prefixBitSize, totalBitSize := uint64(9), uint64(12)
+	gotIndex, err := CreateConversionIndex(wantPrefixes, prefixBitSize, totalBitSize, true /*hasPrefix*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotPrefix := gotIndex >> (totalBitSize - prefixBitSize)
+	if _, ok := prefixes[gotPrefix]; !ok {
+		t.Fatalf("want index with one of the prefixes in %v, got prefix %d", wantPrefixes, gotPrefix)
+	}
+
+	gotIndex, err = CreateConversionIndex(wantPrefixes, prefixBitSize, totalBitSize, false /*hasPrefix*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotPrefix = gotIndex >> (totalBitSize - prefixBitSize)
+	if _, ok := prefixes[gotPrefix]; ok {
+		t.Fatalf("want index without any of the prefixes in %v, got prefix %d", wantPrefixes, gotPrefix)
+	}
+
+	if idx, err := CreateConversionIndex([]uint64{0, 1}, 1, 2, false /*hasPrefix*/); err == nil {
+		t.Fatalf("want error for creating an index without any prefixes, got return %d", idx)
 	}
 }

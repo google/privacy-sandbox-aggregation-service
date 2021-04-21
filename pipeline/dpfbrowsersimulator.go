@@ -18,7 +18,9 @@ package dpfbrowsersimulator
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,20 +32,20 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*encryptSecretSharesFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*rawConversion)(nil)))
+	beam.RegisterType(reflect.TypeOf((*RawConversion)(nil)))
 	beam.RegisterFunction(formatPartialReportFn)
 }
 
 // For the DPF protocol the record key is an integer in a known domain.
-type rawConversion struct {
+type RawConversion struct {
 	Index uint64
 	Value uint64
 }
@@ -57,7 +59,7 @@ func (fn *parseRawConversionFn) Setup(ctx context.Context) {
 	fn.countConversion = beam.NewCounter("aggregation", "parserawConversionFn_conversion_count")
 }
 
-func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(rawConversion)) error {
+func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(RawConversion)) error {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
 		return fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
@@ -74,7 +76,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 	}
 
 	fn.countConversion.Inc(ctx, 1)
-	emit(rawConversion{
+	emit(RawConversion{
 		Index: key64,
 		Value: value64,
 	})
@@ -82,7 +84,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 }
 
 type encryptSecretSharesFn struct {
-	PublicKey1, PublicKey2                       *pb.StandardPublicKey
+	PublicKey1, PublicKey2 *pb.StandardPublicKey
 	// Parameters for the DPF secret key generation. These parameters need to be consistent with ones used on the helper servers.
 	LogN, LogElementSizeSum, LogElementSizeCount uint64
 
@@ -106,7 +108,7 @@ func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("aggregation", "encryptSecretSharesFn_report_count")
 }
 
-func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c rawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
+func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
 	fn.countReport.Inc(ctx, 1)
 
 	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(&dpfpb.DpfParameters{
@@ -195,4 +197,101 @@ func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams
 	partialReport1, partialReport2 := splitRawConversion(scope, resharded, params)
 	writePartialReport(scope, partialReport1, params.PartialReportFile1, params.Shards)
 	writePartialReport(scope, partialReport2, params.PartialReportFile2, params.Shards)
+}
+
+// PrefixNode represents a node in the tree that defines the conversion key prefix hierarchy.
+//
+// The node represents a segment of bits in the numeric conversion key, which records a certain type of information.
+type PrefixNode struct {
+	// A note for what type of information this node records. e.g. "campaignid", "geo", or anything contained in the conversion key.
+	Class string
+	// The value and length of the bit segment represented by this node.
+	BitsValue, BitsSize uint64
+	// The value and length of the prefix bits accumulated from the root to this node.
+	PrefixValue, PrefixSize uint64
+	Children                []*PrefixNode
+}
+
+// AddChildNode adds a node in the prefix tree.
+func (pn *PrefixNode) AddChildNode(class string, bitsSize, bitsValue uint64) *PrefixNode {
+	child := &PrefixNode{
+		Class:    class,
+		BitsSize: bitsSize, BitsValue: bitsValue,
+		PrefixSize: bitsSize + pn.PrefixSize, PrefixValue: pn.PrefixValue<<bitsSize + bitsValue,
+	}
+	pn.Children = append(pn.Children, child)
+	return child
+}
+
+// CalculatePrefixes calculates the prefixes for each expansion hierarchy and prefix bit sizes.
+//
+// The prefixes will be used for expanding the DPF keys in different levels; and the prefix bit sizes will be used to determine DPF parameters for DPF key generation and expansion.
+func CalculatePrefixes(root *PrefixNode) (*pb.HierarchicalPrefixes, []uint64) {
+	var curNodes, nxtNodes []*PrefixNode
+	curNodes = append(curNodes, root.Children...)
+
+	prefixes := &pb.HierarchicalPrefixes{}
+	// For the first level of expansion, the prefixes must be empty:
+	// http://github.com/google/distributed_point_functions/dpf/distributed_point_function.h?l=86&rcl=368846188
+	prefixes.Prefixes = append(prefixes.Prefixes, &pb.DomainPrefixes{})
+	var prefixBitSizes []uint64
+	for len(curNodes) > 0 {
+		var prefix []uint64
+		var prefixBitSize uint64
+		nxtNodes = []*PrefixNode{}
+		for _, node := range curNodes {
+			prefix = append(prefix, node.PrefixValue)
+			prefixBitSize = node.PrefixSize
+			nxtNodes = append(nxtNodes, node.Children...)
+		}
+		prefixes.Prefixes = append(prefixes.Prefixes, &pb.DomainPrefixes{Prefix: prefix})
+		prefixBitSizes = append(prefixBitSizes, prefixBitSize)
+		curNodes = nxtNodes
+	}
+	return prefixes, prefixBitSizes
+}
+
+// CalculateParameters gets the DPF parameters for DPF key generation and expansion.
+//
+// 'prefixBitSizes' defines the domain sizes for the DPF key expansion on different hierarchies; and 'logN' defines the total size of domain for the final histogram.
+func CalculateParameters(prefixBitSizes []uint64, logN, elementBitSizeSum, elementBitSizeCount int32) (*pb.IncrementalDpfParameters, *pb.IncrementalDpfParameters) {
+	var sumParams, countParams []*dpfpb.DpfParameters
+	for _, p := range prefixBitSizes {
+		sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: int32(p), ElementBitsize: elementBitSizeSum})
+		countParams = append(countParams, &dpfpb.DpfParameters{LogDomainSize: int32(p), ElementBitsize: elementBitSizeCount})
+	}
+	sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: logN, ElementBitsize: elementBitSizeSum})
+	countParams = append(countParams, &dpfpb.DpfParameters{LogDomainSize: logN, ElementBitsize: elementBitSizeCount})
+	return &pb.IncrementalDpfParameters{Params: sumParams}, &pb.IncrementalDpfParameters{Params: countParams}
+}
+
+// CreateConversionIndex generates a random conversion ID that matches one of the prefixes described by the input, or does not have any of the prefixes.
+func CreateConversionIndex(prefixes []uint64, prefixBitSize, totalBitSize uint64, hasPrefix bool) (uint64, error) {
+	if prefixBitSize > totalBitSize {
+		return 0, fmt.Errorf("expect a prefix bit size no larger than total bit size %d, got %d", totalBitSize, prefixBitSize)
+	}
+	if len(prefixes) == 1<<prefixBitSize || len(prefixes) == 0 {
+		if hasPrefix {
+			return uint64(rand.Int63n(int64(1) << totalBitSize)), nil
+		}
+		return 0, errors.New("unable to generate an index without any of the prefixes")
+	}
+
+	suffixBitSize := totalBitSize - prefixBitSize
+	if hasPrefix {
+		return prefixes[rand.Intn(len(prefixes))]<<suffixBitSize + uint64(rand.Int63n(1<<suffixBitSize)), nil
+	}
+
+	existing := make(map[uint64]struct{})
+	for _, p := range prefixes {
+		existing[p] = struct{}{}
+	}
+	var otherPrefix uint64
+	for {
+		otherPrefix = uint64(rand.Int63n(int64(1) << prefixBitSize))
+		if _, ok := existing[otherPrefix]; !ok {
+			break
+		}
+	}
+	return otherPrefix<<suffixBitSize | uint64(rand.Int63n(1<<suffixBitSize)), nil
 }

@@ -17,11 +17,17 @@ package cryptoio
 import (
 	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func TestKeyGeneration(t *testing.T) {
@@ -114,5 +120,53 @@ func TestKeyGeneration(t *testing.T) {
 	}
 	if exp1 != exp2 {
 		t.Fatalf("exponential results should be the same: want %s, got %s", exp1, exp2)
+	}
+}
+
+func TestReadWriteDPFparameters(t *testing.T) {
+	baseDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(baseDir)
+
+	// wantPrefix := &pb.HierarchicalPrefixes{nil, nil, {1, 8, 10}}
+	wantPrefix := &pb.HierarchicalPrefixes{
+		Prefixes: []*pb.DomainPrefixes{
+			{},
+			{},
+			{Prefix: []uint64{1, 8, 10}},
+		},
+	}
+	prefixPath := path.Join(baseDir, "prefix.txt")
+
+	if err := SavePrefixes(prefixPath, wantPrefix); err != nil {
+		t.Fatal(err)
+	}
+	gotPrefix, err := ReadPrefixes(prefixPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(wantPrefix, gotPrefix, protocmp.Transform()); diff != "" {
+		t.Errorf("prefixes read/write mismatch (-want +got):\n%s", diff)
+	}
+
+	wantParams := &pb.IncrementalDpfParameters{
+		Params: []*dpfpb.DpfParameters{
+			{LogDomainSize: 111, ElementBitsize: 121},
+			{LogDomainSize: 222, ElementBitsize: 212},
+		},
+	}
+	paramsPath := path.Join(baseDir, "params.txt")
+
+	if err := SaveDPFParameters(paramsPath, wantParams); err != nil {
+		t.Fatal(err)
+	}
+	gotParams, err := ReadDPFParameters(paramsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(wantParams, gotParams, protocmp.Transform()); diff != "" {
+		t.Errorf("DPF parameters read/write mismatch (-want +got):\n%s", diff)
 	}
 }

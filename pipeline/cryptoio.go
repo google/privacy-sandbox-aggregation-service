@@ -16,10 +16,12 @@
 package cryptoio
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
@@ -156,4 +158,89 @@ func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPubl
 		return nil, nil, err
 	}
 	return sPub, hPub, ioutil.WriteFile(path.Join(fileDir, elgamalSecret), []byte(secret), os.ModePerm)
+}
+
+// SaveLines saves the input string slice into a file.
+func SaveLines(filename string, lines []string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	fs, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	buf := bufio.NewWriter(fs)
+
+	for _, line := range lines {
+		if _, err := buf.WriteString(line); err != nil {
+			return err
+		}
+		if _, err := buf.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+	}
+
+	if err := buf.Flush(); err != nil {
+		return err
+	}
+	return fs.Close()
+}
+
+func readLines(filename string) ([]string, error) {
+	fs, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer fs.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(fs)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
+}
+
+// SavePrefixes saves prefixes to a file.
+func SavePrefixes(filename string, prefixes *pb.HierarchicalPrefixes) error {
+	bPrefixes, err := proto.Marshal(prefixes)
+	if err != nil {
+		return fmt.Errorf("prefixes marshal(%s) failed: %v", prefixes.String(), err)
+	}
+	return ioutil.WriteFile(filename, bPrefixes, os.ModePerm)
+}
+
+// SaveDPFParameters saves the DPF parameters into a file.
+func SaveDPFParameters(filename string, params *pb.IncrementalDpfParameters) error {
+	bParams, err := proto.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("params marshal(%s) failed: %v", params.String(), err)
+	}
+	return ioutil.WriteFile(filename, bParams, os.ModePerm)
+}
+
+// ReadPrefixes reads the prefixes from a file.
+func ReadPrefixes(filename string) (*pb.HierarchicalPrefixes, error) {
+	bPrefixes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	prefixes := &pb.HierarchicalPrefixes{}
+	if err := proto.Unmarshal(bPrefixes, prefixes); err != nil {
+		return nil, err
+	}
+	return prefixes, nil
+}
+
+// ReadDPFParameters reads the DPF parameters from a file.
+func ReadDPFParameters(filename string) (*pb.IncrementalDpfParameters, error) {
+	bParams, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	params := &pb.IncrementalDpfParameters{}
+	if err := proto.Unmarshal(bParams, params); err != nil {
+		return nil, err
+	}
+	return params, nil
 }

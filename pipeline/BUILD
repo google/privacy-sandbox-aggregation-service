@@ -251,9 +251,13 @@ go_test(
     srcs = ["cryptoio_test.go"],
     embed = [":cryptoio"],
     deps = [
+        ":crypto_go_proto",
         ":elgamalencrypt",
         ":elgamalencrypttesting",
         ":standardencrypt",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@org_golang_google_protobuf//testing/protocmp",
     ],
 )
 
@@ -499,11 +503,15 @@ go_test(
     srcs = ["dpfbrowsersimulator_test.go"],
     embed = [":dpfbrowsersimulator"],
     deps = [
+        ":crypto_go_proto",
         ":dpfaggregator",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@org_golang_google_protobuf//testing/protocmp",
     ],
 )
 
@@ -539,5 +547,15 @@ go_binary(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "dpf_generate_raw_conversion",
+    srcs = ["dpf_generate_raw_conversion.go"],
+    deps = [
+        ":cryptoio",
+        ":dpfbrowsersimulator",
+        "@com_github_golang_glog//:go_default_library",
     ],
 )

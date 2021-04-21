@@ -78,9 +78,29 @@ message PartialReportDpf {
   distributed_point_functions.DpfKey count_key = 2;
 }
 
-// PartialAggregationDpf contains the aggregation results from one of the helpers
-// for one specific bucket of the histogram.
+// PartialAggregationDpf contains the aggregation results from one of the
+// helpers for one specific bucket of the histogram.
 message PartialAggregationDpf {
   uint64 partial_sum = 1;
   uint64 partial_count = 2;
+}
+
+// DomainPrefixes contains the prefixes to expand the DPF keys in a certain
+// domain.
+message DomainPrefixes {
+  repeated uint64 prefix = 1;
+}
+
+// HierarchicalPrefixes contains the prefixes for each of the hierarchical
+// domains.
+message HierarchicalPrefixes {
+  // For the first level of expansion, the prefixes must be empty:
+	// http://google3/third_party/distributed_point_functions/dpf/distributed_point_function.h?l=86&rcl=368846188
+  repeated DomainPrefixes prefixes = 1;
+}
+
+// IncrementalDpfParameters contains DPF parameters for key generation and
+// expansion in each of the hierarchical domains.
+message IncrementalDpfParameters {
+  repeated distributed_point_functions.DpfParameters params = 1;
 }

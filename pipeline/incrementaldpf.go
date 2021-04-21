@@ -37,19 +37,46 @@ func freeCBytes(cb C.struct_CBytes) {
 	C.free(unsafe.Pointer(cb.c))
 }
 
+func createCParams(params []*pb.DpfParameters) (*C.struct_CBytes, []unsafe.Pointer, error) {
+	paramsLen := len(params)
+	cParamPointers := make([]unsafe.Pointer, paramsLen)
+	cParams := (*C.struct_CBytes)(C.malloc(C.sizeof_struct_CBytes * C.uint64_t(paramsLen)))
+	pSlice := (*[1 << 30]C.struct_CBytes)(unsafe.Pointer(cParams))[:paramsLen:paramsLen]
+	for i, p := range params {
+		bParam, err := proto.Marshal(p)
+		if err != nil {
+			return nil, nil, err
+		}
+		cParamPointers[i] = C.CBytes(bParam)
+		pSlice[i] = C.struct_CBytes{c: (*C.char)(cParamPointers[i]), l: C.int(len(bParam))}
+	}
+	return cParams, cParamPointers, nil
+}
+
+func freeCParams(cParams *C.struct_CBytes, cParamPointers []unsafe.Pointer) {
+	for _, p := range cParamPointers {
+		C.free(p)
+	}
+	C.free(unsafe.Pointer(cParams))
+}
+
 // GenerateKeys generates a pair of DpfKeys for given parameters.
 func GenerateKeys(params *pb.DpfParameters, alpha, beta uint64) (*pb.DpfKey, *pb.DpfKey, error) {
-	bParams, err := proto.Marshal(params)
+	cParamsSize := C.int64_t(1)
+	cParams, cParamPointers, err := createCParams([]*pb.DpfParameters{params})
+	defer freeCParams(cParams, cParamPointers)
 	if err != nil {
 		return nil, nil, err
 	}
-	cParams := C.struct_CBytes{c: (*C.char)(C.CBytes(bParams)), l: C.int(len(bParams))}
-	defer freeCBytes(cParams)
+
+	cBetasSize := C.int64_t(1)
+	var cBetas *C.uint64_t
+	cBetas = (*C.uint64_t)(unsafe.Pointer(&beta))
 
 	cKey1 := C.struct_CBytes{}
 	cKey2 := C.struct_CBytes{}
 	errStr := C.struct_CBytes{}
-	status := C.CGenerateKeys(&cParams, C.uint64_t(alpha), C.uint64_t(beta), &cKey1, &cKey2, &errStr)
+	status := C.CGenerateKeys(cParams, cParamsSize, C.uint64_t(alpha), cBetas, cBetasSize, &cKey1, &cKey2, &errStr)
 	defer freeCBytes(cKey1)
 	defer freeCBytes(cKey2)
 	defer freeCBytes(errStr)
@@ -72,12 +99,12 @@ func GenerateKeys(params *pb.DpfParameters, alpha, beta uint64) (*pb.DpfKey, *pb
 
 // CreateEvaluationContext creates the context for expanding the vectors.
 func CreateEvaluationContext(params *pb.DpfParameters, key *pb.DpfKey) (*pb.EvaluationContext, error) {
-	bParams, err := proto.Marshal(params)
+	cParamsSize := C.int64_t(1)
+	cParams, cParamPointers, err := createCParams([]*pb.DpfParameters{params})
+	defer freeCParams(cParams, cParamPointers)
 	if err != nil {
 		return nil, err
 	}
-	cParams := C.struct_CBytes{c: (*C.char)(C.CBytes(bParams)), l: C.int(len(bParams))}
-	defer freeCBytes(cParams)
 
 	bKey, err := proto.Marshal(key)
 	if err != nil {
@@ -88,7 +115,7 @@ func CreateEvaluationContext(params *pb.DpfParameters, key *pb.DpfKey) (*pb.Eval
 
 	cEvalCtx := C.struct_CBytes{}
 	errStr := C.struct_CBytes{}
-	status := C.CCreateEvaluationContext(&cParams, &cKey, &cEvalCtx, &errStr)
+	status := C.CCreateEvaluationContext(cParams, cParamsSize, &cKey, &cEvalCtx, &errStr)
 	defer freeCBytes(cEvalCtx)
 	defer freeCBytes(errStr)
 	if status != 0 {
@@ -103,14 +130,7 @@ func CreateEvaluationContext(params *pb.DpfParameters, key *pb.DpfKey) (*pb.Eval
 }
 
 // EvaluateNext64 evaluates the given DPF key in the evaluation context with the specified configuration.
-func EvaluateNext64(params *pb.DpfParameters, prefixes []uint64, evalCtx *pb.EvaluationContext) ([]uint64, error) {
-	bParams, err := proto.Marshal(params)
-	if err != nil {
-		return nil, err
-	}
-	cParams := C.struct_CBytes{c: (*C.char)(C.CBytes(bParams)), l: C.int(len(bParams))}
-	defer freeCBytes(cParams)
-
+func EvaluateNext64(prefixes []uint64, evalCtx *pb.EvaluationContext) ([]uint64, error) {
 	pSize := len(prefixes)
 	cPrefixesSize := C.int64_t(pSize)
 	var cPrefixes *C.uint64_t
@@ -125,7 +145,7 @@ func EvaluateNext64(params *pb.DpfParameters, prefixes []uint64, evalCtx *pb.Eva
 	cEvalCtx := C.struct_CBytes{c: (*C.char)(C.CBytes(bEvalCtx)), l: C.int(len(bEvalCtx))}
 	outExpanded := C.struct_CUInt64Vec{}
 	errStr := C.struct_CBytes{}
-	status := C.CEvaluateNext64(&cParams, cPrefixes, cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
+	status := C.CEvaluateNext64(cPrefixes, cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
 	defer freeCBytes(cEvalCtx)
 	defer C.free(unsafe.Pointer(outExpanded.vec))
 	defer freeCBytes(errStr)

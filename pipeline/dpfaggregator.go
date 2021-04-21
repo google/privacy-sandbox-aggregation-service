@@ -48,8 +48,8 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func init() {
@@ -155,7 +155,7 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.
 	if err != nil {
 		return err
 	}
-	vecSum, err := incrementaldpf.EvaluateNext64(sumParams, []uint64{}, sumCtx)
+	vecSum, err := incrementaldpf.EvaluateNext64([]uint64{}, sumCtx)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.
 	if err != nil {
 		return err
 	}
-	vecCount, err := incrementaldpf.EvaluateNext64(countParams, []uint64{}, countCtx)
+	vecCount, err := incrementaldpf.EvaluateNext64([]uint64{}, countCtx)
 	if err != nil {
 		return err
 	}

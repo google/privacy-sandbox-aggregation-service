@@ -20,23 +20,24 @@ struct CUInt64Vec {
 // parameters prefixed with out_* and mutable_*.
 
 // CGenerateKeys wraps GenerateKeys() in C:
-// http://google3/dpf/distributed_point_function.h?l=66&rcl=368424076
-int CGenerateKeys(const struct CBytes *param, uint64_t alpha, uint64_t beta,
+// http://google3/dpf/distributed_point_function.h?l=66&rcl=368424076int
+// CGenerateKeys(const struct CBytes *params, int64_t params_size,
+int CGenerateKeys(const struct CBytes *params, int64_t params_size,
+                  uint64_t alpha, const uint64_t *betas, int64_t betas_size,
                   struct CBytes *out_key1, struct CBytes *out_key2,
                   struct CBytes *out_error);
 
 // CCreateEvaluationContext wraps CreateEvaluationContext() in C:
 // http://google3/dpf/distributed_point_function.h?l=83&rcl=368424076
-int CCreateEvaluationContext(const struct CBytes *param,
+int CCreateEvaluationContext(const struct CBytes *params, int64_t params_size,
                              const struct CBytes *key,
                              struct CBytes *out_eval_context,
                              struct CBytes *out_error);
-
 // CEvaluateNext64 wraps EvaluateNext<uint64_t>() in C:
 // http://google3/dpf/distributed_point_function.h?l=119&rcl=368424076
-int CEvaluateNext64(const struct CBytes *param, const uint64_t *prefixes,
-                    int64_t prefixes_size, struct CBytes *mutable_context,
-                    struct CUInt64Vec *out_vec, struct CBytes *out_error);
+int CEvaluateNext64(const uint64_t *prefixes, int64_t prefixes_size,
+                    struct CBytes *mutable_context, struct CUInt64Vec *out_vec,
+                    struct CBytes *out_error);
 
 #ifdef __cplusplus
 }

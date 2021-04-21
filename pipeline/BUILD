@@ -412,6 +412,7 @@ cc_test(
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
         "@com_github_google_googletest//:gtest_main",
+        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
     ],
 )

@@ -17,8 +17,8 @@ package incrementaldpf
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	pb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestDpfGenEvalFunctions(t *testing.T) {
@@ -35,7 +35,7 @@ func TestDpfGenEvalFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expanded1, err := EvaluateNext64(params, []uint64{}, evalCtx1)
+	expanded1, err := EvaluateNext64([]uint64{}, evalCtx1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestDpfGenEvalFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expanded2, err := EvaluateNext64(params, []uint64{}, evalCtx2)
+	expanded2, err := EvaluateNext64([]uint64{}, evalCtx2)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -26,24 +26,35 @@ using ::distributed_point_functions::DpfKey;
 using ::distributed_point_functions::DpfParameters;
 using ::distributed_point_functions::EvaluationContext;
 
-int CGenerateKeys(const struct CBytes* param, uint64_t alpha, uint64_t beta,
+absl::StatusOr<std::unique_ptr<DistributedPointFunction>> CreateIncrementalDpf(
+    const struct CBytes* params, int64_t params_size) {
+  std::vector<DpfParameters> parameters(params_size);
+  for (int i = 0; i < params_size; i++) {
+    if (!parameters[i].ParseFromArray(params[i].c, params[i].l)) {
+      return absl::InvalidArgumentError("failed to parse DpfParameter");
+    }
+  }
+  return DistributedPointFunction::CreateIncremental(std::move(parameters));
+}
+
+int CGenerateKeys(const struct CBytes* params, int64_t params_size,
+                  uint64_t alpha, const uint64_t* betas, int64_t betas_size,
                   struct CBytes* out_key1, struct CBytes* out_key2,
                   struct CBytes* out_error) {
-  DpfParameters parameters;
-  if (!parameters.ParseFromArray(param->c, param->l)) {
-    StrToCBytes("fail to parse DpfParameter", out_error);
-    return static_cast<int>(absl::StatusCode::kInvalidArgument);
-  }
-
   absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
-      DistributedPointFunction::Create(parameters);
+      CreateIncrementalDpf(params, params_size);
   if (!dpf.ok()) {
     StrToCBytes(dpf.status().message(), out_error);
     return dpf.status().raw_code();
   }
 
+  std::vector<absl::uint128> betas_128(betas_size);
+  for (int i = 0; i < betas_size; i++) {
+    betas_128[i] = absl::uint128(betas[i]);
+  }
+
   absl::StatusOr<std::pair<DpfKey, DpfKey>> keys =
-      dpf.value()->GenerateKeys(absl::uint128(alpha), absl::uint128(beta));
+      (*dpf)->GenerateKeysIncremental(absl::uint128(alpha), betas_128);
   if (!keys.ok()) {
     StrToCBytes(keys.status().message(), out_error);
     return keys.status().raw_code();
@@ -63,18 +74,12 @@ int CGenerateKeys(const struct CBytes* param, uint64_t alpha, uint64_t beta,
   return static_cast<int>(absl::StatusCode::kOk);
 }
 
-int CCreateEvaluationContext(const struct CBytes* param,
+int CCreateEvaluationContext(const struct CBytes* params, int64_t params_size,
                              const struct CBytes* key,
                              struct CBytes* out_eval_context,
                              struct CBytes* out_error) {
-  DpfParameters parameters;
-  if (!parameters.ParseFromArray(param->c, param->l)) {
-    StrToCBytes("fail to parse DpfParameter", out_error);
-    return static_cast<int>(absl::StatusCode::kInvalidArgument);
-  }
-
   absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
-      DistributedPointFunction::Create(parameters);
+      CreateIncrementalDpf(params, params_size);
   if (!dpf.ok()) {
     StrToCBytes(dpf.status().message(), out_error);
     return dpf.status().raw_code();
@@ -103,17 +108,19 @@ int CCreateEvaluationContext(const struct CBytes* param,
   return static_cast<int>(absl::StatusCode::kOk);
 }
 
-int CEvaluateNext64(const struct CBytes* param, const uint64_t* prefixes,
-                    int64_t prefixes_size, CBytes* mutable_context,
-                    struct CUInt64Vec* out_vec, struct CBytes* out_error) {
-  DpfParameters parameters;
-  if (!parameters.ParseFromArray(param->c, param->l)) {
-    StrToCBytes("fail to parse DpfParameter", out_error);
+int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
+                    struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
+                    struct CBytes* out_error) {
+  EvaluationContext eval_context;
+  if (!eval_context.ParseFromArray(mutable_context->c, mutable_context->l)) {
+    StrToCBytes("fail to parse EvaluationContext", out_error);
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
 
+  std::vector<DpfParameters> parameters(eval_context.parameters().begin(),
+                                        eval_context.parameters().end());
   absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
-      DistributedPointFunction::Create(parameters);
+      DistributedPointFunction::CreateIncremental(parameters);
   if (!dpf.ok()) {
     StrToCBytes(dpf.status().message(), out_error);
     return dpf.status().raw_code();
@@ -122,11 +129,6 @@ int CEvaluateNext64(const struct CBytes* param, const uint64_t* prefixes,
   std::vector<absl::uint128> prefixes_128(prefixes_size);
   for (int i = 0; i < prefixes_size; i++) {
     prefixes_128[i] = absl::uint128(prefixes[i]);
-  }
-  EvaluationContext eval_context;
-  if (!eval_context.ParseFromArray(mutable_context->c, mutable_context->l)) {
-    StrToCBytes("fail to parse EvaluationContext", out_error);
-    return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
 
   auto maybe_result =

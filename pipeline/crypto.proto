@@ -16,6 +16,9 @@ syntax = "proto3";
 
 package convagg.crypto;
 
+// For compatibility with protobuf lite.
+option optimize_for = LITE_RUNTIME;
+
 import "dpf/distributed_point_function.proto";
 
 // For serialization of elgamal::Ciphertext

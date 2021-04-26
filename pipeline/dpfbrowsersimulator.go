@@ -44,7 +44,7 @@ func init() {
 	beam.RegisterFunction(formatPartialReportFn)
 }
 
-// For the DPF protocol the record key is an integer in a known domain.
+// RawConversion represents a conversion record from the browser. For the DPF protocol the record key is an integer in a known domain.
 type RawConversion struct {
 	Index uint64
 	Value uint64
@@ -86,7 +86,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 type encryptSecretSharesFn struct {
 	PublicKey1, PublicKey2 *pb.StandardPublicKey
 	// Parameters for the DPF secret key generation. These parameters need to be consistent with ones used on the helper servers.
-	LogN, LogElementSizeSum, LogElementSizeCount uint64
+	SumParameters, CountParameters []*dpfpb.DpfParameters
 
 	countReport beam.Counter
 }
@@ -108,24 +108,25 @@ func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("aggregation", "encryptSecretSharesFn_report_count")
 }
 
+// putValueForHierarchies determines which value to use when the keys are expanded for different hierarchies.
+//
+// For now, the values are the same for all the levels.
+func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint64 {
+	values := make([]uint64, len(params))
+	for i := range values {
+		values[i] = value
+	}
+	return values
+}
+
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys([]*dpfpb.DpfParameters{
-		{
-			LogDomainSize:  int32(fn.LogN),
-			ElementBitsize: 1 << fn.LogElementSizeSum,
-		},
-	}, c.Index, []uint64{c.Value})
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(fn.SumParameters, c.Index, putValueForHierarchies(fn.SumParameters, c.Value))
 	if err != nil {
 		return err
 	}
-	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys([]*dpfpb.DpfParameters{
-		{
-			LogDomainSize:  int32(fn.LogN),
-			ElementBitsize: 1 << fn.LogElementSizeCount,
-		},
-	}, c.Index, []uint64{1})
+	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys(fn.CountParameters, c.Index, putValueForHierarchies(fn.CountParameters, 1))
 	if err != nil {
 		return err
 	}
@@ -173,18 +174,17 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 
 	return beam.ParDo2(s,
 		&encryptSecretSharesFn{
-			PublicKey1:          params.PublicKey1,
-			PublicKey2:          params.PublicKey2,
-			LogN:                params.LogN,
-			LogElementSizeSum:   params.LogElementSizeSum,
-			LogElementSizeCount: params.LogElementSizeCount,
+			PublicKey1:      params.PublicKey1,
+			PublicKey2:      params.PublicKey2,
+			SumParameters:   params.SumParameters.Params,
+			CountParameters: params.CountParameters.Params,
 		}, reports)
 }
 
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
 	ConversionFile, PartialReportFile1, PartialReportFile2 string
-	LogN, LogElementSizeSum, LogElementSizeCount           uint64
+	SumParameters, CountParameters                         *pb.IncrementalDpfParameters
 	PublicKey1, PublicKey2                                 *pb.StandardPublicKey
 	Shards                                                 int64
 }

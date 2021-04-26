@@ -30,14 +30,15 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func freeCBytes(cb C.struct_CBytes) {
 	C.free(unsafe.Pointer(cb.c))
 }
 
-func createCParams(params []*pb.DpfParameters) (*C.struct_CBytes, []unsafe.Pointer, error) {
+func createCParams(params []*dpfpb.DpfParameters) (*C.struct_CBytes, []unsafe.Pointer, error) {
 	paramsLen := len(params)
 	cParamPointers := make([]unsafe.Pointer, paramsLen)
 	cParams := (*C.struct_CBytes)(C.malloc(C.sizeof_struct_CBytes * C.uint64_t(paramsLen)))
@@ -61,7 +62,7 @@ func freeCParams(cParams *C.struct_CBytes, cParamPointers []unsafe.Pointer) {
 }
 
 // GenerateKeys generates a pair of DpfKeys for given parameters.
-func GenerateKeys(params []*pb.DpfParameters, alpha uint64, betas []uint64) (*pb.DpfKey, *pb.DpfKey, error) {
+func GenerateKeys(params []*dpfpb.DpfParameters, alpha uint64, betas []uint64) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
 	cParamsSize := C.int64_t(len(params))
 	cParams, cParamPointers, err := createCParams(params)
 	defer freeCParams(cParams, cParamPointers)
@@ -87,12 +88,12 @@ func GenerateKeys(params []*pb.DpfParameters, alpha uint64, betas []uint64) (*pb
 		return nil, nil, errors.New(C.GoStringN(errStr.c, errStr.l))
 	}
 
-	key1 := &pb.DpfKey{}
+	key1 := &dpfpb.DpfKey{}
 	if err := proto.Unmarshal(C.GoBytes(unsafe.Pointer(cKey1.c), cKey1.l), key1); err != nil {
 		return nil, nil, err
 	}
 
-	key2 := &pb.DpfKey{}
+	key2 := &dpfpb.DpfKey{}
 	if err := proto.Unmarshal(C.GoBytes(unsafe.Pointer(cKey2.c), cKey2.l), key2); err != nil {
 		return nil, nil, err
 	}
@@ -101,7 +102,7 @@ func GenerateKeys(params []*pb.DpfParameters, alpha uint64, betas []uint64) (*pb
 }
 
 // CreateEvaluationContext creates the context for expanding the vectors.
-func CreateEvaluationContext(params []*pb.DpfParameters, key *pb.DpfKey) (*pb.EvaluationContext, error) {
+func CreateEvaluationContext(params []*dpfpb.DpfParameters, key *dpfpb.DpfKey) (*dpfpb.EvaluationContext, error) {
 	cParamsSize := C.int64_t(len(params))
 	cParams, cParamPointers, err := createCParams(params)
 	defer freeCParams(cParams, cParamPointers)
@@ -125,7 +126,7 @@ func CreateEvaluationContext(params []*pb.DpfParameters, key *pb.DpfKey) (*pb.Ev
 		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
 	}
 
-	evalCtx := &pb.EvaluationContext{}
+	evalCtx := &dpfpb.EvaluationContext{}
 	if err := proto.Unmarshal(C.GoBytes(unsafe.Pointer(cEvalCtx.c), cEvalCtx.l), evalCtx); err != nil {
 		return nil, err
 	}
@@ -133,7 +134,7 @@ func CreateEvaluationContext(params []*pb.DpfParameters, key *pb.DpfKey) (*pb.Ev
 }
 
 // EvaluateNext64 evaluates the given DPF key in the evaluation context with the specified configuration.
-func EvaluateNext64(prefixes []uint64, evalCtx *pb.EvaluationContext) ([]uint64, error) {
+func EvaluateNext64(prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
 	pSize := len(prefixes)
 	cPrefixesSize := C.int64_t(pSize)
 	var prefixesPointer *uint64
@@ -174,23 +175,23 @@ func EvaluateNext64(prefixes []uint64, evalCtx *pb.EvaluationContext) ([]uint64,
 }
 
 // CalculateBucketID gets the bucket ID for values in the expanded vectors.
-func CalculateBucketID(params []*pb.DpfParameters, prefixes [][]uint64) ([]uint64, error) {
+func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) ([]uint64, error) {
 	if err := CheckExpansionParameters(params, prefixes); err != nil {
 		return nil, err
 	}
 
 	// For direct expansion, return empty slice to avoid generating extra data.
 	// Because in this case, the bucket ID equals the vector index.
-	if len(params) == 1 {
+	if len(params.Params) == 1 {
 		return nil, nil
 	}
 
-	paramsLen := len(params)
-	expansionBits := params[paramsLen-1].GetLogDomainSize() - params[paramsLen-2].GetLogDomainSize()
+	paramsLen := len(params.Params)
+	expansionBits := params.Params[paramsLen-1].LogDomainSize - params.Params[paramsLen-2].LogDomainSize
 	expansionSize := uint64(1) << expansionBits
-	ids := make([]uint64, uint64(len(prefixes[paramsLen-1]))*expansionSize)
+	ids := make([]uint64, uint64(len(prefixes.Prefixes[paramsLen-1].Prefix))*expansionSize)
 	i := uint64(0)
-	for _, p := range prefixes[paramsLen-1] {
+	for _, p := range prefixes.Prefixes[paramsLen-1].Prefix {
 		prefix := p << uint64(expansionBits)
 		for j := uint64(0); j < expansionSize; j++ {
 			ids[i] = prefix | j
@@ -201,23 +202,23 @@ func CalculateBucketID(params []*pb.DpfParameters, prefixes [][]uint64) ([]uint6
 }
 
 // CheckExpansionParameters checks if the DPF parameters and prefixes are valid for the hierarchical expansion.
-func CheckExpansionParameters(params []*pb.DpfParameters, prefixes [][]uint64) error {
-	paramsLen := len(params)
+func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) error {
+	paramsLen := len(params.Params)
 	if paramsLen == 0 {
 		return errors.New("empty dpf parameters")
 	}
 
-	prefixesLen := len(prefixes)
+	prefixesLen := len(prefixes.Prefixes)
 	if paramsLen != prefixesLen {
 		return fmt.Errorf("dpf parameter size should equal prefixes size %d, got %d", prefixesLen, paramsLen)
 	}
 
-	if len(prefixes[0]) != 0 {
-		return fmt.Errorf("prefixes should be empty for the first level expansion, got %v", prefixes[0])
+	if len(prefixes.Prefixes[0].Prefix) != 0 {
+		return fmt.Errorf("prefixes should be empty for the first level expansion, got %s", prefixes.Prefixes[0].String())
 	}
 
-	for i, p := range prefixes {
-		if i > 0 && len(p) == 0 {
+	for i, p := range prefixes.Prefixes {
+		if i > 0 && len(p.Prefix) == 0 {
 			return fmt.Errorf("prefix cannot be empty except for the top level expansion")
 		}
 	}

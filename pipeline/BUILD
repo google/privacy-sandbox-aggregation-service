@@ -430,6 +430,7 @@ go_library(
     cgo = True,
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf",
     deps = [
+        ":crypto_go_proto",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@org_golang_google_protobuf//proto",
     ],
@@ -441,6 +442,7 @@ go_test(
     srcs = ["incrementaldpf_test.go"],
     embed = [":incrementaldpf"],
     deps = [
+        ":crypto_go_proto",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
     ],
@@ -457,7 +459,6 @@ go_library(
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -509,9 +510,6 @@ go_test(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
-        "@com_github_google_go_cmp//cmp:go_default_library",
-        "@org_golang_google_protobuf//testing/protocmp",
     ],
 )
 

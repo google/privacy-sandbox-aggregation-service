@@ -18,13 +18,15 @@ import (
 	"os"
 	"testing"
 
-	pb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	"github.com/google/go-cmp/cmp"
+
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func TestDpfGenEvalFunctions(t *testing.T) {
 	os.Setenv("GODEBUG", "cgocheck=2")
-	params := []*pb.DpfParameters{
+	params := []*dpfpb.DpfParameters{
 		{LogDomainSize: 20, ElementBitsize: 64},
 	}
 	k1, k2, err := GenerateKeys(params, 0, []uint64{1})
@@ -54,7 +56,7 @@ func TestDpfGenEvalFunctions(t *testing.T) {
 	for i := 0; i < len(expanded1); i++ {
 		got[i] = expanded1[i] + expanded2[i]
 	}
-	want := make([]uint64, 1<<params[0].GetLogDomainSize())
+	want := make([]uint64, 1<<params[0].LogDomainSize)
 	want[0] = 1
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
@@ -63,7 +65,7 @@ func TestDpfGenEvalFunctions(t *testing.T) {
 
 func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	os.Setenv("GODEBUG", "cgocheck=2")
-	params := []*pb.DpfParameters{
+	params := []*dpfpb.DpfParameters{
 		{LogDomainSize: 2, ElementBitsize: 64},
 		{LogDomainSize: 4, ElementBitsize: 64},
 	}
@@ -83,14 +85,14 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prefixes := [][]uint64{{}, {0, 2}}
+	prefixes := &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}, {Prefix: []uint64{0, 2}}}}
 	// First level of expansion for the first two bits.
-	expanded1, err := EvaluateNext64(prefixes[0], evalCtx1)
+	expanded1, err := EvaluateNext64(prefixes.Prefixes[0].Prefix, evalCtx1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expanded2, err := EvaluateNext64(prefixes[0], evalCtx2)
+	expanded2, err := EvaluateNext64(prefixes.Prefixes[0].Prefix, evalCtx2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,18 +108,18 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	// Second level of expansion for all four bits of two prefixes: 0 (00**) and 2 (10**).
-	expanded1, err = EvaluateNext64(prefixes[1], evalCtx1)
+	expanded1, err = EvaluateNext64(prefixes.Prefixes[1].Prefix, evalCtx1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expanded2, err = EvaluateNext64(prefixes[1], evalCtx2)
+	expanded2, err = EvaluateNext64(prefixes.Prefixes[1].Prefix, evalCtx2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	gotMap := make(map[uint64]uint64)
-	ids, err := CalculateBucketID(params, prefixes)
+	ids, err := CalculateBucketID(&pb.IncrementalDpfParameters{Params: params}, prefixes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,11 +140,18 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 }
 
 func TestCalculateBucketID(t *testing.T) {
-	params := []*pb.DpfParameters{
-		{LogDomainSize: 2, ElementBitsize: 64},
-		{LogDomainSize: 3, ElementBitsize: 64},
+	params := &pb.IncrementalDpfParameters{
+		Params: []*dpfpb.DpfParameters{
+			{LogDomainSize: 2, ElementBitsize: 64},
+			{LogDomainSize: 3, ElementBitsize: 64},
+		},
 	}
-	prefixes := [][]uint64{{}, {1, 3}}
+	prefixes := &pb.HierarchicalPrefixes{
+		Prefixes: []*pb.DomainPrefixes{
+			{},
+			{Prefix: []uint64{1, 3}},
+		},
+	}
 	want := []uint64{2, 3, 6, 7}
 
 	got, err := CalculateBucketID(params, prefixes)

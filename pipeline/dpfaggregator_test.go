@@ -119,7 +119,7 @@ func TestDirectAndSegmentCombineVectorMergeAccumulators(t *testing.T) {
 	wantDirect.CountVec[1<<logN-1] = 12
 
 	ctx := context.Background()
-	directFn := &combineVectorFn{LogN: logN}
+	directFn := &combineVectorFn{VectorLength: 1 << logN}
 	gotDirect := directFn.MergeAccumulators(ctx, vec1, vec2)
 
 	sortFn := func(a, b uint64) bool { return a < b }
@@ -186,10 +186,10 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 	want[1<<logN-1].PartialAggregation.PartialCount = 12
 	wantResult := beam.CreateList(scope, want)
 
-	getResultSegment := segmentCombine(scope, inputVec, logN, 1<<(logN-5))
+	getResultSegment := segmentCombine(scope, inputVec, 1<<logN, 1<<(logN-5), nil)
 	passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultSegment), wantResult)
 
-	getResultDirect := directCombine(scope, inputVec, logN)
+	getResultDirect := directCombine(scope, inputVec, 1<<logN, nil)
 	passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultDirect), wantResult)
 
 	if err := ptest.Run(pipeline); err != nil {
@@ -203,27 +203,22 @@ type rawConversion struct {
 }
 
 type splitConversionFn struct {
-	LogN                uint64
-	LogElementSizeSum   uint64
-	LogElementSizeCount uint64
+	Params *pb.IncrementalDpfParameters
 }
 
 func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion, emit1 func(*pb.PartialReportDpf), emit2 func(*pb.PartialReportDpf)) error {
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys([]*dpfpb.DpfParameters{
-		{
-			LogDomainSize:  int32(fn.LogN),
-			ElementBitsize: 1 << fn.LogElementSizeSum,
-		},
-	}, c.Index, []uint64{c.Value})
+	valueSum := make([]uint64, len(fn.Params.Params))
+	valueCount := make([]uint64, len(fn.Params.Params))
+	for i := range valueSum {
+		valueSum[i] = c.Value
+		valueCount[i] = uint64(1)
+	}
+
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(fn.Params.Params, c.Index, valueSum)
 	if err != nil {
 		return err
 	}
-	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys([]*dpfpb.DpfParameters{
-		{
-			LogDomainSize:  int32(fn.LogN),
-			ElementBitsize: 1 << fn.LogElementSizeCount,
-		},
-	}, c.Index, []uint64{1})
+	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys(fn.Params.Params, c.Index, valueCount)
 	if err != nil {
 		return err
 	}
@@ -239,7 +234,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	return nil
 }
 
-func TestPartialAggregationAndMerge(t *testing.T) {
+func TestDirectAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
 		{Index: 1, Sum: 10, Count: 10},
 	}
@@ -250,25 +245,71 @@ func TestPartialAggregationAndMerge(t *testing.T) {
 		}
 	}
 
-	logN := uint64(8)
-	logElementSizeSum := uint64(6)
-	logElementSizeCount := uint64(6)
+	pipeline, scope := beam.NewPipelineWithRoot()
+	conversions := beam.CreateList(scope, reports)
+
+	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
+		{LogDomainSize: 8, ElementBitsize: 1 << 6},
+	}}
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{Params: dpfParams}, conversions)
+	params := &AggregatePartialReportParams{
+		SumParameters:   dpfParams,
+		CountParameters: dpfParams,
+		Prefixes:        &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
+		DirectCombine:   true,
+	}
+	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialResult2, err := ExpandAndCombineHistogram(scope, partialReport2, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined := beam.CoGroupByKey(scope, partialResult1, partialResult2)
+	got := beam.ParDo(scope, &mergeHistogramFn{}, joined)
+
+	passert.Equals(scope, got, beam.CreateList(scope, want))
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func TestHierarchicalAggregationAndMerge(t *testing.T) {
+	want := []CompleteHistogram{
+		{Index: 16, Sum: 10, Count: 10},
+	}
+	var reports []rawConversion
+	for _, h := range want {
+		for i := uint64(0); i < h.Count; i++ {
+			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
+		}
+	}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	conversions := beam.CreateList(scope, reports)
-	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{
-		LogN:                logN,
-		LogElementSizeSum:   logElementSizeSum,
-		LogElementSizeCount: logElementSizeCount,
-	}, conversions)
+
+	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
+		{LogDomainSize: 4, ElementBitsize: 1 << 6},
+		{LogDomainSize: 8, ElementBitsize: 1 << 6},
+	}}
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{Params: dpfParams}, conversions)
 	params := &AggregatePartialReportParams{
-		LogN:                logN,
-		LogElementSizeSum:   logElementSizeSum,
-		LogElementSizeCount: logElementSizeCount,
-		DirectCombine:       true,
+		SumParameters:   dpfParams,
+		CountParameters: dpfParams,
+		Prefixes:        &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}, {Prefix: []uint64{1}}}},
+		DirectCombine:   true,
 	}
-	partialResult1 := ExpandAndCombineHistogram(scope, partialReport1, params)
-	partialResult2 := ExpandAndCombineHistogram(scope, partialReport2, params)
+	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialResult2, err := ExpandAndCombineHistogram(scope, partialReport2, params)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	joined := beam.CoGroupByKey(scope, partialResult1, partialResult2)
 	got := beam.ParDo(scope, &mergeHistogramFn{}, joined)

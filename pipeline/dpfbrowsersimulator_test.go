@@ -20,34 +20,55 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
-	"github.com/google/go-cmp/cmp"
-	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
-	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
-func createConversionsDpf(n int) ([]RawConversion, []dpfaggregator.CompleteHistogram) {
-	var conversions []RawConversion
-	var results []dpfaggregator.CompleteHistogram
-	for i := 0; i < (n+9)/10; i++ {
-		sum := 0
-		for j := 0; j < 10; j++ {
-			if len(conversions) >= n {
-				continue
-			}
-			conversions = append(conversions, RawConversion{Index: uint64(i), Value: uint64(1)})
-			sum++
-		}
-		results = append(results, dpfaggregator.CompleteHistogram{Index: uint64(i), Sum: uint64(sum), Count: uint64(sum)})
+type dpfTestData struct {
+	Conversions            []RawConversion
+	WantResults            []dpfaggregator.CompleteHistogram
+	SumParams, CountParams *pb.IncrementalDpfParameters
+	Prefixes               *pb.HierarchicalPrefixes
+}
 
-		if len(conversions) >= n {
-			break
-		}
+func createConversionsDpf(logN, logElementSizeSum, logElementSizeCount, totalCount uint64) (*dpfTestData, error) {
+	root := &PrefixNode{Class: "root"}
+	for i := 0; i < 1<<5; i++ {
+		root.AddChildNode("campaignid", 12 /*bitSize*/, uint64(i) /*value*/)
 	}
-	return conversions, results
+
+	prefixes, prefixDomainBits := CalculatePrefixes(root)
+	sumParams, countParams := CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum, 1<<logElementSizeCount)
+
+	aggResult := make(map[uint64]uint64)
+	var conversions []RawConversion
+	// Generate conversions with indices that contain one of the given prefixes. These conversions are counted in the aggregation.
+	prefixesLen := len(prefixes.Prefixes)
+	for i := uint64(0); i < totalCount-4; i++ {
+		index, err := CreateConversionIndex(prefixes.Prefixes[prefixesLen-1].Prefix, prefixDomainBits[len(prefixDomainBits)-1], logN, true /*hasPrefix*/)
+		if err != nil {
+			return nil, err
+		}
+		conversions = append(conversions, RawConversion{Index: index, Value: 1})
+		aggResult[index]++
+	}
+	// Generate conversions with indices that do not contain any of the given prefixes. These conversions will not be counted in the aggregation.
+	for i := uint64(0); i < 4; i++ {
+		index, err := CreateConversionIndex(prefixes.Prefixes[prefixesLen-1].Prefix, prefixDomainBits[len(prefixDomainBits)-1], logN, false /*hasPrefix*/)
+		if err != nil {
+			return nil, err
+		}
+		conversions = append(conversions, RawConversion{Index: index, Value: 1})
+	}
+
+	var wantResults []dpfaggregator.CompleteHistogram
+	for k, v := range aggResult {
+		wantResults = append(wantResults, dpfaggregator.CompleteHistogram{Index: k, Sum: v, Count: v})
+	}
+
+	return &dpfTestData{Conversions: conversions, WantResults: wantResults, SumParams: sumParams, CountParams: countParams, Prefixes: prefixes}, nil
 }
 
 func TestAggregationPipelineDPF(t *testing.T) {
@@ -63,36 +84,40 @@ func testAggregationPipelineDPF(t testing.TB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conversionArray, wantArray := createConversionsDpf(100)
+
+	testData, err := createConversionsDpf(20, 6, 6, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 
-	logN := uint64(10)
-	logElementSizeSum := uint64(6)
-	logElementSizeCount := uint64(6)
-
-	conversions := beam.CreateList(scope, conversionArray)
-	want := beam.CreateList(scope, wantArray)
+	conversions := beam.CreateList(scope, testData.Conversions)
+	want := beam.CreateList(scope, testData.WantResults)
 	ePr1, ePr2 := splitRawConversion(scope, conversions, &GeneratePartialReportParams{
-		LogN:                logN,
-		LogElementSizeSum:   logElementSizeSum,
-		LogElementSizeCount: logElementSizeCount,
-		PublicKey1:          pubKey1,
-		PublicKey2:          pubKey2,
+		SumParameters:   testData.SumParams,
+		CountParameters: testData.CountParams,
+		PublicKey1:      pubKey1,
+		PublicKey2:      pubKey2,
 	})
 
 	pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKey1)
 	pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKey2)
 
 	aggregateParams := &dpfaggregator.AggregatePartialReportParams{
-		LogN:                logN,
-		LogElementSizeSum:   logElementSizeSum,
-		LogElementSizeCount: logElementSizeCount,
-		LogSegmentLength:    7,
-		DirectCombine:       true,
+		SumParameters:   testData.SumParams,
+		CountParameters: testData.CountParams,
+		Prefixes:        testData.Prefixes,
+		DirectCombine:   true,
 	}
-	ph1 := dpfaggregator.ExpandAndCombineHistogram(scope, pr1, aggregateParams)
-	ph2 := dpfaggregator.ExpandAndCombineHistogram(scope, pr2, aggregateParams)
+	ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, pr1, aggregateParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, pr2, aggregateParams)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	got := dpfaggregator.MergeHistogram(scope, ph1, ph2)
 
@@ -106,78 +131,5 @@ func testAggregationPipelineDPF(t testing.TB) {
 func BenchmarkPipeline(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		testAggregationPipelineDPF(b)
-	}
-}
-
-func TestPrefixGeneration(t *testing.T) {
-	// Create the prefix tree.
-	root := &PrefixNode{Class: "root"}
-	// Suppose the first 4 bits represent the campaign ID, and only 4 IDs have data.
-	for i := 0; i < 4; i++ {
-		child := root.AddChildNode("campaignid", 4 /*bitSize*/, uint64(i) /*value*/)
-		// Following 3 bits representing geo, and only 1 location have data.
-		child.AddChildNode("geo", 3 /*bitSize*/, uint64(0) /*value*/)
-	}
-
-	wantPrefixes := &pb.HierarchicalPrefixes{
-		Prefixes: []*pb.DomainPrefixes{
-			{},
-			{Prefix: []uint64{0, 1, 2, 3}},
-			{Prefix: []uint64{0, 8, 16, 24}},
-		},
-	}
-
-	prefixes, prefixBits := CalculatePrefixes(root)
-	if diff := cmp.Diff(wantPrefixes, prefixes, protocmp.Transform()); diff != "" {
-		t.Fatalf("incorrect prefixes (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff([]uint64{4, 7}, prefixBits); diff != "" {
-		t.Fatalf("incorrect prefix bits (-want +got):\n%s", diff)
-	}
-
-	sumParams, countParams := CalculateParameters(prefixBits, 20, 6, 6)
-	want := &pb.IncrementalDpfParameters{
-		Params: []*dpfpb.DpfParameters{
-			{LogDomainSize: 4, ElementBitsize: 6},
-			{LogDomainSize: 7, ElementBitsize: 6},
-			{LogDomainSize: 20, ElementBitsize: 6},
-		},
-	}
-	if diff := cmp.Diff(want, sumParams, protocmp.Transform()); diff != "" {
-		t.Errorf("sumParams diff (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(want, countParams, protocmp.Transform()); diff != "" {
-		t.Errorf("countParams diff (-want +got):\n%s", diff)
-	}
-}
-
-func TestConversionIndexGeneration(t *testing.T) {
-	prefixes := map[uint64]bool{111: true}
-	var wantPrefixes []uint64
-	for k := range prefixes {
-		wantPrefixes = append(wantPrefixes, k)
-	}
-
-	prefixBitSize, totalBitSize := uint64(9), uint64(12)
-	gotIndex, err := CreateConversionIndex(wantPrefixes, prefixBitSize, totalBitSize, true /*hasPrefix*/)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotPrefix := gotIndex >> (totalBitSize - prefixBitSize)
-	if _, ok := prefixes[gotPrefix]; !ok {
-		t.Fatalf("want index with one of the prefixes in %v, got prefix %d", wantPrefixes, gotPrefix)
-	}
-
-	gotIndex, err = CreateConversionIndex(wantPrefixes, prefixBitSize, totalBitSize, false /*hasPrefix*/)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotPrefix = gotIndex >> (totalBitSize - prefixBitSize)
-	if _, ok := prefixes[gotPrefix]; ok {
-		t.Fatalf("want index without any of the prefixes in %v, got prefix %d", wantPrefixes, gotPrefix)
-	}
-
-	if idx, err := CreateConversionIndex([]uint64{0, 1}, 1, 2, false /*hasPrefix*/); err == nil {
-		t.Fatalf("want error for creating an index without any prefixes, got return %d", idx)
 	}
 }

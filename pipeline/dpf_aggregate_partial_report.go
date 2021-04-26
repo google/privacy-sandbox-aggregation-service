@@ -47,15 +47,14 @@ import (
 
 var (
 	partialReportFile    = flag.String("partial_report_file", "", "Input partial reports.")
+	sumParametersFile    = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
+	countParametersFile  = flag.String("count_parameters_file", "", "Input file that stores the DPF parameters for count.")
+	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
 	privateKeyDir        = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
 
-	logN                = flag.Uint64("log_n", 20, "Bits of the aggregation domain size.")
-	logElementSizeSum   = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
-	logElementSizeCount = flag.Uint64("log_element_size_count", 6, "Bits of element size for COUNT aggregation.")
-
-	directCombine    = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
-	logSegmentLength = flag.Uint64("log_segment_length", 15, "Bits of the segment to split the original vectors.")
+	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
+	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -68,21 +67,36 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
+	sumParams, err := cryptoio.ReadDPFParameters(*sumParametersFile)
+	if err != nil {
+		log.Exit(ctx, err)
+	}
+	countParams, err := cryptoio.ReadDPFParameters(*countParametersFile)
+	if err != nil {
+		log.Exit(ctx, err)
+	}
+	prefixes, err := cryptoio.ReadPrefixes(*prefixesFile)
+	if err != nil {
+		log.Exit(ctx, err)
+	}
+
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
-	dpfaggregator.AggregatePartialReport(
+	if err := dpfaggregator.AggregatePartialReport(
 		scope,
 		&dpfaggregator.AggregatePartialReportParams{
 			PartialReportFile:    *partialReportFile,
 			PartialHistogramFile: *partialHistogramFile,
-			LogN:                 *logN,
-			LogElementSizeSum:    *logElementSizeSum,
-			LogElementSizeCount:  *logElementSizeCount,
+			SumParameters:        sumParams,
+			CountParameters:      countParams,
+			Prefixes:             prefixes,
 			HelperPrivateKey:     helperPrivKey,
 			DirectCombine:        *directCombine,
-			LogSegmentLength:     *logSegmentLength,
+			SegmentLength:        *segmentLength,
 			Shards:               *fileShards,
-		})
+		}); err != nil {
+		log.Exit(ctx, err)
+	}
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)
 	}

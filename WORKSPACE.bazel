@@ -194,7 +194,7 @@ http_archive(
 
 git_repository(
     name = "com_github_google_distributed_point_functions",
-    commit = "07ce616519e2137be52318efe99973a0783c67a4",
+    commit = "ea175a91e6eda5b22392fdae82080eb9709cd0eb",
     remote = "https://github.com/google/distributed_point_functions.git",
 )
 

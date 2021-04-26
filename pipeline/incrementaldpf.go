@@ -174,24 +174,72 @@ func EvaluateNext64(prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint
 	return expanded, nil
 }
 
-// CalculateBucketID gets the bucket ID for values in the expanded vectors.
-func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) ([]uint64, error) {
+// EvaluateUntil64 evaluates the given DPF key in the evaluation context to a certain level of hierarchy.
+func EvaluateUntil64(hierarchyLevel int, prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
+	pSize := len(prefixes)
+	cPrefixesSize := C.int64_t(pSize)
+	var prefixesPointer *uint64
+	if pSize > 0 {
+		prefixesPointer = &prefixes[0]
+	}
+
+	bEvalCtx, err := proto.Marshal(evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	cEvalCtx := C.struct_CBytes{c: (*C.char)(C.CBytes(bEvalCtx)), l: C.int(len(bEvalCtx))}
+	outExpanded := C.struct_CUInt64Vec{}
+	errStr := C.struct_CBytes{}
+	status := C.CEvaluateUntil64(C.int(hierarchyLevel), (*C.uint64_t)(unsafe.Pointer(prefixesPointer)), cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
+	defer freeCBytes(cEvalCtx)
+	defer C.free(unsafe.Pointer(outExpanded.vec))
+	defer freeCBytes(errStr)
+	if status != 0 {
+		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
+	}
+
+	if err := proto.Unmarshal(C.GoBytes(unsafe.Pointer(cEvalCtx.c), cEvalCtx.l), evalCtx); err != nil {
+		return nil, err
+	}
+
+	const maxLen = 1 << 30
+	vecLen := uint64(outExpanded.vec_size)
+	if vecLen > maxLen {
+		return nil, fmt.Errorf("vector length %d should not exceed %d", vecLen, maxLen)
+	}
+	es := (*[maxLen]C.uint64_t)(unsafe.Pointer(outExpanded.vec))[:vecLen:vecLen]
+	expanded := make([]uint64, vecLen)
+	for i := uint64(0); i < uint64(vecLen); i++ {
+		expanded[i] = uint64(es[i])
+	}
+	return expanded, nil
+}
+
+// CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
+//
+// 'prefixLevel' is the level of hierarchy that the prefixes[prefixLevel+1] are applied to filter results;
+// 'expandLevel' is the next level that the filtered results are further expanded.
+func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, prefixLevel, expandLevel int) ([]uint64, error) {
 	if err := CheckExpansionParameters(params, prefixes); err != nil {
 		return nil, err
 	}
 
+	paramsLen := len(params.Params)
 	// For direct expansion, return empty slice to avoid generating extra data.
 	// Because in this case, the bucket ID equals the vector index.
-	if len(params.Params) == 1 {
+	if paramsLen == 1 {
 		return nil, nil
 	}
 
-	paramsLen := len(params.Params)
-	expansionBits := params.Params[paramsLen-1].LogDomainSize - params.Params[paramsLen-2].LogDomainSize
+	if prefixLevel < 0 || prefixLevel > expandLevel || expandLevel >= paramsLen {
+		return nil, fmt.Errorf("expect 0 <= prefixLevel <= expandLevel < %d, got prefixLevel=%d, expandLevel=%d", paramsLen, prefixLevel, expandLevel)
+	}
+
+	expansionBits := params.Params[expandLevel].GetLogDomainSize() - params.Params[prefixLevel].GetLogDomainSize()
 	expansionSize := uint64(1) << expansionBits
-	ids := make([]uint64, uint64(len(prefixes.Prefixes[paramsLen-1].Prefix))*expansionSize)
+	ids := make([]uint64, uint64(len(prefixes.Prefixes[prefixLevel+1].Prefix))*expansionSize)
 	i := uint64(0)
-	for _, p := range prefixes.Prefixes[paramsLen-1].Prefix {
+	for _, p := range prefixes.Prefixes[prefixLevel+1].Prefix {
 		prefix := p << uint64(expansionBits)
 		for j := uint64(0); j < expansionSize; j++ {
 			ids[i] = prefix | j

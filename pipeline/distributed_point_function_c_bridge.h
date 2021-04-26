@@ -39,6 +39,12 @@ int CEvaluateNext64(const uint64_t *prefixes, int64_t prefixes_size,
                     struct CBytes *mutable_context, struct CUInt64Vec *out_vec,
                     struct CBytes *out_error);
 
+// CEvaluateUntil64 wraps EvaluateUntil<uint64_t>() in C:
+// http://google3/dpf/distributed_point_function.h?l=123&rcl=369891806
+int CEvaluateUntil64(int hierarchy_level, const uint64_t *prefixes,
+                     int64_t prefixes_size, struct CBytes *mutable_context,
+                     struct CUInt64Vec *out_vec, struct CBytes *out_error);
+
 #ifdef __cplusplus
 }
 #endif

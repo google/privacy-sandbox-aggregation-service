@@ -357,7 +357,8 @@ func ExpandAndCombineHistogram(scope beam.Scope, partialReport beam.PCollection,
 		Prefixes:        params.Prefixes,
 	}, partialReport)
 
-	bucketIDs, err := incrementaldpf.CalculateBucketID(params.SumParameters, params.Prefixes)
+	paramsLen := len(params.SumParameters.Params)
+	bucketIDs, err := incrementaldpf.CalculateBucketID(params.SumParameters, params.Prefixes, paramsLen-2, paramsLen-1)
 	if err != nil {
 		return beam.PCollection{}, err
 	}

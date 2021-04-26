@@ -14,10 +14,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/types/span.h"
-#include "pipeline/cbytes.h"
-#include "pipeline/cbytes_utils.h"
 #include "dpf/distributed_point_function.h"
 #include "dpf/distributed_point_function.pb.h"
+#include "pipeline/cbytes.h"
+#include "pipeline/cbytes_utils.h"
 
 using ::convagg::crypto::AllocateCBytes;
 using ::convagg::crypto::StrToCBytes;
@@ -108,9 +108,10 @@ int CCreateEvaluationContext(const struct CBytes* params, int64_t params_size,
   return static_cast<int>(absl::StatusCode::kOk);
 }
 
-int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
-                    struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
-                    struct CBytes* out_error) {
+int Evaluate64(bool is_multilevel, int hierarchy_level,
+               const uint64_t* prefixes, int64_t prefixes_size,
+               struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
+               struct CBytes* out_error) {
   EvaluationContext eval_context;
   if (!eval_context.ParseFromArray(mutable_context->c, mutable_context->l)) {
     StrToCBytes("fail to parse EvaluationContext", out_error);
@@ -131,11 +132,17 @@ int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
     prefixes_128[i] = absl::uint128(prefixes[i]);
   }
 
-  auto maybe_result =
-      dpf.value()->EvaluateNext<uint64_t>(prefixes_128, eval_context);
-  if (!maybe_result.ok()) {
-    StrToCBytes(maybe_result.status().message(), out_error);
-    return maybe_result.status().raw_code();
+  absl::StatusOr<std::vector<uint64_t>> result;
+  if (is_multilevel) {
+    result = (*dpf)->EvaluateUntil<uint64_t>(hierarchy_level, prefixes_128,
+                                             eval_context);
+  } else {
+    result = (*dpf)->EvaluateNext<uint64_t>(prefixes_128, eval_context);
+  }
+
+  if (!result.ok()) {
+    StrToCBytes(result.status().message(), out_error);
+    return result.status().raw_code();
   }
   free(mutable_context->c);
   if (!AllocateCBytes(eval_context.ByteSizeLong(), mutable_context) ||
@@ -144,7 +151,7 @@ int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
     return static_cast<int>(absl::StatusCode::kInternal);
   }
 
-  int size = maybe_result->size();
+  int size = result->size();
   out_vec->vec_size = size;
   out_vec->vec = (uint64_t*)calloc(size, sizeof(uint64_t));
   if (out_vec->vec == nullptr) {
@@ -152,7 +159,21 @@ int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
     return static_cast<int>(absl::StatusCode::kInternal);
   }
   for (int i = 0; i < size; i++) {
-    out_vec->vec[i] = (uint64_t)((*maybe_result)[i]);
+    out_vec->vec[i] = (uint64_t)((*result)[i]);
   }
   return static_cast<int>(absl::StatusCode::kOk);
+}
+
+int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
+                    struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
+                    struct CBytes* out_error) {
+  return Evaluate64(false, 0, prefixes, prefixes_size, mutable_context, out_vec,
+                    out_error);
+}
+
+int CEvaluateUntil64(int hierarchy_level, const uint64_t* prefixes,
+                     int64_t prefixes_size, struct CBytes* mutable_context,
+                     struct CUInt64Vec* out_vec, struct CBytes* out_error) {
+  return Evaluate64(true, hierarchy_level, prefixes, prefixes_size,
+                    mutable_context, out_vec, out_error);
 }

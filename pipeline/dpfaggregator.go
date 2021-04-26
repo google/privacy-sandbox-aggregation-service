@@ -48,6 +48,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
@@ -137,6 +138,18 @@ type expandDpfKeyFn struct {
 	vecCounter                     beam.Counter
 }
 
+func fullyExpandDpfKey(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
+	vec, err := incrementaldpf.EvaluateUntil64(0, []uint64{}, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	paramsLen := len(params.Params)
+	if paramsLen > 1 {
+		vec, err = incrementaldpf.EvaluateUntil64(paramsLen-1, prefixes.Prefixes[paramsLen-1].Prefix, evalCtx)
+	}
+	return vec, err
+}
+
 func (fn *expandDpfKeyFn) Setup() {
 	fn.vecCounter = beam.NewCounter("aggregation", "expandDpfFn-vec-count")
 }
@@ -148,25 +161,18 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.
 	if err != nil {
 		return err
 	}
-
-	var vecSum []uint64
-	for i := range fn.SumParameters.Params {
-		vecSum, err = incrementaldpf.EvaluateNext64(fn.Prefixes.Prefixes[i].Prefix, sumCtx)
-		if err != nil {
-			return err
-		}
+	vecSum, err := fullyExpandDpfKey(fn.SumParameters, fn.Prefixes, sumCtx)
+	if err != nil {
+		return err
 	}
 
 	countCtx, err := incrementaldpf.CreateEvaluationContext(fn.CountParameters.Params, partialReport.GetCountKey())
 	if err != nil {
 		return err
 	}
-	var vecCount []uint64
-	for i := range fn.CountParameters.Params {
-		vecCount, err = incrementaldpf.EvaluateNext64(fn.Prefixes.Prefixes[i].Prefix, countCtx)
-		if err != nil {
-			return err
-		}
+	vecCount, err := fullyExpandDpfKey(fn.CountParameters, fn.Prefixes, countCtx)
+	if err != nil {
+		return err
 	}
 
 	emit(&expandedVec{SumVec: vecSum, CountVec: vecCount})

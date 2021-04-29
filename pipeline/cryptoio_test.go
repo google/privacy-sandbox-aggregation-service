@@ -65,7 +65,7 @@ func TestKeyGeneration(t *testing.T) {
 	}
 
 	message := "original message"
-	sEncrypted, err := standardencrypt.Encrypt([]byte(message), sPub)
+	sEncrypted, err := standardencrypt.Encrypt([]byte(message), nil, sPub)
 	if err != nil {
 		t.Fatalf("standardencrypt.Encrypt() = %s", err)
 	}
@@ -83,7 +83,7 @@ func TestKeyGeneration(t *testing.T) {
 		t.Fatalf("ReadElGamalPrivateKey() = %s", err)
 	}
 
-	sDecrypted, err := standardencrypt.Decrypt(sEncrypted, sPriv)
+	sDecrypted, err := standardencrypt.Decrypt(sEncrypted, nil, sPriv)
 	if err != nil {
 		t.Fatalf("standardencrypt.Decrypt() = %s", err)
 	}

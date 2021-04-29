@@ -106,7 +106,7 @@ type decryptPartialReportFn struct {
 }
 
 func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.StandardCiphertext, emit func(*pb.PartialReportDpf)) error {
-	b, err := standardencrypt.Decrypt(encrypted, fn.StandardPrivateKey)
+	b, err := standardencrypt.Decrypt(encrypted, nil, fn.StandardPrivateKey)
 	if err != nil {
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}

@@ -47,11 +47,11 @@ func TestEncryptAndDecrypt(t *testing.T) {
 	message1 := "Message 1"
 	message2 := "Message 2"
 
-	encrypted1, err := Encrypt([]byte(message1), pub)
+	encrypted1, err := Encrypt([]byte(message1), nil, pub)
 	if err != nil {
 		t.Fatalf("Encrypt(%s) = %s", message1, err)
 	}
-	encrypted2, err := Encrypt([]byte(message2), pub)
+	encrypted2, err := Encrypt([]byte(message2), nil, pub)
 	if err != nil {
 		t.Fatalf("Encrypt(%s) = %s", message2, err)
 	}
@@ -60,7 +60,7 @@ func TestEncryptAndDecrypt(t *testing.T) {
 		t.Fatalf("same encrypted results for different messages %s and %s", message1, message2)
 	}
 
-	encryptedAgain, err := Encrypt([]byte(message1), pub)
+	encryptedAgain, err := Encrypt([]byte(message1), nil, pub)
 	if err != nil {
 		t.Fatalf("Encrypt(%s) = %s", message1, err)
 	}
@@ -68,11 +68,33 @@ func TestEncryptAndDecrypt(t *testing.T) {
 		t.Fatalf("same encrypted results for the same messages %s", message1)
 	}
 
-	decrypted, err := Decrypt(encrypted1, priv)
+	decrypted, err := Decrypt(encrypted1, nil, priv)
 	if err != nil {
 		t.Fatalf("Decrypt(%s, %s) = %s", encrypted1.String(), priv.String(), err)
 	}
 	if message1 != string(decrypted) {
 		t.Fatalf("want decrypted message %s, got %s", message1, decrypted)
+	}
+}
+
+func TestHybridEncryptAndDecrypt(t *testing.T) {
+	priv, pub, err := GenerateStandardKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateStandardKeyPair() = %s", err)
+	}
+	message := "Message"
+	context := "context info"
+
+	encrypted, err := Encrypt([]byte(message), []byte(context), pub)
+	if err != nil {
+		t.Fatalf("Encrypt(%s) = %s", message, err)
+	}
+
+	decrypted, err := Decrypt(encrypted, []byte(context), priv)
+	if err != nil {
+		t.Fatalf("Decrypt(%s, %s) = %s", encrypted.String(), priv.String(), err)
+	}
+	if message != string(decrypted) {
+		t.Fatalf("want decrypted message %s, got %s", message, decrypted)
 	}
 }

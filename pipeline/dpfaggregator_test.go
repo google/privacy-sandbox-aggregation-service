@@ -40,7 +40,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 	if err != nil {
 		return err
 	}
-	result, err := standardencrypt.Encrypt(b, fn.PublicKey)
+	result, err := standardencrypt.Encrypt(b, nil, fn.PublicKey)
 	if err != nil {
 		return err
 	}

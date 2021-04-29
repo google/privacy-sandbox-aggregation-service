@@ -163,7 +163,7 @@ func encryptPartialReport(partialReport *pb.PartialReport, key *pb.StandardPubli
 	if err != nil {
 		return nil, err
 	}
-	return standardencrypt.Encrypt(bPartialReport, key)
+	return standardencrypt.Encrypt(bPartialReport, nil, key)
 }
 
 // Generate encrypted partial report from the key/value shares.

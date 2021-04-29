@@ -97,7 +97,7 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, key *pb.StandardPu
 		return nil, err
 	}
 
-	encrypted, err := standardencrypt.Encrypt(bPartialReport, key)
+	encrypted, err := standardencrypt.Encrypt(bPartialReport, nil, key)
 	if err != nil {
 		return nil, err
 	}

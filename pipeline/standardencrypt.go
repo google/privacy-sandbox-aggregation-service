@@ -53,7 +53,7 @@ func GenerateStandardKeyPair() (*pb.StandardPrivateKey, *pb.StandardPublicKey, e
 }
 
 // Encrypt encrypts the input message with the given public key.
-func Encrypt(message []byte, publicKey *pb.StandardPublicKey) (*pb.StandardCiphertext, error) {
+func Encrypt(message, context []byte, publicKey *pb.StandardPublicKey) (*pb.StandardCiphertext, error) {
 	bPub := bytes.NewBuffer(publicKey.Key)
 	pub, err := insecurecleartextkeyset.Read(keyset.NewBinaryReader(bPub))
 	if err != nil {
@@ -64,7 +64,7 @@ func Encrypt(message []byte, publicKey *pb.StandardPublicKey) (*pb.StandardCiphe
 	if err != nil {
 		return nil, err
 	}
-	ct, err := he.Encrypt(message, nil)
+	ct, err := he.Encrypt(message, context)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func Encrypt(message []byte, publicKey *pb.StandardPublicKey) (*pb.StandardCiphe
 }
 
 // Decrypt decrypts the message with the given private key.
-func Decrypt(encrypted *pb.StandardCiphertext, privateKey *pb.StandardPrivateKey) ([]byte, error) {
+func Decrypt(encrypted *pb.StandardCiphertext, context []byte, privateKey *pb.StandardPrivateKey) ([]byte, error) {
 	bPriv := bytes.NewBuffer(privateKey.Key)
 	priv, err := insecurecleartextkeyset.Read(keyset.NewBinaryReader(bPriv))
 	if err != nil {
@@ -83,5 +83,5 @@ func Decrypt(encrypted *pb.StandardCiphertext, privateKey *pb.StandardPrivateKey
 	if err != nil {
 		return nil, err
 	}
-	return hd.Decrypt(encrypted.Data, nil)
+	return hd.Decrypt(encrypted.Data, context)
 }

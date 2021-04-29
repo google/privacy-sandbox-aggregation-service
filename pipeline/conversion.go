@@ -94,7 +94,7 @@ func (fn *decryptPartialReportFn) Setup() {
 
 // Decrypt the partial reports sent to the helper.
 func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, reportID string, encrypted *pb.StandardCiphertext, emit func(string, *pb.PartialReport)) error {
-	b, err := standardencrypt.Decrypt(encrypted, fn.StandardPrivateKey)
+	b, err := standardencrypt.Decrypt(encrypted, nil, fn.StandardPrivateKey)
 	if err != nil {
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}

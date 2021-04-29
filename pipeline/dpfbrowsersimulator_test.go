@@ -17,14 +17,39 @@ package dpfbrowsersimulator
 import (
 	"testing"
 
+	
 	"github.com/apache/beam/sdks/go/pkg/beam"
+	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
+	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
+
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
+
+func TestReadInputConversions(t *testing.T) {
+	var conversions []RawConversion
+	for i := 5; i <= 20; i++ {
+		for j := 0; j < i; j++ {
+			conversions = append(conversions, RawConversion{Index: uint64(i), Value: uint64(i)})
+		}
+	}
+
+	testFile := "dpf_test_conversion_data.csv"
+	
+	pipeline, scope := beam.NewPipelineWithRoot()
+	lines := textio.ReadSdf(scope, testFile)
+	got := beam.ParDo(scope, &parseRawConversionFn{}, lines)
+	want := beam.CreateList(scope, conversions)
+
+	passert.Equals(scope, got, want)
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}
 
 type dpfTestData struct {
 	Conversions            []RawConversion

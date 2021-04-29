@@ -20,7 +20,9 @@ import (
 	"os"
 	"testing"
 
+	
 	"github.com/apache/beam/sdks/go/pkg/beam"
+	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/go-cmp/cmp"
@@ -34,6 +36,27 @@ import (
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
+
+func TestReadInputConversions(t *testing.T) {
+	var conversions []rawConversion
+	for i := 5; i <= 20; i++ {
+		for j := 0; j < i; j++ {
+			conversions = append(conversions, rawConversion{Key: fmt.Sprintf("aaaaaaaaaa%d", i), Value: uint16(i)})
+		}
+	}
+
+	testFile := "test_conversion_data.csv"
+	
+	pipeline, scope := beam.NewPipelineWithRoot()
+	lines := textio.ReadSdf(scope, testFile)
+	got := beam.ParDo(scope, &parseRawConversionFn{}, lines)
+	want := beam.CreateList(scope, conversions)
+
+	passert.Equals(scope, got, want)
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}
 
 func TestSplitIntoByteShares(t *testing.T) {
 	a := "abcd"

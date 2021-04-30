@@ -48,18 +48,18 @@ func TestKeyGeneration(t *testing.T) {
 	}
 	defer os.RemoveAll(pubDir)
 
-	if err := SaveStandardPublicKey(pubDir, sPub); err != nil {
+	if err := SaveStandardPublicKey(path.Join(pubDir, DefaultStandardPublicKey), sPub); err != nil {
 		t.Fatalf("SaveStandardPublicKey() = %s", err)
 	}
-	if err := SaveElGamalPublicKey(pubDir, ePub); err != nil {
+	if err := SaveElGamalPublicKey(path.Join(pubDir, DefaultElgamalPublicKey), ePub); err != nil {
 		t.Fatalf("SaveElGamalPublicKey() = %s", err)
 	}
 
-	sPub, err = ReadStandardPublicKey(pubDir)
+	sPub, err = ReadStandardPublicKey(path.Join(pubDir, DefaultStandardPublicKey))
 	if err != nil {
 		t.Fatalf("ReadStandardPrivateKey() = %s", err)
 	}
-	ePub, err = ReadElGamalPublicKey(pubDir)
+	ePub, err = ReadElGamalPublicKey(path.Join(pubDir, DefaultElgamalPublicKey))
 	if err != nil {
 		t.Fatalf("ReadElGamalPublicKey() = %s", err)
 	}
@@ -74,11 +74,11 @@ func TestKeyGeneration(t *testing.T) {
 		t.Fatalf("elgamalencrypt.Encrypt() = %s", err)
 	}
 
-	sPriv, err := ReadStandardPrivateKey(privDir)
+	sPriv, err := ReadStandardPrivateKey(path.Join(privDir, DefaultStandardPrivateKey))
 	if err != nil {
 		t.Fatalf("ReadStandardPrivateKey() = %s", err)
 	}
-	ePriv, err := ReadElGamalPrivateKey(privDir)
+	ePriv, err := ReadElGamalPrivateKey(path.Join(privDir, DefaultElgamalPrivateKey))
 	if err != nil {
 		t.Fatalf("ReadElGamalPrivateKey() = %s", err)
 	}
@@ -102,7 +102,7 @@ func TestKeyGeneration(t *testing.T) {
 		t.Fatalf("want ElGamal decrypted message %s, got %s", message, string(sDecrypted))
 	}
 
-	secret, err := ReadElGamalSecret(privDir)
+	secret, err := ReadElGamalSecret(path.Join(privDir, DefaultElgamalSecret))
 	if err != nil {
 		t.Fatalf("ReadElGamalSecret() = %s", err)
 	}

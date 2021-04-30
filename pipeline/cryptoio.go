@@ -30,18 +30,19 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
+// The default file names for stored encryption keys and secret.
 const (
-	standardPublicKey  = "STANDARD_PUBLIC_KEY"
-	standardPrivateKey = "STANDARD_PRIVATE_KEY"
+	DefaultStandardPublicKey  = "STANDARD_PUBLIC_KEY"
+	DefaultStandardPrivateKey = "STANDARD_PRIVATE_KEY"
 
-	elgamalPublicKey  = "ELGAMAL_PUBLIC_KEY"
-	elgamalPrivateKey = "ELGAMAL_PRIVATE_KEY"
-	elgamalSecret     = "ELGAMAL_SECRET"
+	DefaultElgamalPublicKey  = "ELGAMAL_PUBLIC_KEY"
+	DefaultElgamalPrivateKey = "ELGAMAL_PRIVATE_KEY"
+	DefaultElgamalSecret     = "ELGAMAL_SECRET"
 )
 
 // ReadElGamalSecret is called by the helper servers, which reads the ElGamal secret.
-func ReadElGamalSecret(fileDir string) (string, error) {
-	bs, err := ioutil.ReadFile(path.Join(fileDir, elgamalSecret))
+func ReadElGamalSecret(filePath string) (string, error) {
+	bs, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return "", err
 	}
@@ -49,8 +50,8 @@ func ReadElGamalSecret(fileDir string) (string, error) {
 }
 
 // ReadStandardPrivateKey is called by the helper servers, which reads the standard private key.
-func ReadStandardPrivateKey(fileDir string) (*pb.StandardPrivateKey, error) {
-	bsPriv, err := ioutil.ReadFile(path.Join(fileDir, standardPrivateKey))
+func ReadStandardPrivateKey(filePath string) (*pb.StandardPrivateKey, error) {
+	bsPriv, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +63,8 @@ func ReadStandardPrivateKey(fileDir string) (*pb.StandardPrivateKey, error) {
 }
 
 // ReadElGamalPrivateKey is called by the helper servers, which reads the ElGamal private key.
-func ReadElGamalPrivateKey(fileDir string) (*pb.ElGamalPrivateKey, error) {
-	bhPriv, err := ioutil.ReadFile(path.Join(fileDir, elgamalPrivateKey))
+func ReadElGamalPrivateKey(filePath string) (*pb.ElGamalPrivateKey, error) {
+	bhPriv, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +76,8 @@ func ReadElGamalPrivateKey(fileDir string) (*pb.ElGamalPrivateKey, error) {
 }
 
 // ReadStandardPublicKey is called by the browser, which reads the standard encryption public key.
-func ReadStandardPublicKey(fileDir string) (*pb.StandardPublicKey, error) {
-	bsPub, err := ioutil.ReadFile(path.Join(fileDir, standardPublicKey))
+func ReadStandardPublicKey(filePath string) (*pb.StandardPublicKey, error) {
+	bsPub, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +90,8 @@ func ReadStandardPublicKey(fileDir string) (*pb.StandardPublicKey, error) {
 }
 
 // ReadElGamalPublicKey is called by the browser and the other helper, which reads the homomorphic encryption public key.
-func ReadElGamalPublicKey(fileDir string) (*pb.ElGamalPublicKey, error) {
-	bhPub, err := ioutil.ReadFile(path.Join(fileDir, elgamalPublicKey))
+func ReadElGamalPublicKey(filePath string) (*pb.ElGamalPublicKey, error) {
+	bhPub, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -102,21 +103,21 @@ func ReadElGamalPublicKey(fileDir string) (*pb.ElGamalPublicKey, error) {
 }
 
 // SaveStandardPublicKey is called by the browser, which saves the public standard encryption key.
-func SaveStandardPublicKey(fileDir string, sPub *pb.StandardPublicKey) error {
+func SaveStandardPublicKey(filePath string, sPub *pb.StandardPublicKey) error {
 	bsPub, err := proto.Marshal(sPub)
 	if err != nil {
 		return fmt.Errorf("sPub marshal(%s) failed: %v", sPub.String(), err)
 	}
-	return ioutil.WriteFile(path.Join(fileDir, standardPublicKey), bsPub, os.ModePerm)
+	return ioutil.WriteFile(filePath, bsPub, os.ModePerm)
 }
 
 // SaveElGamalPublicKey is called by the browser and the other helper, which saves the public ElGamal encryption key into a file.
-func SaveElGamalPublicKey(fileDir string, hPub *pb.ElGamalPublicKey) error {
+func SaveElGamalPublicKey(filePath string, hPub *pb.ElGamalPublicKey) error {
 	bhPub, err := proto.Marshal(hPub)
 	if err != nil {
 		return fmt.Errorf("hPub marshal(%s) failed: %v", hPub.String(), err)
 	}
-	return ioutil.WriteFile(path.Join(fileDir, elgamalPublicKey), bhPub, os.ModePerm)
+	return ioutil.WriteFile(filePath, bhPub, os.ModePerm)
 }
 
 // CreateKeysAndSecret is called by the helper, which generates all the private/public key pairs and secrets.
@@ -133,7 +134,7 @@ func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPubl
 	if err != nil {
 		return nil, nil, err
 	}
-	err = ioutil.WriteFile(path.Join(fileDir, standardPrivateKey), bsPriv, os.ModePerm)
+	err = ioutil.WriteFile(path.Join(fileDir, DefaultStandardPrivateKey), bsPriv, os.ModePerm)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,7 +149,7 @@ func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPubl
 	if err != nil {
 		return nil, nil, err
 	}
-	err = ioutil.WriteFile(path.Join(fileDir, elgamalPrivateKey), bhPriv, os.ModePerm)
+	err = ioutil.WriteFile(path.Join(fileDir, DefaultElgamalPrivateKey), bhPriv, os.ModePerm)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -157,7 +158,7 @@ func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPubl
 	if err != nil {
 		return nil, nil, err
 	}
-	return sPub, hPub, ioutil.WriteFile(path.Join(fileDir, elgamalSecret), []byte(secret), os.ModePerm)
+	return sPub, hPub, ioutil.WriteFile(path.Join(fileDir, DefaultElgamalSecret), []byte(secret), os.ModePerm)
 }
 
 // SaveLines saves the input string slice into a file.

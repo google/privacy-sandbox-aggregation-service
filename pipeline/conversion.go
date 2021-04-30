@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"path"
 	"reflect"
 	"strings"
 
@@ -166,15 +167,15 @@ type ServerPrivateInfo struct {
 
 // GetPrivateInfo reads the standard and ElGamal private keys together with the ElGamal secret from a given directory.
 func GetPrivateInfo(privateKeyDir string) (*ServerPrivateInfo, error) {
-	sPriv, err := cryptoio.ReadStandardPrivateKey(privateKeyDir)
+	sPriv, err := cryptoio.ReadStandardPrivateKey(path.Join(privateKeyDir, cryptoio.DefaultStandardPrivateKey))
 	if err != nil {
 		return nil, err
 	}
-	ePriv, err := cryptoio.ReadElGamalPrivateKey(privateKeyDir)
+	ePriv, err := cryptoio.ReadElGamalPrivateKey(path.Join(privateKeyDir, cryptoio.DefaultElgamalPrivateKey))
 	if err != nil {
 		return nil, err
 	}
-	secret, err := cryptoio.ReadElGamalSecret(privateKeyDir)
+	secret, err := cryptoio.ReadElGamalSecret(path.Join(privateKeyDir, cryptoio.DefaultElgamalSecret))
 	if err != nil {
 		return nil, err
 	}

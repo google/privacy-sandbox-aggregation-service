@@ -42,6 +42,7 @@ package main
 import (
 	"context"
 	"flag"
+	"path"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
@@ -69,11 +70,11 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPubKey1, err := cryptoio.ReadStandardPublicKey(*publicKeyDir1)
+	helperPubKey1, err := cryptoio.ReadStandardPublicKey(path.Join(*publicKeyDir1, cryptoio.DefaultStandardPublicKey))
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	helperPubKey2, err := cryptoio.ReadStandardPublicKey(*publicKeyDir2)
+	helperPubKey2, err := cryptoio.ReadStandardPublicKey(path.Join(*publicKeyDir2, cryptoio.DefaultStandardPublicKey))
 	if err != nil {
 		log.Exit(ctx, err)
 	}

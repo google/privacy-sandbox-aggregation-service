@@ -37,6 +37,7 @@ package main
 import (
 	"context"
 	"flag"
+	"path"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
@@ -63,7 +64,7 @@ func main() {
 	flag.Parse()
 	beam.Init()
 	ctx := context.Background()
-	helperPrivKey, err := cryptoio.ReadStandardPrivateKey(*privateKeyDir)
+	helperPrivKey, err := cryptoio.ReadStandardPrivateKey(path.Join(*privateKeyDir, cryptoio.DefaultStandardPrivateKey))
 	if err != nil {
 		log.Exit(ctx, err)
 	}

@@ -40,6 +40,7 @@ package main
 import (
 	"context"
 	"flag"
+	"path"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
@@ -66,7 +67,7 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	otherPublicKey, err := cryptoio.ReadElGamalPublicKey(*otherPublicKeyDir)
+	otherPublicKey, err := cryptoio.ReadElGamalPublicKey(path.Join(*otherPublicKeyDir, cryptoio.DefaultElgamalPublicKey))
 	if err != nil {
 		log.Exit(ctx, err)
 	}

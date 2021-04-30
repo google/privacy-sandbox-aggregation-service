@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 
 	
@@ -106,11 +107,11 @@ func prepareKeys(helper string) (privKeyDir, pubKeyDir string, err error) {
 		return
 	}
 
-	err = cryptoio.SaveStandardPublicKey(pubKeyDir, sPub)
+	err = cryptoio.SaveStandardPublicKey(path.Join(pubKeyDir, cryptoio.DefaultStandardPublicKey), sPub)
 	if err != nil {
 		return
 	}
-	err = cryptoio.SaveElGamalPublicKey(pubKeyDir, ePub)
+	err = cryptoio.SaveElGamalPublicKey(path.Join(pubKeyDir, cryptoio.DefaultElgamalPublicKey), ePub)
 	return
 }
 

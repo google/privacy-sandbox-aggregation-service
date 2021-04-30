@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -128,11 +129,11 @@ type ServerPublicInfo struct {
 
 // GetPublicInfo reads the standard and ElGamal public keys from a given directory.
 func GetPublicInfo(publicKeyDir string) (*ServerPublicInfo, error) {
-	sPub, err := cryptoio.ReadStandardPublicKey(publicKeyDir)
+	sPub, err := cryptoio.ReadStandardPublicKey(path.Join(publicKeyDir, cryptoio.DefaultStandardPublicKey))
 	if err != nil {
 		return nil, err
 	}
-	ePub, err := cryptoio.ReadElGamalPublicKey(publicKeyDir)
+	ePub, err := cryptoio.ReadElGamalPublicKey(path.Join(publicKeyDir, cryptoio.DefaultElgamalPublicKey))
 	if err != nil {
 		return nil, err
 	}

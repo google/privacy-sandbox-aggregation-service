@@ -111,6 +111,15 @@ func SaveStandardPublicKey(filePath string, sPub *pb.StandardPublicKey) error {
 	return ioutil.WriteFile(filePath, bsPub, os.ModePerm)
 }
 
+// SaveStandardPrivateKey saves the standard encryption private key into a file.
+func SaveStandardPrivateKey(filePath string, sPriv *pb.StandardPrivateKey) error {
+	bsPriv, err := proto.Marshal(sPriv)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filePath, bsPriv, os.ModePerm)
+}
+
 // SaveElGamalPublicKey is called by the browser and the other helper, which saves the public ElGamal encryption key into a file.
 func SaveElGamalPublicKey(filePath string, hPub *pb.ElGamalPublicKey) error {
 	bhPub, err := proto.Marshal(hPub)
@@ -130,12 +139,7 @@ func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPubl
 		return nil, nil, err
 	}
 
-	bsPriv, err := proto.Marshal(sPriv)
-	if err != nil {
-		return nil, nil, err
-	}
-	err = ioutil.WriteFile(path.Join(fileDir, DefaultStandardPrivateKey), bsPriv, os.ModePerm)
-	if err != nil {
+	if err := SaveStandardPrivateKey(path.Join(fileDir, DefaultStandardPrivateKey), sPriv); err != nil {
 		return nil, nil, err
 	}
 

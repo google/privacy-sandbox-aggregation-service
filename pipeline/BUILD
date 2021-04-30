@@ -562,3 +562,13 @@ go_binary(
         "@com_github_golang_glog//:go_default_library",
     ],
 )
+
+go_binary(
+    name = "create_hybrid_key_pair",
+    srcs = ["create_hybrid_key_pair.go"],
+    deps = [
+        ":cryptoio",
+        ":standardencrypt",
+        "@com_github_golang_glog//:go_default_library",
+    ],
+)

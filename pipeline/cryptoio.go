@@ -55,11 +55,7 @@ func ReadStandardPrivateKey(filePath string) (*pb.StandardPrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	sPriv := &pb.StandardPrivateKey{}
-	if err := proto.Unmarshal(bsPriv, sPriv); err != nil {
-		return nil, err
-	}
-	return sPriv, nil
+	return &pb.StandardPrivateKey{Key: bsPriv}, nil
 }
 
 // ReadElGamalPrivateKey is called by the helper servers, which reads the ElGamal private key.
@@ -81,12 +77,7 @@ func ReadStandardPublicKey(filePath string) (*pb.StandardPublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	sPub := &pb.StandardPublicKey{}
-	if err := proto.Unmarshal(bsPub, sPub); err != nil {
-		return nil, err
-	}
-
-	return sPub, nil
+	return &pb.StandardPublicKey{Key: bsPub}, nil
 }
 
 // ReadElGamalPublicKey is called by the browser and the other helper, which reads the homomorphic encryption public key.
@@ -104,20 +95,12 @@ func ReadElGamalPublicKey(filePath string) (*pb.ElGamalPublicKey, error) {
 
 // SaveStandardPublicKey is called by the browser, which saves the public standard encryption key.
 func SaveStandardPublicKey(filePath string, sPub *pb.StandardPublicKey) error {
-	bsPub, err := proto.Marshal(sPub)
-	if err != nil {
-		return fmt.Errorf("sPub marshal(%s) failed: %v", sPub.String(), err)
-	}
-	return ioutil.WriteFile(filePath, bsPub, os.ModePerm)
+	return ioutil.WriteFile(filePath, sPub.Key, os.ModePerm)
 }
 
 // SaveStandardPrivateKey saves the standard encryption private key into a file.
 func SaveStandardPrivateKey(filePath string, sPriv *pb.StandardPrivateKey) error {
-	bsPriv, err := proto.Marshal(sPriv)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filePath, bsPriv, os.ModePerm)
+	return ioutil.WriteFile(filePath, sPriv.Key, os.ModePerm)
 }
 
 // SaveElGamalPublicKey is called by the browser and the other helper, which saves the public ElGamal encryption key into a file.

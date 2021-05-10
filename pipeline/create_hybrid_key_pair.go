@@ -24,8 +24,10 @@ import (
 )
 
 var (
-	privateKeyFile = flag.String("private_key_file", "", "Output file path for the private key.")
-	publicKeyFile  = flag.String("public_key_file", "", "Output file path for the public key.")
+	privateKeyFile    = flag.String("private_key_file", "", "Output file path for the private key.")
+	publicKeyFile     = flag.String("public_key_file", "", "Output file path for the public key.")
+	kmsKeyURI         = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
+	kmsCredentialFile = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
 )
 
 func main() {
@@ -39,7 +41,13 @@ func main() {
 	if err := cryptoio.SaveStandardPublicKey(*publicKeyFile, pub); err != nil {
 		log.Exit(err)
 	}
-	if err := cryptoio.SaveStandardPrivateKey(*privateKeyFile, priv); err != nil {
+
+	if *kmsKeyURI != "" {
+		err = cryptoio.SaveKMSEncryptedStandardPrivateKey(*kmsKeyURI, *kmsCredentialFile, *privateKeyFile, priv)
+	} else {
+		err = cryptoio.SaveStandardPrivateKey(*privateKeyFile, priv)
+	}
+	if err != nil {
 		log.Exit(err)
 	}
 }

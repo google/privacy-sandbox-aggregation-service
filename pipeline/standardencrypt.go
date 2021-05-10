@@ -26,6 +26,8 @@ import (
 )
 
 // GenerateStandardKeyPair generates a private key and a corresponding public key.
+//
+// TODO: Use Tink exposed HPKE in the aggregation pipelines
 func GenerateStandardKeyPair() (*pb.StandardPrivateKey, *pb.StandardPublicKey, error) {
 	priv, err := keyset.NewHandle(hybrid.ECIESHKDFAES128GCMKeyTemplate())
 	if err != nil {

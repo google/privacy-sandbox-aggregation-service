@@ -30,6 +30,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+	"github.com/google/tink/go/aead"
+	"github.com/google/tink/go/core/registry"
+	"github.com/google/tink/go/integration/gcpkms"
+	"github.com/google/tink/go/keyset"
+	"github.com/google/tink/go/tink"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
@@ -43,6 +48,63 @@ const (
 	DefaultElgamalPrivateKey = "ELGAMAL_PRIVATE_KEY"
 	DefaultElgamalSecret     = "ELGAMAL_SECRET"
 )
+
+func getAEADForKMS(keyURI, credentialPath string) (tink.AEAD, error) {
+	var (
+		gcpclient registry.KMSClient
+		err       error
+	)
+	if credentialPath != "" {
+		gcpclient, err = gcpkms.NewClientWithCredentials(keyURI, credentialPath)
+	} else {
+		gcpclient, err = gcpkms.NewClient(keyURI)
+	}
+	if err != nil {
+		return nil, err
+	}
+	registry.RegisterKMSClient(gcpclient)
+
+	dek := aead.AES128CTRHMACSHA256KeyTemplate()
+	kh, err := keyset.NewHandle(aead.KMSEnvelopeAEADKeyTemplate(keyURI, dek))
+	if err != nil {
+		return nil, err
+	}
+
+	return aead.New(kh)
+}
+
+// SaveKMSEncryptedStandardPrivateKey encrypts the standard private key with GCP KMS and saves it into a file.
+func SaveKMSEncryptedStandardPrivateKey(keyURI, credentialPath, filePath string, sPriv *pb.StandardPrivateKey) error {
+	a, err := getAEADForKMS(keyURI, credentialPath)
+	if err != nil {
+		return err
+	}
+
+	ct, err := a.Encrypt(sPriv.Key, nil)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filePath, ct, os.ModePerm)
+}
+
+// ReadKMSDecryptedStandardPrivateKey reads the KMS-encrypted standard private key from a file and decrypts it.
+func ReadKMSDecryptedStandardPrivateKey(keyURI, credentialPath, filePath string) (*pb.StandardPrivateKey, error) {
+	ct, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	a, err := getAEADForKMS(keyURI, credentialPath)
+	if err != nil {
+		return nil, err
+	}
+
+	bsPriv, err := a.Decrypt(ct, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.StandardPrivateKey{Key: bsPriv}, nil
+}
 
 // ReadElGamalSecret is called by the helper servers, which reads the ElGamal secret.
 func ReadElGamalSecret(filePath string) (string, error) {

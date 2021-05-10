@@ -243,6 +243,11 @@ go_library(
         ":crypto_go_proto",
         ":elgamalencrypt",
         ":standardencrypt",
+        "@com_github_google_tink_go//aead:go_default_library",
+        "@com_github_google_tink_go//core/registry:go_default_library",
+        "@com_github_google_tink_go//integration/gcpkms:go_default_library",
+        "@com_github_google_tink_go//keyset:go_default_library",
+        "@com_github_google_tink_go//tink:go_default_library",
         "@com_google_cloud_go//storage:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
@@ -252,6 +257,9 @@ go_test(
     name = "cryptoio_test",
     size = "small",
     srcs = ["cryptoio_test.go"],
+    data = [
+        "@tink_base//testdata:credentials",
+    ],
     embed = [":cryptoio"],
     deps = [
         ":crypto_go_proto",

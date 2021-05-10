@@ -21,6 +21,7 @@ import (
 	"path"
 	"testing"
 
+	
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
@@ -30,6 +31,43 @@ import (
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
+
+func testSaveReadKMSEncryptedStandardPrivateKey(t *testing.T) {
+	privDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(privDir)
+
+	priv, _, err := standardencrypt.GenerateStandardKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyURI := "gcp-kms://projects/tink-test-infrastructure/locations/global/keyRings/unit-and-integration-testing/cryptoKeys/aead-key"
+	credFile := "../../tink_base/testdata/credential.json"
+	
+
+	privPath := path.Join(privDir, DefaultStandardPrivateKey)
+	if err := SaveKMSEncryptedStandardPrivateKey(keyURI, credFile, privPath, priv); err != nil {
+		t.Fatal(err)
+	}
+	gotEncryptedKey, err := ioutil.ReadFile(privPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(priv.Key, gotEncryptedKey); diff == "" {
+		t.Error("Key bytes should be different after KMS encryption.")
+	}
+
+	gotPriv, err := ReadKMSDecryptedStandardPrivateKey(keyURI, credFile, privPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(priv, gotPriv, protocmp.Transform()); diff != "" {
+		t.Errorf("Saved and read private key mismatch (-want +got):\n%s", diff)
+	}
+}
 
 func TestKeyGeneration(t *testing.T) {
 	privDir, err := ioutil.TempDir("/tmp", "test-private")

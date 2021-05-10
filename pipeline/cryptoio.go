@@ -17,12 +17,16 @@ package cryptoio
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
+	"cloud.google.com/go/storage"
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
@@ -190,26 +194,46 @@ func readLines(filename string) ([]string, error) {
 }
 
 // SavePrefixes saves prefixes to a file.
-func SavePrefixes(filename string, prefixes *pb.HierarchicalPrefixes) error {
+//
+// The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
+func SavePrefixes(ctx context.Context, filename string, prefixes *pb.HierarchicalPrefixes) error {
 	bPrefixes, err := proto.Marshal(prefixes)
 	if err != nil {
 		return fmt.Errorf("prefixes marshal(%s) failed: %v", prefixes.String(), err)
+	}
+	if strings.HasPrefix(filename, "gs://") {
+		return writeGCSObject(ctx, bPrefixes, filename)
 	}
 	return ioutil.WriteFile(filename, bPrefixes, os.ModePerm)
 }
 
 // SaveDPFParameters saves the DPF parameters into a file.
-func SaveDPFParameters(filename string, params *pb.IncrementalDpfParameters) error {
+//
+// The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
+func SaveDPFParameters(ctx context.Context, filename string, params *pb.IncrementalDpfParameters) error {
 	bParams, err := proto.Marshal(params)
 	if err != nil {
 		return fmt.Errorf("params marshal(%s) failed: %v", params.String(), err)
+	}
+	if strings.HasPrefix(filename, "gs://") {
+		return writeGCSObject(ctx, bParams, filename)
 	}
 	return ioutil.WriteFile(filename, bParams, os.ModePerm)
 }
 
 // ReadPrefixes reads the prefixes from a file.
-func ReadPrefixes(filename string) (*pb.HierarchicalPrefixes, error) {
-	bPrefixes, err := ioutil.ReadFile(filename)
+//
+// The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
+func ReadPrefixes(ctx context.Context, filename string) (*pb.HierarchicalPrefixes, error) {
+	var (
+		bPrefixes []byte
+		err       error
+	)
+	if strings.HasPrefix(filename, "gs://") {
+		bPrefixes, err = readGCSObject(ctx, filename)
+	} else {
+		bPrefixes, err = ioutil.ReadFile(filename)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -221,8 +245,19 @@ func ReadPrefixes(filename string) (*pb.HierarchicalPrefixes, error) {
 }
 
 // ReadDPFParameters reads the DPF parameters from a file.
-func ReadDPFParameters(filename string) (*pb.IncrementalDpfParameters, error) {
-	bParams, err := ioutil.ReadFile(filename)
+//
+// The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
+func ReadDPFParameters(ctx context.Context, filename string) (*pb.IncrementalDpfParameters, error) {
+	var (
+		bParams []byte
+		err     error
+	)
+	if strings.HasPrefix(filename, "gs://") {
+		bParams, err = readGCSObject(ctx, filename)
+	} else {
+		bParams, err = ioutil.ReadFile(filename)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -231,4 +266,60 @@ func ReadDPFParameters(filename string) (*pb.IncrementalDpfParameters, error) {
 		return nil, err
 	}
 	return params, nil
+}
+
+func parseGCSPath(filename string) (bucket, object string, err error) {
+	parsed, err := url.Parse(filename)
+	if err != nil {
+		return
+	}
+	if parsed.Scheme != "gs" {
+		err = fmt.Errorf("object %q must have 'gs' scheme", filename)
+		return
+	}
+	if parsed.Host == "" {
+		err = fmt.Errorf("object %q must have bucket", filename)
+		return
+	}
+
+	bucket = parsed.Host
+	if parsed.Path != "" {
+		object = parsed.Path[1:]
+	}
+	return
+}
+
+// TODO: Add a unit test for writing and reading files in GCS buckets
+func writeGCSObject(ctx context.Context, data []byte, filename string) error {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	bucket, object, err := parseGCSPath(filename)
+	if err != nil {
+		return err
+	}
+	writer := client.Bucket(bucket).Object(object).NewWriter(ctx)
+	defer writer.Close()
+	_, err = writer.Write(data)
+	return err
+}
+
+func readGCSObject(ctx context.Context, filename string) ([]byte, error) {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket, object, err := parseGCSPath(filename)
+	if err != nil {
+		return nil, err
+	}
+	reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	return ioutil.ReadAll(reader)
 }

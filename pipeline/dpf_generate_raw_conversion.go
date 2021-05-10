@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -62,13 +63,14 @@ func main() {
 
 	prefixes, prefixDomainBits := dpfbrowsersimulator.CalculatePrefixes(root)
 	sumParams, countParams := dpfbrowsersimulator.CalculateParameters(prefixDomainBits, int32(*logN), 1<<*logElementSizeSum, 1<<*logElementSizeCount)
-	if err := cryptoio.SavePrefixes(*prefixesOutPutFile, prefixes); err != nil {
+	ctx := context.Background()
+	if err := cryptoio.SavePrefixes(ctx, *prefixesOutPutFile, prefixes); err != nil {
 		log.Exit(err)
 	}
-	if err := cryptoio.SaveDPFParameters(*sumParamsOutputFile, sumParams); err != nil {
+	if err := cryptoio.SaveDPFParameters(ctx, *sumParamsOutputFile, sumParams); err != nil {
 		log.Exit(err)
 	}
-	if err := cryptoio.SaveDPFParameters(*countParamsOutputFile, countParams); err != nil {
+	if err := cryptoio.SaveDPFParameters(ctx, *countParamsOutputFile, countParams); err != nil {
 		log.Exit(err)
 	}
 

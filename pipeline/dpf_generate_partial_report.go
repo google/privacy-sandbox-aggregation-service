@@ -78,11 +78,11 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	sumParams, err := cryptoio.ReadDPFParameters(*sumParametersFile)
+	sumParams, err := cryptoio.ReadDPFParameters(ctx, *sumParametersFile)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	countParams, err := cryptoio.ReadDPFParameters(*countParametersFile)
+	countParams, err := cryptoio.ReadDPFParameters(ctx, *countParametersFile)
 	if err != nil {
 		log.Exit(ctx, err)
 	}

@@ -15,6 +15,7 @@
 package cryptoio
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -140,10 +141,11 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	}
 	prefixPath := path.Join(baseDir, "prefix.txt")
 
-	if err := SavePrefixes(prefixPath, wantPrefix); err != nil {
+	ctx := context.Background()
+	if err := SavePrefixes(ctx, prefixPath, wantPrefix); err != nil {
 		t.Fatal(err)
 	}
-	gotPrefix, err := ReadPrefixes(prefixPath)
+	gotPrefix, err := ReadPrefixes(ctx, prefixPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,10 +161,10 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	}
 	paramsPath := path.Join(baseDir, "params.txt")
 
-	if err := SaveDPFParameters(paramsPath, wantParams); err != nil {
+	if err := SaveDPFParameters(ctx, paramsPath, wantParams); err != nil {
 		t.Fatal(err)
 	}
-	gotParams, err := ReadDPFParameters(paramsPath)
+	gotParams, err := ReadDPFParameters(ctx, paramsPath)
 	if err != nil {
 		t.Fatal(err)
 	}

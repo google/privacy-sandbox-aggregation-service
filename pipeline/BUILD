@@ -243,6 +243,7 @@ go_library(
         ":crypto_go_proto",
         ":elgamalencrypt",
         ":standardencrypt",
+        "@com_google_cloud_go//storage:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )

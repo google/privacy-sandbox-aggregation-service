@@ -14,6 +14,10 @@
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
+package(
+    default_visibility = ["//visibility:public"],
+)
+
 licenses(["notice"])
 
 go_library(
@@ -54,9 +58,6 @@ go_library(
 proto_library(
     name = "crypto_proto",
     srcs = ["crypto.proto"],
-    visibility = [
-        "//third_party/privacy_sandbox_aggregation/service:__subpackages__",
-    ],
     deps = ["@com_github_google_distributed_point_functions//dpf:distributed_point_function_proto"],
 )
 
@@ -64,9 +65,6 @@ go_proto_library(
     name = "crypto_go_proto",
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto",
     protos = [":crypto_proto"],
-    visibility = [
-        "//third_party/privacy_sandbox_aggregation/service:__subpackages__",
-    ],
     deps = ["@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto"],
 )
 
@@ -236,9 +234,6 @@ go_library(
     name = "cryptoio",
     srcs = ["cryptoio.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio",
-    visibility = [
-        "//third_party/privacy_sandbox_aggregation/service:__subpackages__",
-    ],
     deps = [
         ":crypto_go_proto",
         ":elgamalencrypt",

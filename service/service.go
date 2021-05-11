@@ -36,10 +36,11 @@ type DataflowCfg struct {
 
 // ServerCfg contains directories and file paths necessary for the service.
 type ServerCfg struct {
-	PrivateKeyDir                string
-	OtherHelperInfoDir           string
-	ReencryptConversionKeyBinary string
-	AggregatePartialReportBinary string
+	PrivateKeyDir                   string
+	OtherHelperInfoDir              string
+	ReencryptConversionKeyBinary    string
+	AggregatePartialReportBinary    string
+	DpfAggregatePartialReportBinary string
 }
 
 type server struct {
@@ -114,4 +115,26 @@ func (s *server) AggregatePartialReport(ctx context.Context, in *pb.AggregatePar
 	}
 
 	return &pb.AggregatePartialReportResponse{}, exec.CommandContext(ctx, s.ServerCfg.AggregatePartialReportBinary, args...).Run()
+}
+
+func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.AggregateDpfPartialReportRequest) (*pb.AggregateDpfPartialReportResponse, error) {
+	args := []string{
+		"--partial_report_file=" + in.PartialReportFile,
+		"--sum_parameters_file=" + in.SumDpfParametersFile,
+		"--count_parameters_file=" + in.CountDpfParametersFile,
+		"--prefixes_file=" + in.PrefixesFile,
+		"--partial_histogram_file=" + in.PartialHistogramFile,
+		"--private_key_dir=" + s.ServerCfg.PrivateKeyDir,
+		"--runner=" + s.PipelineRunner,
+	}
+
+	if s.PipelineRunner == "dataflow" {
+		args = append(args,
+			"--project="+s.DataflowCfg.Project,
+			"--temp_location="+s.DataflowCfg.TempLocation,
+			"--staging_location="+s.DataflowCfg.StagingLocation,
+			"--worker_binary="+s.ServerCfg.DpfAggregatePartialReportBinary,
+		)
+	}
+	return &pb.AggregateDpfPartialReportResponse{}, exec.CommandContext(ctx, s.ServerCfg.DpfAggregatePartialReportBinary, args...).Run()
 }

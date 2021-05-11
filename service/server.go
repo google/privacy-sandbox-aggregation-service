@@ -30,10 +30,11 @@ import (
 var (
 	port = flag.Int("port", 3389, "Port for the server.")
 
-	keyDir                       = flag.String("key_dir", "", "Directory for the private keys.")
-	otherHelperInfoDir           = flag.String("other_helper_info_dir", "", "Directory storing information of the other helper.")
-	reencryptConversionKeyBinary = flag.String("reencrypt_conversion_key_binary", "", "Binary for conversion key reencryption.")
-	aggregatePartialReportBinary = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
+	keyDir                          = flag.String("key_dir", "", "Directory for the private keys.")
+	otherHelperInfoDir              = flag.String("other_helper_info_dir", "", "Directory storing information of the other helper.")
+	reencryptConversionKeyBinary    = flag.String("reencrypt_conversion_key_binary", "", "Binary for conversion key reencryption.")
+	aggregatePartialReportBinary    = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
+	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "", "Binary for partial report aggregation with DPF protocol.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
 	dataflowProject         = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")
@@ -53,10 +54,11 @@ func main() {
 	server := grpc.NewServer()
 	pb.RegisterAggregatorServer(server, service.New(
 		service.ServerCfg{
-			PrivateKeyDir:                *keyDir,
-			OtherHelperInfoDir:           *otherHelperInfoDir,
-			ReencryptConversionKeyBinary: *reencryptConversionKeyBinary,
-			AggregatePartialReportBinary: *aggregatePartialReportBinary,
+			PrivateKeyDir:                   *keyDir,
+			OtherHelperInfoDir:              *otherHelperInfoDir,
+			ReencryptConversionKeyBinary:    *reencryptConversionKeyBinary,
+			AggregatePartialReportBinary:    *aggregatePartialReportBinary,
+			DpfAggregatePartialReportBinary: *dpfAggregatePartialReportBinary,
 		},
 		*pipelineRunner,
 		service.DataflowCfg{

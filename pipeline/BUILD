@@ -237,6 +237,7 @@ go_library(
     deps = [
         ":crypto_go_proto",
         ":elgamalencrypt",
+        ":ioutils",
         ":standardencrypt",
         "@com_github_google_tink_go//aead:go_default_library",
         "@com_github_google_tink_go//core/registry:go_default_library",
@@ -465,6 +466,7 @@ go_library(
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_google_cloud_go//storage:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -479,12 +481,14 @@ go_test(
         ":incrementaldpf",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
         "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//testing/protocmp",
     ],
 )
 

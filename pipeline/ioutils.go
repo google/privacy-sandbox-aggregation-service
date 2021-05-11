@@ -18,6 +18,7 @@ package ioutils
 import (
 	"fmt"
 	"math/rand"
+	"net/url"
 	"path/filepath"
 	"reflect"
 
@@ -69,4 +70,26 @@ func WriteNShardedFiles(s beam.Scope, outputName string, n int64, lines beam.PCo
 func AddStrInPath(path, str string) string {
 	ext := filepath.Ext(path)
 	return path[:len(path)-len(ext)] + str + ext
+}
+
+// ParseGCSPath gets the bucket and object names from the input filename.
+func ParseGCSPath(filename string) (bucket, object string, err error) {
+	parsed, err := url.Parse(filename)
+	if err != nil {
+		return
+	}
+	if parsed.Scheme != "gs" {
+		err = fmt.Errorf("object %q must have 'gs' scheme", filename)
+		return
+	}
+	if parsed.Host == "" {
+		err = fmt.Errorf("object %q must have bucket", filename)
+		return
+	}
+
+	bucket = parsed.Host
+	if parsed.Path != "" {
+		object = parsed.Path[1:]
+	}
+	return
 }

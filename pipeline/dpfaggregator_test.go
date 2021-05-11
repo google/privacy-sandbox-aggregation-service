@@ -15,7 +15,13 @@
 package dpfaggregator
 
 import (
+	"bufio"
 	"context"
+	"io/ioutil"
+	"os"
+	"path"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
@@ -24,11 +30,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+
+	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
 
 type standardEncryptFn struct {
@@ -318,5 +327,108 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+type idAgg struct {
+	ID  uint64
+	Agg *pb.PartialAggregationDpf
+}
+
+func TestReadPartialHistogram(t *testing.T) {
+	fileDir, err := ioutil.TempDir("/tmp", "test-file")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(fileDir)
+
+	data := []*idAgg{
+		{ID: 111, Agg: &pb.PartialAggregationDpf{PartialSum: 222, PartialCount: 333}},
+		{ID: 444, Agg: &pb.PartialAggregationDpf{PartialSum: 555, PartialCount: 666}},
+	}
+	want := make(map[uint64]*pb.PartialAggregationDpf)
+	for _, d := range data {
+		want[d.ID] = d.Agg
+	}
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	records := beam.CreateList(scope, data)
+	partial := beam.ParDo(scope, func(a *idAgg) (uint64, *pb.PartialAggregationDpf) {
+		return a.ID, a.Agg
+	}, records)
+	partialFile := path.Join(fileDir, "partial_agg.txt")
+	writeHistogram(scope, partial, partialFile, 1)
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+
+	ctx := context.Background()
+	got, err := ReadPartialHistogram(ctx, partialFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("Saved and read partial aggregation mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func readLines(filename string) ([]string, error) {
+	fs, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer fs.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(fs)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
+}
+
+func TestWriteCompleteHistogram(t *testing.T) {
+	fileDir, err := ioutil.TempDir("/tmp", "test-file")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(fileDir)
+
+	want := map[uint64]CompleteHistogram{
+		111: {Index: 111, Sum: 222, Count: 333},
+		555: {Index: 555, Sum: 666, Count: 777},
+	}
+	resultFile := path.Join(fileDir, "result.txt")
+	ctx := context.Background()
+	if err := WriteCompleteHistogram(ctx, resultFile, want); err != nil {
+		t.Fatal(err)
+	}
+
+	lines, err := readLines(resultFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[uint64]CompleteHistogram)
+	for _, l := range lines {
+		cols := strings.Split(l, ",")
+		if gotLen, wantLen := len(cols), 3; gotLen != wantLen {
+			t.Fatalf("got %d columns in line %q, want %d", gotLen, l, wantLen)
+		}
+		idx, err := strconv.ParseUint(cols[0], 10, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum, err := strconv.ParseUint(cols[1], 10, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count, err := strconv.ParseUint(cols[2], 10, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got[idx] = CompleteHistogram{Index: idx, Sum: sum, Count: count}
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Read and saved complete histogram mismatch (-want +got):\n%s", diff)
 	}
 }

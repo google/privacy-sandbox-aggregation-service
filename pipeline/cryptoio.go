@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +28,7 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/core/registry"
@@ -330,27 +330,6 @@ func ReadDPFParameters(ctx context.Context, filename string) (*pb.IncrementalDpf
 	return params, nil
 }
 
-func parseGCSPath(filename string) (bucket, object string, err error) {
-	parsed, err := url.Parse(filename)
-	if err != nil {
-		return
-	}
-	if parsed.Scheme != "gs" {
-		err = fmt.Errorf("object %q must have 'gs' scheme", filename)
-		return
-	}
-	if parsed.Host == "" {
-		err = fmt.Errorf("object %q must have bucket", filename)
-		return
-	}
-
-	bucket = parsed.Host
-	if parsed.Path != "" {
-		object = parsed.Path[1:]
-	}
-	return
-}
-
 // TODO: Add a unit test for writing and reading files in GCS buckets
 func writeGCSObject(ctx context.Context, data []byte, filename string) error {
 	client, err := storage.NewClient(ctx)
@@ -358,7 +337,7 @@ func writeGCSObject(ctx context.Context, data []byte, filename string) error {
 		return err
 	}
 
-	bucket, object, err := parseGCSPath(filename)
+	bucket, object, err := ioutils.ParseGCSPath(filename)
 	if err != nil {
 		return err
 	}
@@ -374,7 +353,7 @@ func readGCSObject(ctx context.Context, filename string) ([]byte, error) {
 		return nil, err
 	}
 
-	bucket, object, err := parseGCSPath(filename)
+	bucket, object, err := ioutils.ParseGCSPath(filename)
 	if err != nil {
 		return nil, err
 	}

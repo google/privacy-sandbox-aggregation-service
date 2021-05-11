@@ -240,21 +240,6 @@ func SaveLines(filename string, lines []string) error {
 	return fs.Close()
 }
 
-func readLines(filename string) ([]string, error) {
-	fs, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer fs.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(fs)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}
-
 // SavePrefixes saves prefixes to a file.
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').

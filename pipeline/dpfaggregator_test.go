@@ -15,7 +15,6 @@
 package dpfaggregator
 
 import (
-	"bufio"
 	"context"
 	"io/ioutil"
 	"os"
@@ -32,6 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -372,21 +372,6 @@ func TestReadPartialHistogram(t *testing.T) {
 	}
 }
 
-func readLines(filename string) ([]string, error) {
-	fs, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer fs.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(fs)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}
-
 func TestWriteCompleteHistogram(t *testing.T) {
 	fileDir, err := ioutil.TempDir("/tmp", "test-file")
 	if err != nil {
@@ -404,7 +389,7 @@ func TestWriteCompleteHistogram(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lines, err := readLines(resultFile)
+	lines, err := ioutils.ReadLines(resultFile)
 	if err != nil {
 		t.Fatal(err)
 	}

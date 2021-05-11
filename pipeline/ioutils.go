@@ -16,9 +16,11 @@
 package ioutils
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 
@@ -92,4 +94,20 @@ func ParseGCSPath(filename string) (bucket, object string, err error) {
 		object = parsed.Path[1:]
 	}
 	return
+}
+
+// ReadLines reads the input file line by line and returns the content as a slice of strings.
+func ReadLines(filename string) ([]string, error) {
+	fs, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer fs.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(fs)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }

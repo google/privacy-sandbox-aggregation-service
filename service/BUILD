@@ -76,3 +76,28 @@ go_binary(
         "@org_golang_x_sync//errgroup:go_default_library",
     ],
 )
+
+go_library(
+    name = "query",
+    srcs = ["query.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/query",
+    deps = [
+        ":service_go_grpc_proto",
+        "//pipeline:crypto_go_proto",
+        "//pipeline:cryptoio",
+        "//pipeline:dpfaggregator",
+        "@com_github_pborman_uuid//:uuid",
+        "@org_golang_x_sync//errgroup:go_default_library",
+    ],
+)
+
+go_test(
+    name = "query_test",
+    size = "small",
+    srcs = ["query_test.go"],
+    embed = [":query"],
+    deps = [
+        "//pipeline:dpfaggregator",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+    ],
+)

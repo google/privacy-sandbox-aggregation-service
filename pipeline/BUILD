@@ -244,7 +244,6 @@ go_library(
         "@com_github_google_tink_go//integration/gcpkms:go_default_library",
         "@com_github_google_tink_go//keyset:go_default_library",
         "@com_github_google_tink_go//tink:go_default_library",
-        "@com_google_cloud_go//storage:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -374,12 +373,10 @@ go_library(
     name = "ioutils",
     srcs = ["ioutils.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils",
-    visibility = [
-        "//third_party/privacy_sandbox_aggregation/service:__subpackages__",
-    ],
     deps = [
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_google_cloud_go//storage:go_default_library",
     ],
 )
 

@@ -86,6 +86,7 @@ go_library(
         "//pipeline:crypto_go_proto",
         "//pipeline:cryptoio",
         "//pipeline:dpfaggregator",
+        "//pipeline:ioutils",
         "@com_github_pborman_uuid//:uuid",
         "@org_golang_x_sync//errgroup:go_default_library",
     ],

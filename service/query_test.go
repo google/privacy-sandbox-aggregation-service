@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -21,11 +22,12 @@ func TestExpansionConfigReadWrite(t *testing.T) {
 		PrefixLengths:               []int32{1, 2, 3},
 		ExpansionThresholdPerPrefix: []uint64{4, 5},
 	}
+	ctx := context.Background()
 	configFile := path.Join(tmpDir, "config_file")
-	if err := WriteExpansionConfigFile(config, configFile); err != nil {
+	if err := WriteExpansionConfigFile(ctx, config, configFile); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadExpansionConfigFile(configFile)
+	got, err := ReadExpansionConfigFile(ctx, configFile)
 	if err != nil {
 		t.Fatal(err)
 	}

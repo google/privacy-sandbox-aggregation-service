@@ -23,9 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
-	"cloud.google.com/go/storage"
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -248,10 +246,7 @@ func SavePrefixes(ctx context.Context, filename string, prefixes *pb.Hierarchica
 	if err != nil {
 		return fmt.Errorf("prefixes marshal(%s) failed: %v", prefixes.String(), err)
 	}
-	if strings.HasPrefix(filename, "gs://") {
-		return writeGCSObject(ctx, bPrefixes, filename)
-	}
-	return ioutil.WriteFile(filename, bPrefixes, os.ModePerm)
+	return ioutils.WriteBytes(ctx, bPrefixes, filename)
 }
 
 // SaveDPFParameters saves the DPF parameters into a file.
@@ -262,25 +257,14 @@ func SaveDPFParameters(ctx context.Context, filename string, params *pb.Incremen
 	if err != nil {
 		return fmt.Errorf("params marshal(%s) failed: %v", params.String(), err)
 	}
-	if strings.HasPrefix(filename, "gs://") {
-		return writeGCSObject(ctx, bParams, filename)
-	}
-	return ioutil.WriteFile(filename, bParams, os.ModePerm)
+	return ioutils.WriteBytes(ctx, bParams, filename)
 }
 
 // ReadPrefixes reads the prefixes from a file.
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
 func ReadPrefixes(ctx context.Context, filename string) (*pb.HierarchicalPrefixes, error) {
-	var (
-		bPrefixes []byte
-		err       error
-	)
-	if strings.HasPrefix(filename, "gs://") {
-		bPrefixes, err = readGCSObject(ctx, filename)
-	} else {
-		bPrefixes, err = ioutil.ReadFile(filename)
-	}
+	bPrefixes, err := ioutils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -295,16 +279,7 @@ func ReadPrefixes(ctx context.Context, filename string) (*pb.HierarchicalPrefixe
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
 func ReadDPFParameters(ctx context.Context, filename string) (*pb.IncrementalDpfParameters, error) {
-	var (
-		bParams []byte
-		err     error
-	)
-	if strings.HasPrefix(filename, "gs://") {
-		bParams, err = readGCSObject(ctx, filename)
-	} else {
-		bParams, err = ioutil.ReadFile(filename)
-	}
-
+	bParams, err := ioutils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -313,39 +288,4 @@ func ReadDPFParameters(ctx context.Context, filename string) (*pb.IncrementalDpf
 		return nil, err
 	}
 	return params, nil
-}
-
-// TODO: Add a unit test for writing and reading files in GCS buckets
-func writeGCSObject(ctx context.Context, data []byte, filename string) error {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	bucket, object, err := ioutils.ParseGCSPath(filename)
-	if err != nil {
-		return err
-	}
-	writer := client.Bucket(bucket).Object(object).NewWriter(ctx)
-	defer writer.Close()
-	_, err = writer.Write(data)
-	return err
-}
-
-func readGCSObject(ctx context.Context, filename string) ([]byte, error) {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	bucket, object, err := ioutils.ParseGCSPath(filename)
-	if err != nil {
-		return nil, err
-	}
-	reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-	return ioutil.ReadAll(reader)
 }

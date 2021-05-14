@@ -17,15 +17,19 @@ package ioutils
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
+	"cloud.google.com/go/storage"
 )
 
 func init() {
@@ -110,4 +114,55 @@ func ReadLines(filename string) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+// TODO: Add a unit test for writing and reading files in GCS buckets
+func writeGCSObject(ctx context.Context, data []byte, filename string) error {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	bucket, object, err := ParseGCSPath(filename)
+	if err != nil {
+		return err
+	}
+	writer := client.Bucket(bucket).Object(object).NewWriter(ctx)
+	defer writer.Close()
+	_, err = writer.Write(data)
+	return err
+}
+
+func readGCSObject(ctx context.Context, filename string) ([]byte, error) {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket, object, err := ParseGCSPath(filename)
+	if err != nil {
+		return nil, err
+	}
+	reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	return ioutil.ReadAll(reader)
+}
+
+// WriteBytes writes bytes into a local or GCS file.
+func WriteBytes(ctx context.Context, data []byte, filename string) error {
+	if strings.HasPrefix(filename, "gs://") {
+		return writeGCSObject(ctx, data, filename)
+	}
+	return ioutil.WriteFile(filename, data, os.ModePerm)
+}
+
+// ReadBytes reads bytes from a local or GCS file.
+func ReadBytes(ctx context.Context, filename string) ([]byte, error) {
+	if strings.HasPrefix(filename, "gs://") {
+		return readGCSObject(ctx, filename)
+	}
+	return ioutil.ReadFile(filename)
 }

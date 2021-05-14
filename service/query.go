@@ -20,13 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"golang.org/x/sync/errgroup"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
 	cryptopb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
@@ -42,12 +41,12 @@ type ExpansionConfig struct {
 }
 
 // WriteExpansionConfigFile writes the ExpansionConfig into a file.
-func WriteExpansionConfigFile(config *ExpansionConfig, filename string) error {
+func WriteExpansionConfigFile(ctx context.Context, config *ExpansionConfig, filename string) error {
 	bc, err := json.Marshal(config)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, bc, os.ModePerm)
+	return ioutils.WriteBytes(ctx, bc, filename)
 }
 
 func validateExpansionConfig(config *ExpansionConfig) error {
@@ -72,8 +71,8 @@ func validateExpansionConfig(config *ExpansionConfig) error {
 }
 
 // ReadExpansionConfigFile reads the ExpansionConfig from a file and validate it.
-func ReadExpansionConfigFile(filename string) (*ExpansionConfig, error) {
-	bc, err := ioutil.ReadFile(filename)
+func ReadExpansionConfigFile(ctx context.Context, filename string) (*ExpansionConfig, error) {
+	bc, err := ioutils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}

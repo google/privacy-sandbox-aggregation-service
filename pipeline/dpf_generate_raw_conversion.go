@@ -29,7 +29,6 @@ import (
 
 var (
 	sumParamsOutputFile     = flag.String("sum_params_output_file", "", "Output file for the DPF parameters for SUM.")
-	countParamsOutputFile   = flag.String("count_params_output_file", "", "Output file for the DPF parameters for COUNT.")
 	prefixesOutPutFile      = flag.String("prefixes_output_file", "", "Output file for the prefixes.")
 	rawConversionOutputFile = flag.String("raw_conversion_output_file", "", "Output file for the fake raw conversions.")
 	totalCount              = flag.Uint64("total_count", 1000000, "Total count of raw conversions.")
@@ -62,15 +61,12 @@ func main() {
 	}
 
 	prefixes, prefixDomainBits := dpfbrowsersimulator.CalculatePrefixes(root)
-	sumParams, countParams := dpfbrowsersimulator.CalculateParameters(prefixDomainBits, int32(*logN), 1<<*logElementSizeSum, 1<<*logElementSizeCount)
+	sumParams := dpfbrowsersimulator.CalculateParameters(prefixDomainBits, int32(*logN), 1<<*logElementSizeSum)
 	ctx := context.Background()
 	if err := cryptoio.SavePrefixes(ctx, *prefixesOutPutFile, prefixes); err != nil {
 		log.Exit(err)
 	}
 	if err := cryptoio.SaveDPFParameters(ctx, *sumParamsOutputFile, sumParams); err != nil {
-		log.Exit(err)
-	}
-	if err := cryptoio.SaveDPFParameters(ctx, *countParamsOutputFile, countParams); err != nil {
 		log.Exit(err)
 	}
 

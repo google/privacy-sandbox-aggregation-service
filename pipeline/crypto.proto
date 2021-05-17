@@ -75,17 +75,15 @@ message StandardPrivateKey {
   bytes key = 1 ;
 }
 
-// The DPF key shares for 'SUM' and 'COUNT' from a conversion record.
+// The DPF key share for 'SUM' from a conversion record.
 message PartialReportDpf {
   distributed_point_functions.DpfKey sum_key = 1;
-  distributed_point_functions.DpfKey count_key = 2;
 }
 
 // PartialAggregationDpf contains the aggregation results from one of the
 // helpers for one specific bucket of the histogram.
 message PartialAggregationDpf {
   uint64 partial_sum = 1;
-  uint64 partial_count = 2;
 }
 
 // DomainPrefixes contains the prefixes to expand the DPF keys in a certain

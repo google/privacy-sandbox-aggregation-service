@@ -52,11 +52,10 @@ import (
 )
 
 var (
-	conversionFile      = flag.String("conversion_file", "", "Input raw conversion data.")
-	sumParametersFile   = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
-	countParametersFile = flag.String("count_parameters_file", "", "Input file that stores the DPF parameters for count.")
-	partialReportFile1  = flag.String("partial_report_file1", "", "Output partial report for helper 1.")
-	partialReportFile2  = flag.String("partial_report_file2", "", "Output partial report for helper 2.")
+	conversionFile     = flag.String("conversion_file", "", "Input raw conversion data.")
+	sumParametersFile  = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
+	partialReportFile1 = flag.String("partial_report_file1", "", "Output partial report for helper 1.")
+	partialReportFile2 = flag.String("partial_report_file2", "", "Output partial report for helper 2.")
 
 	publicKeyDir1 = flag.String("public_key_dir1", "", "Directory for public keys from helper 1.")
 	publicKeyDir2 = flag.String("public_key_dir2", "", "Directory for public keys from helper 2.")
@@ -82,10 +81,6 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	countParams, err := cryptoio.ReadDPFParameters(ctx, *countParametersFile)
-	if err != nil {
-		log.Exit(ctx, err)
-	}
 
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
@@ -95,7 +90,6 @@ func main() {
 		PartialReportFile1: *partialReportFile1,
 		PartialReportFile2: *partialReportFile2,
 		SumParameters:      sumParams,
-		CountParameters:    countParams,
 		PublicKey1:         helperPubKey1,
 		PublicKey2:         helperPubKey2,
 		Shards:             *fileShards,

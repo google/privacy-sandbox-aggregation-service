@@ -49,7 +49,6 @@ import (
 var (
 	partialReportFile    = flag.String("partial_report_file", "", "Input partial reports.")
 	sumParametersFile    = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
-	countParametersFile  = flag.String("count_parameters_file", "", "Input file that stores the DPF parameters for count.")
 	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
 	privateKeyDir        = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
@@ -72,10 +71,6 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	countParams, err := cryptoio.ReadDPFParameters(ctx, *countParametersFile)
-	if err != nil {
-		log.Exit(ctx, err)
-	}
 	prefixes, err := cryptoio.ReadPrefixes(ctx, *prefixesFile)
 	if err != nil {
 		log.Exit(ctx, err)
@@ -89,7 +84,6 @@ func main() {
 			PartialReportFile:    *partialReportFile,
 			PartialHistogramFile: *partialHistogramFile,
 			SumParameters:        sumParams,
-			CountParameters:      countParams,
 			Prefixes:             prefixes,
 			HelperPrivateKey:     helperPrivKey,
 			DirectCombine:        *directCombine,

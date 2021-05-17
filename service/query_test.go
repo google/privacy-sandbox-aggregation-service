@@ -38,9 +38,9 @@ func TestExpansionConfigReadWrite(t *testing.T) {
 
 func TestGetNextNonemptyPrefixes(t *testing.T) {
 	result := []dpfaggregator.CompleteHistogram{
-		{Index: 1, Sum: 2, Count: 3},
-		{Index: 2, Sum: 3, Count: 4},
-		{Index: 3, Sum: 4, Count: 5},
+		{Index: 1, Sum: 2},
+		{Index: 2, Sum: 3},
+		{Index: 3, Sum: 4},
 	}
 	got := getNextNonemptyPrefixes(result, 3)
 	want := []uint64{2, 3}

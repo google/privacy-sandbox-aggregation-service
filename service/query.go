@@ -85,7 +85,7 @@ func ReadExpansionConfigFile(ctx context.Context, filename string) (*ExpansionCo
 
 type aggregateParams struct {
 	PrefixesFile                                 string
-	SumParamsFile, CountParamsFile               string
+	SumParamsFile                                string
 	PartialHistogramFile1, PartialHistogramFile2 string
 	PartialReportFile1, PartialReportFile2       string
 }
@@ -94,22 +94,20 @@ func aggregateReports(ctx context.Context, params aggregateParams, client1, clie
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		_, err := client1.AggregateDpfPartialReport(ctx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportFile:      params.PartialReportFile1,
-			PartialHistogramFile:   params.PartialHistogramFile1,
-			PrefixesFile:           params.PrefixesFile,
-			SumDpfParametersFile:   params.SumParamsFile,
-			CountDpfParametersFile: params.CountParamsFile,
+			PartialReportFile:    params.PartialReportFile1,
+			PartialHistogramFile: params.PartialHistogramFile1,
+			PrefixesFile:         params.PrefixesFile,
+			SumDpfParametersFile: params.SumParamsFile,
 		})
 		return err
 	})
 
 	g.Go(func() error {
 		_, err := client2.AggregateDpfPartialReport(ctx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportFile:      params.PartialReportFile2,
-			PartialHistogramFile:   params.PartialHistogramFile2,
-			PrefixesFile:           params.PrefixesFile,
-			SumDpfParametersFile:   params.SumParamsFile,
-			CountDpfParametersFile: params.CountParamsFile,
+			PartialReportFile:    params.PartialReportFile2,
+			PartialHistogramFile: params.PartialHistogramFile2,
+			PrefixesFile:         params.PrefixesFile,
+			SumDpfParametersFile: params.SumParamsFile,
 		})
 		return err
 	})
@@ -121,7 +119,6 @@ func aggregateReports(ctx context.Context, params aggregateParams, client1, clie
 type PrefixHistogramParams struct {
 	Prefixes                               *cryptopb.HierarchicalPrefixes
 	SumParams                              *cryptopb.IncrementalDpfParameters
-	CountParams                            *cryptopb.IncrementalDpfParameters
 	PartialReportFile1, PartialReportFile2 string
 	PartialAggregationDir                  string
 	ParamsDir                              string
@@ -139,10 +136,6 @@ func getPrefixHistogram(ctx context.Context, params *PrefixHistogramParams) ([]d
 	if err := cryptoio.SaveDPFParameters(ctx, sumParamsFile, params.SumParams); err != nil {
 		return nil, err
 	}
-	countParamsFile := fmt.Sprintf("%s/count_params%s.txt", params.ParamsDir, tempID)
-	if err := cryptoio.SaveDPFParameters(ctx, countParamsFile, params.CountParams); err != nil {
-		return nil, err
-	}
 
 	tempPartialResultFile1 := fmt.Sprintf("%s/%s_1.txt", params.PartialAggregationDir, tempID)
 	tempPartialResultFile2 := fmt.Sprintf("%s/%s_2.txt", params.PartialAggregationDir, tempID)
@@ -150,7 +143,6 @@ func getPrefixHistogram(ctx context.Context, params *PrefixHistogramParams) ([]d
 	if err := aggregateReports(ctx, aggregateParams{
 		PrefixesFile:          prefixFile,
 		SumParamsFile:         sumParamsFile,
-		CountParamsFile:       countParamsFile,
 		PartialHistogramFile1: tempPartialResultFile1,
 		PartialHistogramFile2: tempPartialResultFile2,
 	}, params.Helper1, params.Helper2); err != nil {
@@ -179,7 +171,6 @@ func getPrefixHistogram(ctx context.Context, params *PrefixHistogramParams) ([]d
 		result = append(result, dpfaggregator.CompleteHistogram{
 			Index: idx,
 			Sum:   partial1[idx].PartialSum + partial2[idx].PartialSum,
-			Count: partial1[idx].PartialCount + partial2[idx].PartialCount,
 		})
 	}
 	return result, nil

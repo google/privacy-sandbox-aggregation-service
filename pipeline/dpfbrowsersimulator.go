@@ -86,7 +86,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 type encryptSecretSharesFn struct {
 	PublicKey1, PublicKey2 *pb.StandardPublicKey
 	// Parameters for the DPF secret key generation. These parameters need to be consistent with ones used on the helper servers.
-	SumParameters, CountParameters []*dpfpb.DpfParameters
+	SumParameters []*dpfpb.DpfParameters
 
 	countReport beam.Counter
 }
@@ -126,14 +126,9 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConver
 	if err != nil {
 		return err
 	}
-	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys(fn.CountParameters, c.Index, putValueForHierarchies(fn.CountParameters, 1))
-	if err != nil {
-		return err
-	}
 
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
-		SumKey:   keyDpfSum1,
-		CountKey: keyDpfCount1,
+		SumKey: keyDpfSum1,
 	}, fn.PublicKey1)
 	if err != nil {
 		return err
@@ -141,8 +136,7 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConver
 	emit1(encryptedReport1)
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
-		SumKey:   keyDpfSum2,
-		CountKey: keyDpfCount2,
+		SumKey: keyDpfSum2,
 	}, fn.PublicKey2)
 
 	if err != nil {
@@ -174,17 +168,16 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 
 	return beam.ParDo2(s,
 		&encryptSecretSharesFn{
-			PublicKey1:      params.PublicKey1,
-			PublicKey2:      params.PublicKey2,
-			SumParameters:   params.SumParameters.Params,
-			CountParameters: params.CountParameters.Params,
+			PublicKey1:    params.PublicKey1,
+			PublicKey2:    params.PublicKey2,
+			SumParameters: params.SumParameters.Params,
 		}, reports)
 }
 
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
 	ConversionFile, PartialReportFile1, PartialReportFile2 string
-	SumParameters, CountParameters                         *pb.IncrementalDpfParameters
+	SumParameters                                          *pb.IncrementalDpfParameters
 	PublicKey1, PublicKey2                                 *pb.StandardPublicKey
 	Shards                                                 int64
 }
@@ -258,15 +251,13 @@ func CalculatePrefixes(root *PrefixNode) (*pb.HierarchicalPrefixes, []uint64) {
 // CalculateParameters gets the DPF parameters for DPF key generation and expansion.
 //
 // 'prefixBitSizes' defines the domain sizes for the DPF key expansion on different hierarchies; and 'logN' defines the total size of domain for the final histogram.
-func CalculateParameters(prefixBitSizes []uint64, logN, elementBitSizeSum, elementBitSizeCount int32) (*pb.IncrementalDpfParameters, *pb.IncrementalDpfParameters) {
-	var sumParams, countParams []*dpfpb.DpfParameters
+func CalculateParameters(prefixBitSizes []uint64, logN, elementBitSizeSum int32) *pb.IncrementalDpfParameters {
+	var sumParams []*dpfpb.DpfParameters
 	for _, p := range prefixBitSizes {
 		sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: int32(p), ElementBitsize: elementBitSizeSum})
-		countParams = append(countParams, &dpfpb.DpfParameters{LogDomainSize: int32(p), ElementBitsize: elementBitSizeCount})
 	}
 	sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: logN, ElementBitsize: elementBitSizeSum})
-	countParams = append(countParams, &dpfpb.DpfParameters{LogDomainSize: logN, ElementBitsize: elementBitSizeCount})
-	return &pb.IncrementalDpfParameters{Params: sumParams}, &pb.IncrementalDpfParameters{Params: countParams}
+	return &pb.IncrementalDpfParameters{Params: sumParams}
 }
 
 // CreateConversionIndex generates a random conversion ID that matches one of the prefixes described by the input, or does not have any of the prefixes.

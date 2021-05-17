@@ -52,20 +52,20 @@ func TestReadInputConversions(t *testing.T) {
 }
 
 type dpfTestData struct {
-	Conversions            []RawConversion
-	WantResults            []dpfaggregator.CompleteHistogram
-	SumParams, CountParams *pb.IncrementalDpfParameters
-	Prefixes               *pb.HierarchicalPrefixes
+	Conversions []RawConversion
+	WantResults []dpfaggregator.CompleteHistogram
+	SumParams   *pb.IncrementalDpfParameters
+	Prefixes    *pb.HierarchicalPrefixes
 }
 
-func createConversionsDpf(logN, logElementSizeSum, logElementSizeCount, totalCount uint64) (*dpfTestData, error) {
+func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestData, error) {
 	root := &PrefixNode{Class: "root"}
 	for i := 0; i < 1<<5; i++ {
 		root.AddChildNode("campaignid", 12 /*bitSize*/, uint64(i) /*value*/)
 	}
 
 	prefixes, prefixDomainBits := CalculatePrefixes(root)
-	sumParams, countParams := CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum, 1<<logElementSizeCount)
+	sumParams := CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum)
 
 	aggResult := make(map[uint64]uint64)
 	var conversions []RawConversion
@@ -90,10 +90,10 @@ func createConversionsDpf(logN, logElementSizeSum, logElementSizeCount, totalCou
 
 	var wantResults []dpfaggregator.CompleteHistogram
 	for k, v := range aggResult {
-		wantResults = append(wantResults, dpfaggregator.CompleteHistogram{Index: k, Sum: v, Count: v})
+		wantResults = append(wantResults, dpfaggregator.CompleteHistogram{Index: k, Sum: v})
 	}
 
-	return &dpfTestData{Conversions: conversions, WantResults: wantResults, SumParams: sumParams, CountParams: countParams, Prefixes: prefixes}, nil
+	return &dpfTestData{Conversions: conversions, WantResults: wantResults, SumParams: sumParams, Prefixes: prefixes}, nil
 }
 
 func TestAggregationPipelineDPF(t *testing.T) {
@@ -110,7 +110,7 @@ func testAggregationPipelineDPF(t testing.TB) {
 		t.Fatal(err)
 	}
 
-	testData, err := createConversionsDpf(20, 6, 6, 100)
+	testData, err := createConversionsDpf(20, 6, 6)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,20 +120,18 @@ func testAggregationPipelineDPF(t testing.TB) {
 	conversions := beam.CreateList(scope, testData.Conversions)
 	want := beam.CreateList(scope, testData.WantResults)
 	ePr1, ePr2 := splitRawConversion(scope, conversions, &GeneratePartialReportParams{
-		SumParameters:   testData.SumParams,
-		CountParameters: testData.CountParams,
-		PublicKey1:      pubKey1,
-		PublicKey2:      pubKey2,
+		SumParameters: testData.SumParams,
+		PublicKey1:    pubKey1,
+		PublicKey2:    pubKey2,
 	})
 
 	pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKey1)
 	pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKey2)
 
 	aggregateParams := &dpfaggregator.AggregatePartialReportParams{
-		SumParameters:   testData.SumParams,
-		CountParameters: testData.CountParams,
-		Prefixes:        testData.Prefixes,
-		DirectCombine:   true,
+		SumParameters: testData.SumParams,
+		Prefixes:      testData.Prefixes,
+		DirectCombine: true,
 	}
 	ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, pr1, aggregateParams)
 	if err != nil {

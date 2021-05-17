@@ -14,7 +14,7 @@
 
 // Package dpfaggregator contains functions that aggregates the reports with the DPF protocol.
 //
-// Each encrypted PartialReportDpf contains two DPF keys for SUM and COUNT aggregation, which is
+// Each encrypted PartialReportDpf contains a DPF key for SUM aggregation, which is
 // stored as a single line in the input file. Function AggregatePartialReport() parses the lines
 // and decrypts the DPF keys. Then function ExpandAndCombineHistogram() expands the two DPF keys
 // into vectors as the contribution of one conversion record to the final histogram.
@@ -25,12 +25,12 @@
 // (https://issues.apache.org/jira/browse/BEAM-11916), we need to split the vectors and then
 // combine the peices (segmentCombine()) as a workaround.
 //
-// Finally, the SUM and COUNT results are stored in a PartialAggregationDpf for each bucket ID. The
+// Finally, the SUM result is stored in a PartialAggregationDpf for each bucket ID. The
 // buket ID and it's corresponding PartialAggregationDpf in wire-format is written as a line in the
 // output file.
 //
 // Function MergePartialHistogram() reads the partial aggregation results from different helpers,
-// and gets the complete histograms by adding the SUM and COUNT results.
+// and gets the complete histograms by adding the SUM results.
 package dpfaggregator
 
 import (
@@ -129,15 +129,14 @@ func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standa
 }
 
 type expandedVec struct {
-	SumVec   []uint64
-	CountVec []uint64
+	SumVec []uint64
 }
 
-// expandDpfKeyFn expands the DPF keys in a PartialReportDpf into two vectors that represent the contribution to the SUM and COUNT histogram.
+// expandDpfKeyFn expands the DPF keys in a PartialReportDpf into two vectors that represent the contribution to the SUM histogram.
 type expandDpfKeyFn struct {
-	SumParameters, CountParameters *pb.IncrementalDpfParameters
-	Prefixes                       *pb.HierarchicalPrefixes
-	vecCounter                     beam.Counter
+	SumParameters *pb.IncrementalDpfParameters
+	Prefixes      *pb.HierarchicalPrefixes
+	vecCounter    beam.Counter
 }
 
 func (fn *expandDpfKeyFn) Setup() {
@@ -160,25 +159,12 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.
 		}
 	}
 
-	countCtx, err := incrementaldpf.CreateEvaluationContext(fn.CountParameters.Params, partialReport.GetCountKey())
-	if err != nil {
-		return err
-	}
-	var vecCount []uint64
-	for i := range fn.CountParameters.Params {
-		vecCount, err = incrementaldpf.EvaluateNext64(fn.Prefixes.Prefixes[i].Prefix, countCtx)
-		if err != nil {
-			return err
-		}
-	}
-
-	emit(&expandedVec{SumVec: vecSum, CountVec: vecCount})
+	emit(&expandedVec{SumVec: vecSum})
 	return nil
 }
 
 // combineVectorFn combines the expandedVecs by adding the values for each index together for each
-// vector. The combination result is a single expandedVec, and its two vectors represents the
-// aggregation results for SUM and COUNT.
+// vector. The combination result is a single expandedVec.
 type combineVectorFn struct {
 	VectorLength uint64
 
@@ -195,7 +181,7 @@ func (fn *combineVectorFn) Setup() {
 
 func (fn *combineVectorFn) CreateAccumulator(ctx context.Context) *expandedVec {
 	fn.createCounter.Inc(ctx, 1)
-	return &expandedVec{SumVec: make([]uint64, fn.VectorLength), CountVec: make([]uint64, fn.VectorLength)}
+	return &expandedVec{SumVec: make([]uint64, fn.VectorLength)}
 }
 
 func (fn *combineVectorFn) AddInput(ctx context.Context, e *expandedVec, p *expandedVec) *expandedVec {
@@ -203,7 +189,6 @@ func (fn *combineVectorFn) AddInput(ctx context.Context, e *expandedVec, p *expa
 
 	for i := uint64(0); i < fn.VectorLength; i++ {
 		e.SumVec[i] += p.SumVec[i]
-		e.CountVec[i] += p.CountVec[i]
 	}
 	return e
 }
@@ -213,7 +198,6 @@ func (fn *combineVectorFn) MergeAccumulators(ctx context.Context, a, b *expanded
 
 	for i := uint64(0); i < fn.VectorLength; i++ {
 		a.SumVec[i] += b.SumVec[i]
-		a.CountVec[i] += b.CountVec[i]
 	}
 	return a
 }
@@ -237,9 +221,9 @@ func (fn *alignVectorFn) ProcessElement(ctx context.Context, vec *expandedVec, e
 	for i, sum := range vec.SumVec {
 		fn.outputCounter.Inc(ctx, 1)
 		if fn.BucketIDs != nil {
-			emit(fn.BucketIDs[i], &pb.PartialAggregationDpf{PartialSum: sum, PartialCount: vec.CountVec[i]})
+			emit(fn.BucketIDs[i], &pb.PartialAggregationDpf{PartialSum: sum})
 		} else {
-			emit(uint64(i), &pb.PartialAggregationDpf{PartialSum: sum, PartialCount: vec.CountVec[i]})
+			emit(uint64(i), &pb.PartialAggregationDpf{PartialSum: sum})
 		}
 	}
 }
@@ -263,7 +247,7 @@ func (fn *combineVectorSegmentFn) Setup() {
 func (fn *combineVectorSegmentFn) CreateAccumulator(ctx context.Context) *expandedVec {
 	fn.createCounter.Inc(ctx, 1)
 
-	return &expandedVec{SumVec: make([]uint64, fn.Length), CountVec: make([]uint64, fn.Length)}
+	return &expandedVec{SumVec: make([]uint64, fn.Length)}
 }
 
 func (fn *combineVectorSegmentFn) AddInput(ctx context.Context, e *expandedVec, p *expandedVec) *expandedVec {
@@ -271,7 +255,6 @@ func (fn *combineVectorSegmentFn) AddInput(ctx context.Context, e *expandedVec, 
 
 	for i := uint64(0); i < fn.Length; i++ {
 		e.SumVec[i] += p.SumVec[i+fn.StartIndex]
-		e.CountVec[i] += p.CountVec[i+fn.StartIndex]
 	}
 	return e
 }
@@ -281,7 +264,6 @@ func (fn *combineVectorSegmentFn) MergeAccumulators(ctx context.Context, a, b *e
 
 	for i := uint64(0); i < fn.Length; i++ {
 		a.SumVec[i] += b.SumVec[i]
-		a.CountVec[i] += b.CountVec[i]
 	}
 	return a
 }
@@ -306,9 +288,9 @@ func (fn *alignVectorSegmentFn) ProcessElement(ctx context.Context, vec *expande
 	for i, sum := range vec.SumVec {
 		fn.outputCounter.Inc(ctx, 1)
 		if fn.BucketIDs != nil {
-			emit(fn.BucketIDs[uint64(i)+fn.StartIndex], &pb.PartialAggregationDpf{PartialSum: sum, PartialCount: vec.CountVec[i]})
+			emit(fn.BucketIDs[uint64(i)+fn.StartIndex], &pb.PartialAggregationDpf{PartialSum: sum})
 		} else {
-			emit(uint64(i)+fn.StartIndex, &pb.PartialAggregationDpf{PartialSum: sum, PartialCount: vec.CountVec[i]})
+			emit(uint64(i)+fn.StartIndex, &pb.PartialAggregationDpf{PartialSum: sum})
 		}
 	}
 }
@@ -339,7 +321,7 @@ type AggregatePartialReportParams struct {
 	// Output partial aggregation file path, each line contains a bucket index and a wire-formatted PartialAggregationDpf.
 	PartialHistogramFile string
 	// Parameters for the DPF key expansion, which need to be consistent with the ones that are used to generate the partial report on the browser.
-	SumParameters, CountParameters *pb.IncrementalDpfParameters
+	SumParameters *pb.IncrementalDpfParameters
 	// Prefixes for the DPF key expansion in each of the hierarchical domains.
 	Prefixes *pb.HierarchicalPrefixes
 	// The private key for the standard encryption from the helper server.
@@ -355,9 +337,8 @@ type AggregatePartialReportParams struct {
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
 func ExpandAndCombineHistogram(scope beam.Scope, partialReport beam.PCollection, params *AggregatePartialReportParams) (beam.PCollection, error) {
 	expanded := beam.ParDo(scope, &expandDpfKeyFn{
-		SumParameters:   params.SumParameters,
-		CountParameters: params.CountParameters,
-		Prefixes:        params.Prefixes,
+		SumParameters: params.SumParameters,
+		Prefixes:      params.Prefixes,
 	}, partialReport)
 
 	paramsLen := len(params.SumParameters.Params)
@@ -380,9 +361,6 @@ func ExpandAndCombineHistogram(scope beam.Scope, partialReport beam.PCollection,
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
 func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportParams) error {
 	if err := incrementaldpf.CheckExpansionParameters(params.SumParameters, params.Prefixes); err != nil {
-		return err
-	}
-	if err := incrementaldpf.CheckExpansionParameters(params.CountParameters, params.Prefixes); err != nil {
 		return err
 	}
 
@@ -480,10 +458,9 @@ func readPartialHistogram(s beam.Scope, partialHistogramFile string) beam.PColle
 type CompleteHistogram struct {
 	Index uint64
 	Sum   uint64
-	Count uint64
 }
 
-// mergeHistogramFn merges the two PartialAggregationDpf messages for the same bucket ID by summing the SUM and COUNT results.
+// mergeHistogramFn merges the two PartialAggregationDpf messages for the same bucket ID by summing the results.
 type mergeHistogramFn struct {
 	countBucket beam.Counter
 }
@@ -502,7 +479,7 @@ func (fn *mergeHistogramFn) ProcessElement(ctx context.Context, index uint64, pH
 		return fmt.Errorf("expect two shares for bucket ID %d, missing from helper2", index)
 	}
 
-	if hist1.PartialCount+hist2.PartialCount == 0 {
+	if hist1.PartialSum+hist2.PartialSum == 0 {
 		return nil
 	}
 
@@ -510,7 +487,6 @@ func (fn *mergeHistogramFn) ProcessElement(ctx context.Context, index uint64, pH
 	emit(CompleteHistogram{
 		Index: index,
 		Sum:   hist1.PartialSum + hist2.PartialSum,
-		Count: hist1.PartialCount + hist2.PartialCount,
 	})
 	return nil
 }
@@ -532,7 +508,7 @@ func (fn *formatCompleteHistogramFn) Setup() {
 }
 
 func (fn *formatCompleteHistogramFn) ProcessElement(ctx context.Context, result CompleteHistogram) string {
-	return fmt.Sprintf("%d,%d,%d", result.Index, result.Sum, result.Count)
+	return fmt.Sprintf("%d,%d", result.Index, result.Sum)
 }
 
 func writeCompleteHistogram(s beam.Scope, indexResult beam.PCollection, fileName string) {
@@ -616,7 +592,7 @@ func WriteCompleteHistogram(ctx context.Context, filename string, results map[ui
 	}
 
 	for _, result := range results {
-		line := fmt.Sprintf("%d,%d,%d\n", result.Index, result.Sum, result.Count)
+		line := fmt.Sprintf("%d,%d\n", result.Index, result.Sum)
 		if _, err := buf.WriteString(line); err != nil {
 			return err
 		}

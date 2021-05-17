@@ -121,7 +121,6 @@ func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.Aggregate
 	args := []string{
 		"--partial_report_file=" + in.PartialReportFile,
 		"--sum_parameters_file=" + in.SumDpfParametersFile,
-		"--count_parameters_file=" + in.CountDpfParametersFile,
 		"--prefixes_file=" + in.PrefixesFile,
 		"--partial_histogram_file=" + in.PartialHistogramFile,
 		"--private_key_dir=" + s.ServerCfg.PrivateKeyDir,

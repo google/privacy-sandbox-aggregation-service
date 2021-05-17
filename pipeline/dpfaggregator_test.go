@@ -65,12 +65,10 @@ func TestDecryptPartialReport(t *testing.T) {
 
 	reports := []*pb.PartialReportDpf{
 		{
-			SumKey:   &dpfpb.DpfKey{Seed: &dpfpb.Block{High: 2, Low: 1}},
-			CountKey: &dpfpb.DpfKey{Seed: &dpfpb.Block{High: 3, Low: 2}},
+			SumKey: &dpfpb.DpfKey{Seed: &dpfpb.Block{High: 2, Low: 1}},
 		},
 		{
-			SumKey:   &dpfpb.DpfKey{Seed: &dpfpb.Block{High: 4, Low: 3}},
-			CountKey: &dpfpb.DpfKey{Seed: &dpfpb.Block{High: 5, Low: 4}},
+			SumKey: &dpfpb.DpfKey{Seed: &dpfpb.Block{High: 4, Low: 3}},
 		},
 	}
 
@@ -101,31 +99,22 @@ func TestDirectAndSegmentCombineVectorMergeAccumulators(t *testing.T) {
 	logN := uint64(8)
 
 	vec1 := &expandedVec{
-		SumVec:   make([]uint64, 1<<logN),
-		CountVec: make([]uint64, 1<<logN),
+		SumVec: make([]uint64, 1<<logN),
 	}
 	vec1.SumVec[0] = 1
-	vec1.CountVec[0] = 2
 	vec1.SumVec[1<<logN-1] = 3
-	vec1.CountVec[1<<logN-1] = 4
 
 	vec2 := &expandedVec{
-		SumVec:   make([]uint64, 1<<logN),
-		CountVec: make([]uint64, 1<<logN),
+		SumVec: make([]uint64, 1<<logN),
 	}
 	vec2.SumVec[0] = 5
-	vec2.CountVec[0] = 6
 	vec2.SumVec[1<<logN-1] = 7
-	vec2.CountVec[1<<logN-1] = 8
 
 	wantDirect := &expandedVec{
-		SumVec:   make([]uint64, 1<<logN),
-		CountVec: make([]uint64, 1<<logN),
+		SumVec: make([]uint64, 1<<logN),
 	}
 	wantDirect.SumVec[0] = 6
-	wantDirect.CountVec[0] = 8
 	wantDirect.SumVec[1<<logN-1] = 10
-	wantDirect.CountVec[1<<logN-1] = 12
 
 	ctx := context.Background()
 	directFn := &combineVectorFn{VectorLength: 1 << logN}
@@ -135,16 +124,11 @@ func TestDirectAndSegmentCombineVectorMergeAccumulators(t *testing.T) {
 	if diff := cmp.Diff(wantDirect.SumVec, gotDirect.SumVec, cmpopts.SortSlices(sortFn)); diff != "" {
 		t.Fatalf("sum results of direct combine mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(wantDirect.CountVec, gotDirect.CountVec, cmpopts.SortSlices(sortFn)); diff != "" {
-		t.Fatalf("count results of direct combine mismatch (-want +got):\n%s", diff)
-	}
 
 	wantSegment := &expandedVec{
-		SumVec:   make([]uint64, 2),
-		CountVec: make([]uint64, 2),
+		SumVec: make([]uint64, 2),
 	}
 	wantSegment.SumVec[1] = 17
-	wantSegment.CountVec[1] = 20
 
 	segmentFn := &combineVectorSegmentFn{StartIndex: 1<<logN - 2, Length: 2}
 	acc1 := segmentFn.CreateAccumulator(ctx)
@@ -155,31 +139,22 @@ func TestDirectAndSegmentCombineVectorMergeAccumulators(t *testing.T) {
 	if diff := cmp.Diff(wantSegment.SumVec, gotSegment.SumVec, cmpopts.SortSlices(sortFn)); diff != "" {
 		t.Fatalf("sum results of segment combine mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(wantSegment.CountVec, gotSegment.CountVec, cmpopts.SortSlices(sortFn)); diff != "" {
-		t.Fatalf("count results of segment combine mismatch (-want +got):\n%s", diff)
-	}
 }
 
 func TestDirectAndSegmentCombineVector(t *testing.T) {
 	logN := uint64(8)
 
 	vec1 := &expandedVec{
-		SumVec:   make([]uint64, 1<<logN),
-		CountVec: make([]uint64, 1<<logN),
+		SumVec: make([]uint64, 1<<logN),
 	}
 	vec1.SumVec[0] = 1
-	vec1.CountVec[0] = 2
 	vec1.SumVec[1<<logN-1] = 3
-	vec1.CountVec[1<<logN-1] = 4
 
 	vec2 := &expandedVec{
-		SumVec:   make([]uint64, 1<<logN),
-		CountVec: make([]uint64, 1<<logN),
+		SumVec: make([]uint64, 1<<logN),
 	}
 	vec2.SumVec[0] = 5
-	vec2.CountVec[0] = 6
 	vec2.SumVec[1<<logN-1] = 7
-	vec2.CountVec[1<<logN-1] = 8
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	inputVec := beam.CreateList(scope, []*expandedVec{vec1, vec2})
@@ -190,9 +165,7 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 		want[i].PartialAggregation = &pb.PartialAggregationDpf{}
 	}
 	want[0].PartialAggregation.PartialSum = 6
-	want[0].PartialAggregation.PartialCount = 8
 	want[1<<logN-1].PartialAggregation.PartialSum = 10
-	want[1<<logN-1].PartialAggregation.PartialCount = 12
 	wantResult := beam.CreateList(scope, want)
 
 	getResultSegment := segmentCombine(scope, inputVec, 1<<logN, 1<<(logN-5), nil)
@@ -227,29 +200,23 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	if err != nil {
 		return err
 	}
-	keyDpfCount1, keyDpfCount2, err := incrementaldpf.GenerateKeys(fn.Params.Params, c.Index, valueCount)
-	if err != nil {
-		return err
-	}
 
 	emit1(&pb.PartialReportDpf{
-		SumKey:   keyDpfSum1,
-		CountKey: keyDpfCount1,
+		SumKey: keyDpfSum1,
 	})
 	emit2(&pb.PartialReportDpf{
-		SumKey:   keyDpfSum2,
-		CountKey: keyDpfCount2,
+		SumKey: keyDpfSum2,
 	})
 	return nil
 }
 
 func TestDirectAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
-		{Index: 1, Sum: 10, Count: 10},
+		{Index: 1, Sum: 10},
 	}
 	var reports []rawConversion
 	for _, h := range want {
-		for i := uint64(0); i < h.Count; i++ {
+		for i := uint64(0); i < h.Sum; i++ {
 			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
 		}
 	}
@@ -262,10 +229,9 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}}
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{Params: dpfParams}, conversions)
 	params := &AggregatePartialReportParams{
-		SumParameters:   dpfParams,
-		CountParameters: dpfParams,
-		Prefixes:        &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
-		DirectCombine:   true,
+		SumParameters: dpfParams,
+		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
+		DirectCombine: true,
 	}
 	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
 	if err != nil {
@@ -288,11 +254,11 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 
 func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
-		{Index: 16, Sum: 10, Count: 10},
+		{Index: 16, Sum: 10},
 	}
 	var reports []rawConversion
 	for _, h := range want {
-		for i := uint64(0); i < h.Count; i++ {
+		for i := uint64(0); i < h.Sum; i++ {
 			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
 		}
 	}
@@ -306,10 +272,9 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	}}
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{Params: dpfParams}, conversions)
 	params := &AggregatePartialReportParams{
-		SumParameters:   dpfParams,
-		CountParameters: dpfParams,
-		Prefixes:        &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}, {Prefix: []uint64{1}}}},
-		DirectCombine:   true,
+		SumParameters: dpfParams,
+		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}, {Prefix: []uint64{1}}}},
+		DirectCombine: true,
 	}
 	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
 	if err != nil {
@@ -343,8 +308,8 @@ func TestReadPartialHistogram(t *testing.T) {
 	defer os.RemoveAll(fileDir)
 
 	data := []*idAgg{
-		{ID: 111, Agg: &pb.PartialAggregationDpf{PartialSum: 222, PartialCount: 333}},
-		{ID: 444, Agg: &pb.PartialAggregationDpf{PartialSum: 555, PartialCount: 666}},
+		{ID: 111, Agg: &pb.PartialAggregationDpf{PartialSum: 222}},
+		{ID: 444, Agg: &pb.PartialAggregationDpf{PartialSum: 555}},
 	}
 	want := make(map[uint64]*pb.PartialAggregationDpf)
 	for _, d := range data {
@@ -380,8 +345,8 @@ func TestWriteCompleteHistogram(t *testing.T) {
 	defer os.RemoveAll(fileDir)
 
 	want := map[uint64]CompleteHistogram{
-		111: {Index: 111, Sum: 222, Count: 333},
-		555: {Index: 555, Sum: 666, Count: 777},
+		111: {Index: 111, Sum: 222},
+		555: {Index: 555, Sum: 666},
 	}
 	resultFile := path.Join(fileDir, "result.txt")
 	ctx := context.Background()
@@ -396,7 +361,7 @@ func TestWriteCompleteHistogram(t *testing.T) {
 	got := make(map[uint64]CompleteHistogram)
 	for _, l := range lines {
 		cols := strings.Split(l, ",")
-		if gotLen, wantLen := len(cols), 3; gotLen != wantLen {
+		if gotLen, wantLen := len(cols), 2; gotLen != wantLen {
 			t.Fatalf("got %d columns in line %q, want %d", gotLen, l, wantLen)
 		}
 		idx, err := strconv.ParseUint(cols[0], 10, 64)
@@ -407,11 +372,7 @@ func TestWriteCompleteHistogram(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		count, err := strconv.ParseUint(cols[2], 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got[idx] = CompleteHistogram{Index: idx, Sum: sum, Count: count}
+		got[idx] = CompleteHistogram{Index: idx, Sum: sum}
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Read and saved complete histogram mismatch (-want +got):\n%s", diff)

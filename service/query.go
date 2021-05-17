@@ -189,12 +189,8 @@ func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold
 	return prefixes
 }
 
-func extendPrefixDomains(sumParams, countParams *cryptopb.IncrementalDpfParameters, prefixLength int32) {
+func extendPrefixDomains(sumParams *cryptopb.IncrementalDpfParameters, prefixLength int32) {
 	sumParams.Params = append(sumParams.Params, &dpfpb.DpfParameters{
-		LogDomainSize:  prefixLength,
-		ElementBitsize: elementBitSize,
-	})
-	countParams.Params = append(countParams.Params, &dpfpb.DpfParameters{
 		LogDomainSize:  prefixLength,
 		ElementBitsize: elementBitSize,
 	})
@@ -214,7 +210,7 @@ type HierarchicalResult struct {
 func HierarchicalAggregation(ctx context.Context, params *PrefixHistogramParams, config *ExpansionConfig) ([]HierarchicalResult, error) {
 	var results []HierarchicalResult
 	for i, threshold := range config.ExpansionThresholdPerPrefix {
-		extendPrefixDomains(params.SumParams, params.CountParams, config.PrefixLengths[i])
+		extendPrefixDomains(params.SumParams, config.PrefixLengths[i])
 		result, err := getPrefixHistogram(ctx, params)
 		if err != nil {
 			return nil, err

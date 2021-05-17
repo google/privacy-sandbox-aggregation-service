@@ -57,7 +57,7 @@ func TestHierarchicalResultsReadWrite(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	wantResults := []HierarchicalResult{
-		{PrefixLength: 1, Histogram: []dpfaggregator.CompleteHistogram{{Index: 1, Sum: 1, Count: 1}}, ExpansionThreshold: 1},
+		{PrefixLength: 1, Histogram: []dpfaggregator.CompleteHistogram{{Index: 1, Sum: 1}}, ExpansionThreshold: 1},
 	}
 	resultsFile := path.Join(tmpDir, "results")
 	if err := WriteHierarchicalResultsFile(wantResults, resultsFile); err != nil {

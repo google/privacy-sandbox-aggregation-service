@@ -77,18 +77,6 @@ go_binary(
     ],
 )
 
-go_binary(
-    name = "simulate_reporter_hierarchical_aggregation",
-    srcs = ["simulate_reporter_hierarchical_aggregation.go"],
-    deps = [
-        ":query",
-        ":service_go_grpc_proto",
-        "//pipeline:crypto_go_proto",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-    ],
-)
-
 go_library(
     name = "query",
     srcs = ["query.go"],
@@ -99,7 +87,6 @@ go_library(
         "//pipeline:cryptoio",
         "//pipeline:dpfaggregator",
         "//pipeline:ioutils",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
         "@org_golang_x_sync//errgroup:go_default_library",
     ],

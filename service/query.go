@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
 
 	"golang.org/x/sync/errgroup"
 	"github.com/pborman/uuid"
@@ -27,6 +29,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	cryptopb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 	servicepb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
@@ -54,7 +57,7 @@ func validateExpansionConfig(config *ExpansionConfig) error {
 		return errors.New("expect nonempty PrefixLengths")
 	}
 
-	if got, want := len(config.ExpansionThresholdPerPrefix), len(config.PrefixLengths)-1; got != want {
+	if got, want := len(config.ExpansionThresholdPerPrefix), len(config.PrefixLengths); got != want {
 		return fmt.Errorf("expect len(ExpansionThreshold)=%d, got %d", want, got)
 	}
 	var cur int32
@@ -184,4 +187,58 @@ func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold
 		}
 	}
 	return prefixes
+}
+
+func extendPrefixDomains(sumParams *cryptopb.IncrementalDpfParameters, prefixLength int32) {
+	sumParams.Params = append(sumParams.Params, &dpfpb.DpfParameters{
+		LogDomainSize:  prefixLength,
+		ElementBitsize: elementBitSize,
+	})
+}
+
+// HierarchicalResult records the aggregation result at certain prefix length.
+//
+// TODO: Add PrivacyBudgetConsumed field
+type HierarchicalResult struct {
+	PrefixLength int32
+	Histogram    []dpfaggregator.CompleteHistogram
+	// The threshold applied to the above result, which generates prefixes for the next-level expansion.
+	ExpansionThreshold uint64
+}
+
+// HierarchicalAggregation queries the hierarchical aggregation results.
+func HierarchicalAggregation(ctx context.Context, params *PrefixHistogramParams, config *ExpansionConfig) ([]HierarchicalResult, error) {
+	var results []HierarchicalResult
+	for i, threshold := range config.ExpansionThresholdPerPrefix {
+		extendPrefixDomains(params.SumParams, config.PrefixLengths[i])
+		result, err := getPrefixHistogram(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		params.Prefixes.Prefixes = append(params.Prefixes.Prefixes, &cryptopb.DomainPrefixes{Prefix: getNextNonemptyPrefixes(result, threshold)})
+		results = append(results, HierarchicalResult{PrefixLength: config.PrefixLengths[i], Histogram: result, ExpansionThreshold: threshold})
+	}
+	return results, nil
+}
+
+// WriteHierarchicalResultsFile writes the hierarchical query results into a file.
+func WriteHierarchicalResultsFile(results []HierarchicalResult, filename string) error {
+	br, err := json.Marshal(results)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filename, br, os.ModePerm)
+}
+
+// ReadHierarchicalResultsFile reads the hierarchical query results from a file.
+func ReadHierarchicalResultsFile(filename string) ([]HierarchicalResult, error) {
+	br, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var results []HierarchicalResult
+	if err := json.Unmarshal(br, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
 }

@@ -89,11 +89,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 		return err
 	}
 
-	ciphertext := &pb.StandardCiphertext{}
-	if err := proto.Unmarshal(bsc, ciphertext); err != nil {
-		return err
-	}
-	emit(ciphertext)
+	emit(&pb.StandardCiphertext{Data: bsc})
 	return nil
 }
 

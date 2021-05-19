@@ -148,11 +148,7 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConver
 
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
 func formatPartialReportFn(encrypted *pb.StandardCiphertext, emit func(string)) error {
-	bEncrypted, err := proto.Marshal(encrypted)
-	if err != nil {
-		return err
-	}
-	emit(base64.StdEncoding.EncodeToString(bEncrypted))
+	emit(base64.StdEncoding.EncodeToString(encrypted.Data))
 	return nil
 }
 

@@ -37,13 +37,14 @@ package main
 import (
 	"context"
 	"flag"
-	"path"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 var (
@@ -51,7 +52,9 @@ var (
 	sumParametersFile    = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
 	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
-	privateKeyDir        = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
+	privateKeyFile       = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if flag 'kms_key_uri' is set.")
+	kmsKeyURI            = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
+	kmsCredentialFile    = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -63,7 +66,15 @@ func main() {
 	flag.Parse()
 	beam.Init()
 	ctx := context.Background()
-	helperPrivKey, err := cryptoio.ReadStandardPrivateKey(path.Join(*privateKeyDir, cryptoio.DefaultStandardPrivateKey))
+	var (
+		helperPrivKey *pb.StandardPrivateKey
+		err           error
+	)
+	if *kmsKeyURI == "" {
+		helperPrivKey, err = cryptoio.ReadStandardPrivateKey(*privateKeyFile)
+	} else {
+		helperPrivKey, err = cryptoio.ReadKMSDecryptedStandardPrivateKey(*kmsKeyURI, *kmsCredentialFile, *privateKeyFile)
+	}
 	if err != nil {
 		log.Exit(ctx, err)
 	}

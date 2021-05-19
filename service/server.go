@@ -30,10 +30,14 @@ import (
 var (
 	port = flag.Int("port", 3389, "Port for the server.")
 
-	keyDir                          = flag.String("key_dir", "", "Directory for the private keys.")
-	otherHelperInfoDir              = flag.String("other_helper_info_dir", "", "Directory storing information of the other helper.")
-	reencryptConversionKeyBinary    = flag.String("reencrypt_conversion_key_binary", "", "Binary for conversion key reencryption.")
-	aggregatePartialReportBinary    = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
+	keyDir                       = flag.String("key_dir", "", "Directory for the private keys and secrets used by the PRF protocol.")
+	otherHelperInfoDir           = flag.String("other_helper_info_dir", "", "Directory storing information of the other helper.")
+	reencryptConversionKeyBinary = flag.String("reencrypt_conversion_key_binary", "", "Binary for conversion key reencryption.")
+	aggregatePartialReportBinary = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
+
+	privateKeyFile                  = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if '--kms_key_uri' is set.")
+	kmsKeyURI                       = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
+	kmsCredentialFile               = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
 	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "", "Binary for partial report aggregation with DPF protocol.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
@@ -54,10 +58,14 @@ func main() {
 	server := grpc.NewServer()
 	pb.RegisterAggregatorServer(server, service.New(
 		service.ServerCfg{
-			PrivateKeyDir:                   *keyDir,
-			OtherHelperInfoDir:              *otherHelperInfoDir,
-			ReencryptConversionKeyBinary:    *reencryptConversionKeyBinary,
-			AggregatePartialReportBinary:    *aggregatePartialReportBinary,
+			PrivateKeyDir:                *keyDir,
+			OtherHelperInfoDir:           *otherHelperInfoDir,
+			ReencryptConversionKeyBinary: *reencryptConversionKeyBinary,
+			AggregatePartialReportBinary: *aggregatePartialReportBinary,
+
+			PrivateKeyFile:                  *privateKeyFile,
+			KmsKeyURI:                       *kmsKeyURI,
+			KmsCredentialFile:               *kmsCredentialFile,
 			DpfAggregatePartialReportBinary: *dpfAggregatePartialReportBinary,
 		},
 		*pipelineRunner,

@@ -36,10 +36,13 @@ type DataflowCfg struct {
 
 // ServerCfg contains directories and file paths necessary for the service.
 type ServerCfg struct {
-	PrivateKeyDir                   string
-	OtherHelperInfoDir              string
-	ReencryptConversionKeyBinary    string
-	AggregatePartialReportBinary    string
+	PrivateKeyDir                string
+	OtherHelperInfoDir           string
+	ReencryptConversionKeyBinary string
+	AggregatePartialReportBinary string
+
+	PrivateKeyFile                  string
+	KmsKeyURI, KmsCredentialFile    string
 	DpfAggregatePartialReportBinary string
 }
 
@@ -123,7 +126,9 @@ func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.Aggregate
 		"--sum_parameters_file=" + in.SumDpfParametersFile,
 		"--prefixes_file=" + in.PrefixesFile,
 		"--partial_histogram_file=" + in.PartialHistogramFile,
-		"--private_key_dir=" + s.ServerCfg.PrivateKeyDir,
+		"--private_key_file=" + s.ServerCfg.PrivateKeyFile,
+		"--kms_key_uri=" + s.ServerCfg.KmsKeyURI,
+		"--kms_credential_file=" + s.ServerCfg.KmsCredentialFile,
 		"--runner=" + s.PipelineRunner,
 	}
 

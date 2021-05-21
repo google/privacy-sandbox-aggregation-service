@@ -20,8 +20,8 @@
 // --conversion_file=/path/to/conversion_data.csv \
 // --partial_report_file1=/path/to/partial_report_1.txt \
 // --partial_report_file2=/path/to/partial_report_2.txt \
-// --public_key_dir1=/path/to/public_key_dir1 \
-// --public_key_dir2=/path/to/public_key_dir2 \
+// --public_key_file1=/path/to/public_key_file1 \
+// --public_key_file2=/path/to/public_key_file2 \
 // --runner=direct
 //
 // 2. Dataflow on cloud
@@ -29,8 +29,8 @@
 // --conversion_file=gs://<browser bucket>/conversion_data.csv \
 // --partial_report_file1=gs://<helper bucket>/partial_report_1.txt \
 // --partial_report_file2=gs://<helper bucket>/partial_report_2.txt \
-// --public_key_dir1=/path/to/public_key_dir1 \
-// --public_key_dir2=/path/to/public_key_dir2 \
+// --public_key_file1=/path/to/public_key_file1 \
+// --public_key_file2=/path/to/public_key_file2 \
 // --runner=dataflow \
 // --project=<GCP project> \
 // --temp_location=gs://<dataflow temp dir> \
@@ -42,7 +42,6 @@ package main
 import (
 	"context"
 	"flag"
-	"path"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
@@ -56,9 +55,9 @@ var (
 	partialReportFile1 = flag.String("partial_report_file1", "", "Output partial report for helper 1.")
 	partialReportFile2 = flag.String("partial_report_file2", "", "Output partial report for helper 2.")
 
-	publicKeyDir1 = flag.String("public_key_dir1", "", "Directory for public keys from helper 1.")
-	publicKeyDir2 = flag.String("public_key_dir2", "", "Directory for public keys from helper 2.")
-	keyBitSize    = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	publicKeyFile1 = flag.String("public_key_file1", "", "Input file containing the public key from helper 1.")
+	publicKeyFile2 = flag.String("public_key_file2", "", "Input file containing the public key from helper 2.")
+	keyBitSize     = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -69,11 +68,11 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPubKey1, err := cryptoio.ReadStandardPublicKey(path.Join(*publicKeyDir1, cryptoio.DefaultStandardPublicKey))
+	helperPubKey1, err := cryptoio.ReadStandardPublicKey(*publicKeyFile1)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	helperPubKey2, err := cryptoio.ReadStandardPublicKey(path.Join(*publicKeyDir2, cryptoio.DefaultStandardPublicKey))
+	helperPubKey2, err := cryptoio.ReadStandardPublicKey(*publicKeyFile2)
 	if err != nil {
 		log.Exit(ctx, err)
 	}

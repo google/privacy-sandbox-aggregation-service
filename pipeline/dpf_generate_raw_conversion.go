@@ -35,7 +35,6 @@ var (
 
 	logN                = flag.Uint64("log_n", 20, "Bits of the aggregation domain size.")
 	logElementSizeSum   = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
-	logElementSizeCount = flag.Uint64("log_element_size_count", 6, "Bits of element size for COUNT aggregation.")
 )
 
 func writeConversions(filename string, conversions []dpfbrowsersimulator.RawConversion) error {

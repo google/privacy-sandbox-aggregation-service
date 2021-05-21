@@ -34,6 +34,9 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
+// DefaultElementBitSize is the default element size for generating the DPF keys.
+const DefaultElementBitSize = 64
+
 func freeCBytes(cb C.struct_CBytes) {
 	C.free(unsafe.Pointer(cb.c))
 }

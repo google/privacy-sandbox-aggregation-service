@@ -52,6 +52,7 @@ type RawConversion struct {
 
 // parseRawConversionFn parses each line in the raw conversion file in the format: bucket ID, value.
 type parseRawConversionFn struct {
+	KeyBitSize      int32
 	countConversion beam.Counter
 }
 
@@ -65,7 +66,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 		return fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
-	key64, err := strconv.ParseUint(cols[0], 10, 64)
+	key64, err := strconv.ParseUint(cols[0], 10, int(fn.KeyBitSize))
 	if err != nil {
 		return err
 	}
@@ -85,8 +86,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 
 type encryptSecretSharesFn struct {
 	PublicKey1, PublicKey2 *pb.StandardPublicKey
-	// Parameters for the DPF secret key generation. These parameters need to be consistent with ones used on the helper servers.
-	SumParameters []*dpfpb.DpfParameters
+	KeyBitSize             int32
 
 	countReport beam.Counter
 }
@@ -122,7 +122,16 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(fn.SumParameters, c.Index, putValueForHierarchies(fn.SumParameters, c.Value))
+	params := make([]*dpfpb.DpfParameters, fn.KeyBitSize)
+	// Configure DPF keys so that they can be queried at any bit-prefix.
+	for i := int32(1); i <= fn.KeyBitSize; i++ {
+		params[i-1] = &dpfpb.DpfParameters{
+			LogDomainSize:  i,
+			ElementBitsize: incrementaldpf.DefaultElementBitSize,
+		}
+	}
+
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(params, c.Index, putValueForHierarchies(params, c.Value))
 	if err != nil {
 		return err
 	}
@@ -168,17 +177,17 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 
 	return beam.ParDo2(s,
 		&encryptSecretSharesFn{
-			PublicKey1:    params.PublicKey1,
-			PublicKey2:    params.PublicKey2,
-			SumParameters: params.SumParameters.Params,
+			PublicKey1: params.PublicKey1,
+			PublicKey2: params.PublicKey2,
+			KeyBitSize: params.KeyBitSize,
 		}, reports)
 }
 
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
 	ConversionFile, PartialReportFile1, PartialReportFile2 string
-	SumParameters                                          *pb.IncrementalDpfParameters
 	PublicKey1, PublicKey2                                 *pb.StandardPublicKey
+	KeyBitSize                                             int32
 	Shards                                                 int64
 }
 
@@ -188,7 +197,7 @@ func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams
 
 	allFiles := ioutils.AddStrInPath(params.ConversionFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
-	rawConversions := beam.ParDo(scope, &parseRawConversionFn{}, lines)
+	rawConversions := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: params.KeyBitSize}, lines)
 	resharded := beam.Reshuffle(scope, rawConversions)
 
 	partialReport1, partialReport2 := splitRawConversion(scope, resharded, params)

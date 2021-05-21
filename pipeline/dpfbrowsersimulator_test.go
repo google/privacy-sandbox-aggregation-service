@@ -110,7 +110,8 @@ func testAggregationPipelineDPF(t testing.TB) {
 		t.Fatal(err)
 	}
 
-	testData, err := createConversionsDpf(20, 6, 6)
+	const keyBitSize = 20
+	testData, err := createConversionsDpf(keyBitSize, 6, 6)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,9 +121,9 @@ func testAggregationPipelineDPF(t testing.TB) {
 	conversions := beam.CreateList(scope, testData.Conversions)
 	want := beam.CreateList(scope, testData.WantResults)
 	ePr1, ePr2 := splitRawConversion(scope, conversions, &GeneratePartialReportParams{
-		SumParameters: testData.SumParams,
-		PublicKey1:    pubKey1,
-		PublicKey2:    pubKey2,
+		PublicKey1: pubKey1,
+		PublicKey2: pubKey2,
+		KeyBitSize: keyBitSize,
 	})
 
 	pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKey1)

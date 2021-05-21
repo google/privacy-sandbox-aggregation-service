@@ -16,13 +16,11 @@
 package cryptoio
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
@@ -210,32 +208,6 @@ func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPubl
 		return nil, nil, err
 	}
 	return sPub, hPub, ioutil.WriteFile(path.Join(fileDir, DefaultElgamalSecret), []byte(secret), os.ModePerm)
-}
-
-// SaveLines saves the input string slice into a file.
-func SaveLines(filename string, lines []string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
-	fs, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	buf := bufio.NewWriter(fs)
-
-	for _, line := range lines {
-		if _, err := buf.WriteString(line); err != nil {
-			return err
-		}
-		if _, err := buf.Write([]byte{'\n'}); err != nil {
-			return err
-		}
-	}
-
-	if err := buf.Flush(); err != nil {
-		return err
-	}
-	return fs.Close()
 }
 
 // SavePrefixes saves prefixes to a file.

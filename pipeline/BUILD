@@ -466,7 +466,6 @@ go_library(
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
-        "@com_google_cloud_go//storage:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -569,6 +568,7 @@ go_binary(
     deps = [
         ":cryptoio",
         ":dpfbrowsersimulator",
+        ":ioutils",
         "@com_github_golang_glog//:go_default_library",
     ],
 )

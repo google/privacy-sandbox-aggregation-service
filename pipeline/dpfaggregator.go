@@ -34,18 +34,15 @@
 package dpfaggregator
 
 import (
-	"bufio"
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
-	"cloud.google.com/go/storage"
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -529,73 +526,26 @@ func MergePartialHistogram(scope beam.Scope, partialHistFile1, partialHistFile2,
 
 // ReadPartialHistogram reads the partial aggregation result without using a Beam pipeline.
 func ReadPartialHistogram(ctx context.Context, filename string) (map[uint64]*pb.PartialAggregationDpf, error) {
-	var scanner *bufio.Scanner
-	if strings.HasPrefix(filename, "gs://") {
-		client, err := storage.NewClient(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		bucket, object, err := ioutils.ParseGCSPath(filename)
-		if err != nil {
-			return nil, err
-		}
-		reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
-		if err != nil {
-			return nil, err
-		}
-		defer reader.Close()
-		scanner = bufio.NewScanner(reader)
-	} else {
-		fs, err := os.Open(filename)
-		if err != nil {
-			return nil, err
-		}
-		defer fs.Close()
-		scanner = bufio.NewScanner(fs)
+	lines, err := ioutils.ReadLines(ctx, filename)
+	if err != nil {
+		return nil, err
 	}
-
 	result := make(map[uint64]*pb.PartialAggregationDpf)
-	for scanner.Scan() {
-		index, aggregation, err := parseHistogram(scanner.Text())
+	for _, line := range lines {
+		index, aggregation, err := parseHistogram(line)
 		if err != nil {
 			return nil, err
 		}
 		result[index] = aggregation
 	}
-	return result, scanner.Err()
+	return result, nil
 }
 
 // WriteCompleteHistogram writes the final aggregation result without using a Beam pipeline.
 func WriteCompleteHistogram(ctx context.Context, filename string, results map[uint64]CompleteHistogram) error {
-	var buf *bufio.Writer
-	if strings.HasPrefix(filename, "gs://") {
-		client, err := storage.NewClient(ctx)
-		if err != nil {
-			return err
-		}
-
-		bucket, object, err := ioutils.ParseGCSPath(filename)
-		if err != nil {
-			return err
-		}
-		cw := client.Bucket(bucket).Object(object).NewWriter(ctx)
-		defer cw.Close()
-		buf = bufio.NewWriter(cw)
-	} else {
-		fs, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-		if err != nil {
-			return err
-		}
-		defer fs.Close()
-		buf = bufio.NewWriter(fs)
-	}
-
+	var lines []string
 	for _, result := range results {
-		line := fmt.Sprintf("%d,%d\n", result.Index, result.Sum)
-		if _, err := buf.WriteString(line); err != nil {
-			return err
-		}
+		lines = append(lines, fmt.Sprintf("%d,%d", result.Index, result.Sum))
 	}
-	return buf.Flush()
+	return ioutils.WriteLines(ctx, lines, filename)
 }

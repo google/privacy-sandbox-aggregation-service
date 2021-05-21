@@ -15,6 +15,7 @@
 package ioutils
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -96,5 +97,28 @@ func TestWriteNShardedFiles(t *testing.T) {
 	passert.Equals(scope, got, want)
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func TestWriteReadLines(t *testing.T) {
+	fileDir, err := ioutil.TempDir("/tmp", "test-file")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(fileDir)
+
+	want := []string{"foo", "bar", "baz"}
+	resultFile := path.Join(fileDir, "result.txt")
+	ctx := context.Background()
+	if err := WriteLines(ctx, want, resultFile); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ReadLines(ctx, resultFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("strings mismatch (-want +got):\n%s", diff)
 	}
 }

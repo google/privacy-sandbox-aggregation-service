@@ -101,19 +101,75 @@ func ParseGCSPath(filename string) (bucket, object string, err error) {
 }
 
 // ReadLines reads the input file line by line and returns the content as a slice of strings.
-func ReadLines(filename string) ([]string, error) {
-	fs, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer fs.Close()
+//
+// The file can be stored locally or in the GCS.
+func ReadLines(ctx context.Context, filename string) ([]string, error) {
+	var scanner *bufio.Scanner
+	if strings.HasPrefix(filename, "gs://") {
+		client, err := storage.NewClient(ctx)
+		if err != nil {
+			return nil, err
+		}
 
-	var lines []string
-	scanner := bufio.NewScanner(fs)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+		bucket, object, err := ParseGCSPath(filename)
+		if err != nil {
+			return nil, err
+		}
+		reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer reader.Close()
+		scanner = bufio.NewScanner(reader)
+	} else {
+		fs, err := os.Open(filename)
+		if err != nil {
+			return nil, err
+		}
+		defer fs.Close()
+		scanner = bufio.NewScanner(fs)
 	}
-	return lines, scanner.Err()
+
+	var result []string
+	for scanner.Scan() {
+		result = append(result, scanner.Text())
+	}
+	return result, scanner.Err()
+}
+
+// WriteLines writes the input string slice to the output file, one string per line.
+//
+// The file can be stored locally or in the GCS.
+func WriteLines(ctx context.Context, lines []string, filename string) error {
+	var buf *bufio.Writer
+	if strings.HasPrefix(filename, "gs://") {
+		client, err := storage.NewClient(ctx)
+		if err != nil {
+			return err
+		}
+
+		bucket, object, err := ParseGCSPath(filename)
+		if err != nil {
+			return err
+		}
+		cw := client.Bucket(bucket).Object(object).NewWriter(ctx)
+		defer cw.Close()
+		buf = bufio.NewWriter(cw)
+	} else {
+		fs, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			return err
+		}
+		defer fs.Close()
+		buf = bufio.NewWriter(fs)
+	}
+
+	for _, line := range lines {
+		if _, err := buf.WriteString(line + "\n"); err != nil {
+			return err
+		}
+	}
+	return buf.Flush()
 }
 
 // TODO: Add a unit test for writing and reading files in GCS buckets

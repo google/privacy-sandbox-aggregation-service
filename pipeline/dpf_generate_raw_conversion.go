@@ -25,6 +25,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 )
 
 var (
@@ -33,16 +34,16 @@ var (
 	rawConversionOutputFile = flag.String("raw_conversion_output_file", "", "Output file for the fake raw conversions.")
 	totalCount              = flag.Uint64("total_count", 1000000, "Total count of raw conversions.")
 
-	logN                = flag.Uint64("log_n", 20, "Bits of the aggregation domain size.")
-	logElementSizeSum   = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
+	logN              = flag.Uint64("log_n", 20, "Bits of the aggregation domain size.")
+	logElementSizeSum = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
 )
 
-func writeConversions(filename string, conversions []dpfbrowsersimulator.RawConversion) error {
+func writeConversions(ctx context.Context, filename string, conversions []dpfbrowsersimulator.RawConversion) error {
 	lines := make([]string, len(conversions))
 	for i, conversion := range conversions {
 		lines[i] = fmt.Sprintf("%d,%d", conversion.Index, conversion.Value)
 	}
-	return cryptoio.SaveLines(filename, lines)
+	return ioutils.WriteLines(ctx, lines, filename)
 }
 
 func main() {
@@ -77,7 +78,7 @@ func main() {
 		}
 		conversions = append(conversions, dpfbrowsersimulator.RawConversion{Index: index, Value: 1})
 	}
-	if err := writeConversions(*rawConversionOutputFile, conversions); err != nil {
+	if err := writeConversions(ctx, *rawConversionOutputFile, conversions); err != nil {
 		log.Exit(err)
 	}
 }

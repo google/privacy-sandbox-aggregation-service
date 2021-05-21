@@ -354,7 +354,7 @@ func TestWriteCompleteHistogram(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lines, err := ioutils.ReadLines(resultFile)
+	lines, err := ioutils.ReadLines(ctx, resultFile)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -146,6 +146,8 @@ func getPrefixHistogram(ctx context.Context, params *PrefixHistogramParams) ([]d
 	if err := aggregateReports(ctx, aggregateParams{
 		PrefixesFile:          prefixFile,
 		SumParamsFile:         sumParamsFile,
+		PartialReportFile1:    params.PartialReportFile1,
+		PartialReportFile2:    params.PartialReportFile2,
 		PartialHistogramFile1: tempPartialResultFile1,
 		PartialHistogramFile2: tempPartialResultFile2,
 	}, params.Helper1, params.Helper2); err != nil {

@@ -48,6 +48,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
@@ -125,6 +126,21 @@ func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standa
 	return beam.ParDo(s, &decryptPartialReportFn{StandardPrivateKey: standardPrivateKey}, encryptedReport)
 }
 
+// GenerateAllLevelParams generates the DPF parameters for creating DPF keys or evaluation context for all possible prefix lengths.
+func GenerateAllLevelParams(keyBitSize int32) ([]*dpfpb.DpfParameters, error) {
+	if keyBitSize <= 0 {
+		return nil, fmt.Errorf("keyBitSize should be positive, got %d", keyBitSize)
+	}
+	allParams := make([]*dpfpb.DpfParameters, keyBitSize)
+	for i := int32(1); i <= keyBitSize; i++ {
+		allParams[i-1] = &dpfpb.DpfParameters{
+			LogDomainSize:  i,
+			ElementBitsize: incrementaldpf.DefaultElementBitSize,
+		}
+	}
+	return allParams, nil
+}
+
 type expandedVec struct {
 	SumVec []uint64
 }
@@ -133,6 +149,7 @@ type expandedVec struct {
 type expandDpfKeyFn struct {
 	SumParameters *pb.IncrementalDpfParameters
 	Prefixes      *pb.HierarchicalPrefixes
+	KeyBitSize    int32
 	vecCounter    beam.Counter
 }
 
@@ -143,14 +160,18 @@ func (fn *expandDpfKeyFn) Setup() {
 func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(*expandedVec)) error {
 	fn.vecCounter.Inc(ctx, 1)
 
-	sumCtx, err := incrementaldpf.CreateEvaluationContext(fn.SumParameters.Params, partialReport.GetSumKey())
+	ctxParams, err := GenerateAllLevelParams(fn.KeyBitSize)
+	if err != nil {
+		return err
+	}
+	sumCtx, err := incrementaldpf.CreateEvaluationContext(ctxParams, partialReport.GetSumKey())
 	if err != nil {
 		return err
 	}
 
 	var vecSum []uint64
-	for i := range fn.SumParameters.Params {
-		vecSum, err = incrementaldpf.EvaluateNext64(fn.Prefixes.Prefixes[i].Prefix, sumCtx)
+	for i, param := range fn.SumParameters.Params {
+		vecSum, err = incrementaldpf.EvaluateUntil64(int(param.LogDomainSize)-1, fn.Prefixes.Prefixes[i].Prefix, sumCtx)
 		if err != nil {
 			return err
 		}
@@ -329,6 +350,8 @@ type AggregatePartialReportParams struct {
 	SegmentLength uint64
 	// Number of shards when writing the output file.
 	Shards int64
+	// Bit size of the conversion keys.
+	KeyBitSize int32
 }
 
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
@@ -336,6 +359,7 @@ func ExpandAndCombineHistogram(scope beam.Scope, partialReport beam.PCollection,
 	expanded := beam.ParDo(scope, &expandDpfKeyFn{
 		SumParameters: params.SumParameters,
 		Prefixes:      params.Prefixes,
+		KeyBitSize:    params.KeyBitSize,
 	}, partialReport)
 
 	paramsLen := len(params.SumParameters.Params)

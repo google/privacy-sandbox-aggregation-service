@@ -28,6 +28,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
@@ -122,16 +123,12 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	params := make([]*dpfpb.DpfParameters, fn.KeyBitSize)
-	// Configure DPF keys so that they can be queried at any bit-prefix.
-	for i := int32(1); i <= fn.KeyBitSize; i++ {
-		params[i-1] = &dpfpb.DpfParameters{
-			LogDomainSize:  i,
-			ElementBitsize: incrementaldpf.DefaultElementBitSize,
-		}
+	allParams, err := dpfaggregator.GenerateAllLevelParams(fn.KeyBitSize)
+	if err != nil {
+		return err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(params, c.Index, putValueForHierarchies(params, c.Value))
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, c.Index, putValueForHierarchies(allParams, c.Value))
 	if err != nil {
 		return err
 	}

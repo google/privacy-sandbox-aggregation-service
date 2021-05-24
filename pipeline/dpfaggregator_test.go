@@ -185,18 +185,20 @@ type rawConversion struct {
 }
 
 type splitConversionFn struct {
-	Params *pb.IncrementalDpfParameters
+	KeyBitSize int32
 }
 
 func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion, emit1 func(*pb.PartialReportDpf), emit2 func(*pb.PartialReportDpf)) error {
-	valueSum := make([]uint64, len(fn.Params.Params))
-	valueCount := make([]uint64, len(fn.Params.Params))
+	valueSum := make([]uint64, fn.KeyBitSize)
 	for i := range valueSum {
 		valueSum[i] = c.Value
-		valueCount[i] = uint64(1)
+	}
+	ctxParams, err := GenerateAllLevelParams(fn.KeyBitSize)
+	if err != nil {
+		return err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(fn.Params.Params, c.Index, valueSum)
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(ctxParams, c.Index, valueSum)
 	if err != nil {
 		return err
 	}
@@ -209,6 +211,8 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	})
 	return nil
 }
+
+const keyBitSize = 8
 
 func TestDirectAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
@@ -227,10 +231,11 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
 		{LogDomainSize: 8, ElementBitsize: 1 << 6},
 	}}
-	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{Params: dpfParams}, conversions)
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
 	params := &AggregatePartialReportParams{
 		SumParameters: dpfParams,
 		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
+		KeyBitSize:    keyBitSize,
 		DirectCombine: true,
 	}
 	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
@@ -270,10 +275,11 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 		{LogDomainSize: 4, ElementBitsize: 1 << 6},
 		{LogDomainSize: 8, ElementBitsize: 1 << 6},
 	}}
-	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{Params: dpfParams}, conversions)
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
 	params := &AggregatePartialReportParams{
 		SumParameters: dpfParams,
 		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}, {Prefix: []uint64{1}}}},
+		KeyBitSize:    keyBitSize,
 		DirectCombine: true,
 	}
 	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)

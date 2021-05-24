@@ -52,6 +52,7 @@ var (
 	sumParametersFile    = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
 	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
+	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 	privateKeyFile       = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if flag 'kms_key_uri' is set.")
 	kmsKeyURI            = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile    = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
@@ -100,6 +101,7 @@ func main() {
 			DirectCombine:        *directCombine,
 			SegmentLength:        *segmentLength,
 			Shards:               *fileShards,
+			KeyBitSize:           int32(*keyBitSize),
 		}); err != nil {
 		log.Exit(ctx, err)
 	}

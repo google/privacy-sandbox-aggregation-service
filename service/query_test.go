@@ -60,10 +60,11 @@ func TestHierarchicalResultsReadWrite(t *testing.T) {
 		{PrefixLength: 1, Histogram: []dpfaggregator.CompleteHistogram{{Index: 1, Sum: 1}}, ExpansionThreshold: 1},
 	}
 	resultsFile := path.Join(tmpDir, "results")
-	if err := WriteHierarchicalResultsFile(wantResults, resultsFile); err != nil {
+	ctx := context.Background()
+	if err := WriteHierarchicalResultsFile(ctx, wantResults, resultsFile); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadHierarchicalResultsFile(resultsFile)
+	got, err := ReadHierarchicalResultsFile(ctx, resultsFile)
 	if err != nil {
 		t.Fatal(err)
 	}

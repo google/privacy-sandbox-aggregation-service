@@ -75,7 +75,7 @@ func main() {
 	if err != nil {
 		log.Exit(err)
 	}
-	if err := query.WriteHierarchicalResultsFile(results, *hierarchicalHistogramFile); err != nil {
+	if err := query.WriteHierarchicalResultsFile(ctx, results, *hierarchicalHistogramFile); err != nil {
 		log.Exit(err)
 	}
 }

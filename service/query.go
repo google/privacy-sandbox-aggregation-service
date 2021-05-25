@@ -20,8 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"golang.org/x/sync/errgroup"
 	"github.com/pborman/uuid"
@@ -224,17 +222,17 @@ func HierarchicalAggregation(ctx context.Context, params *PrefixHistogramParams,
 }
 
 // WriteHierarchicalResultsFile writes the hierarchical query results into a file.
-func WriteHierarchicalResultsFile(results []HierarchicalResult, filename string) error {
+func WriteHierarchicalResultsFile(ctx context.Context, results []HierarchicalResult, filename string) error {
 	br, err := json.Marshal(results)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, br, os.ModePerm)
+	return ioutils.WriteBytes(ctx, br, filename)
 }
 
 // ReadHierarchicalResultsFile reads the hierarchical query results from a file.
-func ReadHierarchicalResultsFile(filename string) ([]HierarchicalResult, error) {
-	br, err := ioutil.ReadFile(filename)
+func ReadHierarchicalResultsFile(ctx context.Context, filename string) ([]HierarchicalResult, error) {
+	br, err := ioutils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}

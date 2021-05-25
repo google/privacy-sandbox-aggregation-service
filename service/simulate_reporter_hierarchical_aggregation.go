@@ -48,13 +48,14 @@ func main() {
 		log.Exit(err)
 	}
 
-	conn1, err := grpc.Dial(*helperAddr1, nil)
+	// grpc.WithInsecure() is used for demonstration, and for real instances we should use more secure options.
+	conn1, err := grpc.Dial(*helperAddr1, grpc.WithInsecure())
 	if err != nil {
 		log.Exit(err)
 	}
 	defer conn1.Close()
 
-	conn2, err := grpc.Dial(*helperAddr2, nil)
+	conn2, err := grpc.Dial(*helperAddr2, grpc.WithInsecure())
 	if err != nil {
 		log.Exit(err)
 	}

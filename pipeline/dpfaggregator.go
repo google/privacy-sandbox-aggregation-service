@@ -44,6 +44,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
@@ -51,6 +52,8 @@ import (
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
+
+const numberOfHelpers = 2
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReportDpf)(nil)).Elem())
@@ -332,6 +335,27 @@ func segmentCombine(scope beam.Scope, expanded beam.PCollection, vectorLength, s
 	return beam.Flatten(scope, results...)
 }
 
+type addNoiseFn struct {
+	Epsilon       float64
+	L1Sensitivity uint64
+}
+
+func (fn *addNoiseFn) ProcessElement(ctx context.Context, id uint64, pa *pb.PartialAggregationDpf, emit func(uint64, *pb.PartialAggregationDpf)) error {
+	noise, err := distributednoise.DistributedGeometricMechanismRand(fn.Epsilon, fn.L1Sensitivity, numberOfHelpers)
+	if err != nil {
+		return err
+	}
+	// Overflow of the noise is expected, and there's 50% probability that the noise is negative.
+	pa.PartialSum += uint64(noise)
+	emit(id, pa)
+	return nil
+}
+
+func addNoise(scope beam.Scope, rawResult beam.PCollection, epsilon float64, l1Sensitivity uint64) beam.PCollection {
+	scope = scope.Scope("AddNoise")
+	return beam.ParDo(scope, &addNoiseFn{Epsilon: epsilon, L1Sensitivity: l1Sensitivity}, rawResult)
+}
+
 // AggregatePartialReportParams contains necessary parameters for function AggregatePartialReport().
 type AggregatePartialReportParams struct {
 	// Input partial report file path, each line contains an encrypted PartialReportDpf.
@@ -352,6 +376,9 @@ type AggregatePartialReportParams struct {
 	Shards int64
 	// Bit size of the conversion keys.
 	KeyBitSize int32
+	// Privacy budget for adding noise to the aggregation.
+	Epsilon       float64
+	L1Sensitivity uint64
 }
 
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
@@ -373,10 +400,17 @@ func ExpandAndCombineHistogram(scope beam.Scope, partialReport beam.PCollection,
 		vectorLength = uint64(1) << params.SumParameters.Params[paramsLen-1].LogDomainSize
 	}
 
+	var rawResult beam.PCollection
 	if params.DirectCombine {
-		return directCombine(scope, expanded, vectorLength, bucketIDs), nil
+		rawResult = directCombine(scope, expanded, vectorLength, bucketIDs)
+	} else {
+		rawResult = segmentCombine(scope, expanded, vectorLength, params.SegmentLength, bucketIDs)
 	}
-	return segmentCombine(scope, expanded, vectorLength, params.SegmentLength, bucketIDs), nil
+
+	if params.Epsilon > 0 {
+		return addNoise(scope, rawResult, params.Epsilon, params.L1Sensitivity), nil
+	}
+	return rawResult, nil
 }
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.

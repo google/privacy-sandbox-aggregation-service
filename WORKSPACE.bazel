@@ -223,3 +223,18 @@ go_repository(
     sum = "h1:Bl/8QSvNqXvPGPGXa2z5xUTmV7VDcZyvRZ+QQXkXTZQ=",
     version = "v0.0.0-20181108010431-42b317875d0f",
 )
+
+go_repository(
+    name = "org_gonum_v1_gonum",
+    importpath = "gonum.org/v1/gonum",
+    sum = "h1:CCXrcPKiGGotvnN6jfUsKk4rRqm7q09/YbKb5xCEvtM=",
+    version = "v0.8.2",
+)
+
+go_repository(
+    name = "com_github_grd_stat",
+    importpath = "github.com/grd/stat",
+    sum = "h1:TVY1GBBIAAph4RWO9Y3p1wU+7n6khY1jxPKjDphzznA=",
+    version = "v0.0.0-20130623202159-138af3fd5012",
+)
+

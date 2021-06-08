@@ -37,6 +37,7 @@ package main
 import (
 	"context"
 	"flag"
+	"math"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
@@ -59,6 +60,11 @@ var (
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
+
+	epsilon = flag.Float64("epsilon", 0.0, "Epsilon for the privacy budget.")
+	// The default l1 sensitivity is consistent with:
+	// https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#privacy-budgeting
+	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -102,6 +108,8 @@ func main() {
 			SegmentLength:        *segmentLength,
 			Shards:               *fileShards,
 			KeyBitSize:           int32(*keyBitSize),
+			Epsilon:              *epsilon,
+			L1Sensitivity:        *l1Sensitivity,
 		}); err != nil {
 		log.Exit(ctx, err)
 	}

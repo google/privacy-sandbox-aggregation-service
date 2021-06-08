@@ -461,6 +461,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator",
     deps = [
         ":crypto_go_proto",
+        ":distributednoise",
         ":incrementaldpf",
         ":ioutils",
         ":standardencrypt",
@@ -582,5 +583,26 @@ go_binary(
         ":cryptoio",
         ":standardencrypt",
         "@com_github_golang_glog//:go_default_library",
+    ],
+)
+
+go_library(
+    name = "distributednoise",
+    srcs = ["distributednoise.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise",
+    deps = [
+        "@org_gonum_v1_gonum//floats:go_default_library",
+        "@org_gonum_v1_gonum//stat/distuv:go_default_library",
+    ],
+)
+
+go_test(
+    name = "distributednoise_test",
+    size = "small",
+    srcs = ["distributednoise_test.go"],
+    embed = [":distributednoise"],
+    deps = [
+        "@com_github_grd_stat//:go_default_library",
+        "@org_gonum_v1_gonum//floats:go_default_library",
     ],
 )

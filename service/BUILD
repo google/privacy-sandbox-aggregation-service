@@ -102,6 +102,7 @@ go_library(
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
         "@org_golang_x_sync//errgroup:go_default_library",
+        "@org_gonum_v1_gonum//floats:go_default_library",
     ],
 )
 

@@ -17,6 +17,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"path"
 
@@ -126,6 +127,7 @@ func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.Aggregate
 		"--sum_parameters_file=" + in.SumDpfParametersFile,
 		"--prefixes_file=" + in.PrefixesFile,
 		"--partial_histogram_file=" + in.PartialHistogramFile,
+		"--epsilon=" + fmt.Sprintf("%f", in.Epsilon),
 		"--private_key_file=" + s.ServerCfg.PrivateKeyFile,
 		"--kms_key_uri=" + s.ServerCfg.KmsKeyURI,
 		"--kms_credential_file=" + s.ServerCfg.KmsCredentialFile,

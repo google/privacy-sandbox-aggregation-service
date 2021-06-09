@@ -20,6 +20,7 @@ func TestExpansionConfigReadWrite(t *testing.T) {
 
 	config := &ExpansionConfig{
 		PrefixLengths:               []int32{1, 2, 3},
+		PrivacyBudgetPerPrefix:      []float64{0.2, 0.5, 0.3},
 		ExpansionThresholdPerPrefix: []uint64{4, 5, 6},
 	}
 	ctx := context.Background()

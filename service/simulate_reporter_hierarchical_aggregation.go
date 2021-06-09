@@ -37,6 +37,8 @@ var (
 	expansionConfigFile       = flag.String("expansion_config_file", "", "Input file for the expansion configurations that defines the query hierarchy.")
 	paramsDir                 = flag.String("params_dir", "", "Input directory that stores the parameter files.")
 	partialAggregationDir     = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
+
+	epsilon = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
 )
 
 func main() {
@@ -72,7 +74,7 @@ func main() {
 		Helper2:               grpcpb.NewAggregatorClient(conn2),
 	}
 
-	results, err := query.HierarchicalAggregation(ctx, params, expansionConfig)
+	results, err := query.HierarchicalAggregation(ctx, params, *epsilon, expansionConfig)
 	if err != nil {
 		log.Exit(err)
 	}

@@ -82,6 +82,7 @@ message AggregateDpfPartialReportRequest{
   string prefixes_file = 3;
   string sum_dpf_parameters_file = 4;
   string count_dpf_parameters_file = 5;
+  double epsilon = 6;
 }
 
 message AggregateDpfPartialReportResponse {}

@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
+	"gonum.org/v1/gonum/floats"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
@@ -38,6 +39,7 @@ const elementBitSize = 64
 // ExpansionConfig contains the parameters that define the hierarchy for how the DPF key will be expanded.
 type ExpansionConfig struct {
 	PrefixLengths               []int32
+	PrivacyBudgetPerPrefix      []float64
 	ExpansionThresholdPerPrefix []uint64
 }
 
@@ -53,6 +55,20 @@ func WriteExpansionConfigFile(ctx context.Context, config *ExpansionConfig, file
 func validateExpansionConfig(config *ExpansionConfig) error {
 	if len(config.PrefixLengths) == 0 {
 		return errors.New("expect nonempty PrefixLengths")
+	}
+
+	if got, want := len(config.PrivacyBudgetPerPrefix), len(config.PrefixLengths); got != want {
+		return fmt.Errorf("expect len(PrivacyBudgetPerPrefix)=%d, got %d", want, got)
+	}
+	var totalBudget float64
+	for _, p := range config.PrivacyBudgetPerPrefix {
+		if p > 1.0 {
+			return fmt.Errorf("budget for each prefix length should not be larger than 1, got %v", p)
+		}
+		totalBudget += p
+	}
+	if !floats.EqualWithinAbsOrRel(totalBudget, 1.0, 1e-6, 1e-6) {
+		return fmt.Errorf("total budget should add up to 1, got %v", totalBudget)
 	}
 
 	if got, want := len(config.ExpansionThresholdPerPrefix), len(config.PrefixLengths); got != want {
@@ -89,6 +105,7 @@ type aggregateParams struct {
 	SumParamsFile                                string
 	PartialHistogramFile1, PartialHistogramFile2 string
 	PartialReportFile1, PartialReportFile2       string
+	Epsilon                                      float64
 }
 
 func aggregateReports(ctx context.Context, params aggregateParams, client1, client2 grpcpb.AggregatorClient) error {
@@ -99,6 +116,7 @@ func aggregateReports(ctx context.Context, params aggregateParams, client1, clie
 			PartialHistogramFile: params.PartialHistogramFile1,
 			PrefixesFile:         params.PrefixesFile,
 			SumDpfParametersFile: params.SumParamsFile,
+			Epsilon:              params.Epsilon,
 		})
 		return err
 	})
@@ -109,6 +127,7 @@ func aggregateReports(ctx context.Context, params aggregateParams, client1, clie
 			PartialHistogramFile: params.PartialHistogramFile2,
 			PrefixesFile:         params.PrefixesFile,
 			SumDpfParametersFile: params.SumParamsFile,
+			Epsilon:              params.Epsilon,
 		})
 		return err
 	})
@@ -124,6 +143,7 @@ type PrefixHistogramParams struct {
 	PartialAggregationDir                  string
 	ParamsDir                              string
 	Helper1, Helper2                       grpcpb.AggregatorClient
+	Epsilon                                float64
 }
 
 // getPrefixHistogram calls the RPC methods on both helpers and merges the generated partial aggregation results.
@@ -148,6 +168,7 @@ func getPrefixHistogram(ctx context.Context, params *PrefixHistogramParams) ([]d
 		PartialReportFile2:    params.PartialReportFile2,
 		PartialHistogramFile1: tempPartialResultFile1,
 		PartialHistogramFile2: tempPartialResultFile2,
+		Epsilon:               params.Epsilon,
 	}, params.Helper1, params.Helper2); err != nil {
 		return nil, err
 	}
@@ -207,10 +228,12 @@ type HierarchicalResult struct {
 }
 
 // HierarchicalAggregation queries the hierarchical aggregation results.
-func HierarchicalAggregation(ctx context.Context, params *PrefixHistogramParams, config *ExpansionConfig) ([]HierarchicalResult, error) {
+func HierarchicalAggregation(ctx context.Context, params *PrefixHistogramParams, epsilon float64, config *ExpansionConfig) ([]HierarchicalResult, error) {
 	var results []HierarchicalResult
 	for i, threshold := range config.ExpansionThresholdPerPrefix {
 		extendPrefixDomains(params.SumParams, config.PrefixLengths[i])
+		// Use naive composition by simply splitting the epsilon based on the privacy budget config.
+		params.Epsilon = epsilon * config.PrivacyBudgetPerPrefix[i]
 		result, err := getPrefixHistogram(ctx, params)
 		if err != nil {
 			return nil, err

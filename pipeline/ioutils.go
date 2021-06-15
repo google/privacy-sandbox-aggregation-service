@@ -17,6 +17,7 @@ package ioutils
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -30,6 +31,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"cloud.google.com/go/storage"
+	"github.com/ugorji/go/codec"
 )
 
 func init() {
@@ -221,4 +223,21 @@ func ReadBytes(ctx context.Context, filename string) ([]byte, error) {
 		return readGCSObject(ctx, filename)
 	}
 	return ioutil.ReadFile(filename)
+}
+
+// MarshalCBOR serializes the input data in CBOR format.
+func MarshalCBOR(v interface{}) ([]byte, error) {
+	encBuf := new(bytes.Buffer)
+	enc := codec.NewEncoder(encBuf, &codec.CborHandle{})
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return encBuf.Bytes(), nil
+}
+
+// UnmarshalCBOR parses the bytes in CBOR format.
+func UnmarshalCBOR(b []byte, v interface{}) error {
+	decBuf := bytes.NewBuffer(b)
+	dec := codec.NewDecoder(decBuf, &codec.CborHandle{})
+	return dec.Decode(v)
 }

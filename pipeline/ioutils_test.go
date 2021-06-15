@@ -122,3 +122,31 @@ func TestWriteReadLines(t *testing.T) {
 		t.Errorf("strings mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestCborMarshalUnmarshal(t *testing.T) {
+	type testStruct struct {
+		FieldStr   string `json:"field_str"`
+		FieldInt   int64  `json:"field_int"`
+		FieldBytes []byte `json:"field_bytes"`
+	}
+
+	want := &testStruct{
+		FieldStr:   "test_string",
+		FieldInt:   12345,
+		FieldBytes: []byte("test_bytes"),
+	}
+
+	b, err := MarshalCBOR(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := &testStruct{}
+	if err := UnmarshalCBOR(b, got); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Unmarshaled message mismatch (-want +got):\n%s", diff)
+	}
+}

@@ -238,3 +238,18 @@ go_repository(
     version = "v0.0.0-20130623202159-138af3fd5012",
 )
 
+go_repository(
+    name = "com_github_ugorji_go_codec",
+    importpath = "github.com/ugorji/go/codec",
+    sum = "h1:7kbGefxLoDBuYXOms4yD7223OpNMMPNPZxXk5TvFcyQ=",
+    version = "v1.2.6",
+)
+
+go_repository(
+    name = "com_github_fxamacker_cbor_v2",
+    importpath = "github.com/fxamacker/cbor/v2",
+    sum = "h1:aM45YGMctNakddNNAezPxDUpv38j44Abh+hifNuqXik=",
+    version = "v2.3.0",
+)
+
+

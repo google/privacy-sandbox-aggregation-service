@@ -44,16 +44,17 @@ type standardEncryptFn struct {
 	PublicKey *pb.StandardPublicKey
 }
 
-func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.StandardCiphertext)) error {
+func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.EncryptedPartialReportDpf)) error {
 	b, err := proto.Marshal(report)
 	if err != nil {
 		return err
 	}
-	result, err := standardencrypt.Encrypt(b, nil, fn.PublicKey)
+	contextInfo := []byte("context")
+	result, err := standardencrypt.Encrypt(b, contextInfo, fn.PublicKey)
 	if err != nil {
 		return err
 	}
-	emit(result)
+	emit(&pb.EncryptedPartialReportDpf{EncryptedReport: result, ContextInfo: contextInfo})
 	return nil
 }
 

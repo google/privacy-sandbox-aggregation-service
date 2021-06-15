@@ -84,17 +84,17 @@ func (fn *parseEncryptedPartialReportFn) Setup() {
 	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "partial-report-count")
 }
 
-func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.StandardCiphertext)) error {
+func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedPartialReportDpf)) error {
 	bsc, err := base64.StdEncoding.DecodeString(line)
 	if err != nil {
 		return err
 	}
 
-	ciphertext := &pb.StandardCiphertext{}
-	if err := proto.Unmarshal(bsc, ciphertext); err != nil {
+	encrypted := &pb.EncryptedPartialReportDpf{}
+	if err := proto.Unmarshal(bsc, encrypted); err != nil {
 		return err
 	}
-	emit(ciphertext)
+	emit(encrypted)
 	return nil
 }
 
@@ -109,8 +109,8 @@ type decryptPartialReportFn struct {
 	StandardPrivateKey *pb.StandardPrivateKey
 }
 
-func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.StandardCiphertext, emit func(*pb.PartialReportDpf)) error {
-	b, err := standardencrypt.Decrypt(encrypted, nil, fn.StandardPrivateKey)
+func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.EncryptedPartialReportDpf, emit func(*pb.PartialReportDpf)) error {
+	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, fn.StandardPrivateKey)
 	if err != nil {
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}

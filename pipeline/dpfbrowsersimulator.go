@@ -92,17 +92,17 @@ type encryptSecretSharesFn struct {
 	countReport beam.Counter
 }
 
-func encryptPartialReport(partialReport *pb.PartialReportDpf, key *pb.StandardPublicKey) (*pb.StandardCiphertext, error) {
+func encryptPartialReport(partialReport *pb.PartialReportDpf, key *pb.StandardPublicKey, contextInfo []byte) (*pb.EncryptedPartialReportDpf, error) {
 	bPartialReport, err := proto.Marshal(partialReport)
 	if err != nil {
 		return nil, err
 	}
 
-	encrypted, err := standardencrypt.Encrypt(bPartialReport, nil, key)
+	encrypted, err := standardencrypt.Encrypt(bPartialReport, contextInfo, key)
 	if err != nil {
 		return nil, err
 	}
-	return encrypted, nil
+	return &pb.EncryptedPartialReportDpf{EncryptedReport: encrypted, ContextInfo: contextInfo}, nil
 }
 
 func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
@@ -120,7 +120,7 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 	return values
 }
 
-func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.StandardCiphertext), emit2 func(*pb.StandardCiphertext)) error {
+func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
 	fn.countReport.Inc(ctx, 1)
 
 	allParams, err := dpfaggregator.GenerateAllLevelParams(fn.KeyBitSize)
@@ -135,7 +135,7 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConver
 
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum1,
-	}, fn.PublicKey1)
+	}, fn.PublicKey1, nil)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConver
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum2,
-	}, fn.PublicKey2)
+	}, fn.PublicKey2, nil)
 
 	if err != nil {
 		return err
@@ -153,7 +153,7 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConver
 }
 
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
-func formatPartialReportFn(encrypted *pb.StandardCiphertext, emit func(string)) error {
+func formatPartialReportFn(encrypted *pb.EncryptedPartialReportDpf, emit func(string)) error {
 	bEncrypted, err := proto.Marshal(encrypted)
 	if err != nil {
 		return err

@@ -80,6 +80,13 @@ message PartialReportDpf {
   distributed_point_functions.DpfKey sum_key = 1;
 }
 
+// EncryptedPartialReportDpf contains the encrypted partial report and the context
+// information required to decrypt it.
+message EncryptedPartialReportDpf {
+  StandardCiphertext encrypted_report = 1;
+  bytes context_info = 2;
+}
+
 // PartialAggregationDpf contains the aggregation results from one of the
 // helpers for one specific bucket of the histogram.
 message PartialAggregationDpf {

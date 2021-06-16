@@ -45,6 +45,15 @@ func init() {
 	beam.RegisterFunction(formatPartialReportFn)
 }
 
+// Payload defines the payload sent to one server.
+type Payload struct {
+	Operation string `json:"operation"`
+	// DPFKey is a serialized proto of:
+	// https://github.com/google/distributed_point_functions/blob/199696c7cde95d9f9e07a4dddbcaaa36d120ca12/dpf/distributed_point_function.proto#L110
+	DPFKey  []byte `json:"dpf_key"`
+	Padding string `json:"padding"`
+}
+
 // RawConversion represents a conversion record from the browser. For the DPF protocol the record key is an integer in a known domain.
 type RawConversion struct {
 	Index uint64
@@ -93,12 +102,21 @@ type encryptSecretSharesFn struct {
 }
 
 func encryptPartialReport(partialReport *pb.PartialReportDpf, key *pb.StandardPublicKey, contextInfo []byte) (*pb.EncryptedPartialReportDpf, error) {
-	bPartialReport, err := proto.Marshal(partialReport)
+	bDpfKey, err := proto.Marshal(partialReport.SumKey)
 	if err != nil {
 		return nil, err
 	}
 
-	encrypted, err := standardencrypt.Encrypt(bPartialReport, contextInfo, key)
+	payload := dpfaggregator.Payload{
+		Operation: "hierarchical-histogram",
+		DPFKey:    bDpfKey,
+	}
+	bPayload, err := ioutils.MarshalCBOR(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
 	if err != nil {
 		return nil, err
 	}

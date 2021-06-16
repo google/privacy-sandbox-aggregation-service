@@ -75,6 +75,15 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*expandedVec)(nil)))
 }
 
+// Payload defines the payload sent to one server
+type Payload struct {
+	Operation string `json:"operation"`
+	// DPFKey is a serialized proto of:
+	// https://github.com/google/distributed_point_functions/blob/199696c7cde95d9f9e07a4dddbcaaa36d120ca12/dpf/distributed_point_function.proto#L110
+	DPFKey  []byte `json:"dpf_key"`
+	Padding string `json:"padding"`
+}
+
 // parseEncryptedPartialReportFn parses each line of the input partial report and gets a StandardCiphertext, which represents a encrypted PartialReportDpf.
 type parseEncryptedPartialReportFn struct {
 	partialReportCounter beam.Counter
@@ -115,11 +124,16 @@ func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.EncryptedPartialR
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}
 
-	partialReport := &pb.PartialReportDpf{}
-	if err := proto.Unmarshal(b, partialReport); err != nil {
+	payload := &Payload{}
+	if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
 		return err
 	}
-	emit(partialReport)
+
+	dpfKey := &dpfpb.DpfKey{}
+	if err := proto.Unmarshal(payload.DPFKey, dpfKey); err != nil {
+		return err
+	}
+	emit(&pb.PartialReportDpf{SumKey: dpfKey})
 	return nil
 }
 

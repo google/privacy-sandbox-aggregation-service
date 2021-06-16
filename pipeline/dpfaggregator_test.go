@@ -45,12 +45,19 @@ type standardEncryptFn struct {
 }
 
 func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.EncryptedPartialReportDpf)) error {
-	b, err := proto.Marshal(report)
+	b, err := proto.Marshal(report.SumKey)
 	if err != nil {
 		return err
 	}
+
+	payload := Payload{DPFKey: b}
+	bPayload, err := ioutils.MarshalCBOR(payload)
+	if err != nil {
+		return err
+	}
+
 	contextInfo := []byte("context")
-	result, err := standardencrypt.Encrypt(b, contextInfo, fn.PublicKey)
+	result, err := standardencrypt.Encrypt(bPayload, contextInfo, fn.PublicKey)
 	if err != nil {
 		return err
 	}

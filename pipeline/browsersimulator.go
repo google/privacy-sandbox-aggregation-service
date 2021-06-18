@@ -209,7 +209,6 @@ func (fn *encryptConversionFn) ProcessElement(ctx context.Context, c rawConversi
 	return nil
 }
 
-// TODO: cover the reading/writing functions with unit test.
 func formatPartialReportFn(reportID string, encrypted *pb.StandardCiphertext, emit func(string)) error {
 	bEncrypted, err := proto.Marshal(encrypted)
 	if err != nil {

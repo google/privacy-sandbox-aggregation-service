@@ -15,6 +15,9 @@
 package dpfbrowsersimulator
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 
 	
@@ -191,5 +194,40 @@ func testAggregationPipelineDPF(t testing.TB) {
 func BenchmarkPipeline(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		testAggregationPipelineDPF(b)
+	}
+}
+
+func TestWriteReadPartialReports(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	want := []*pb.EncryptedPartialReportDpf{
+		{
+			EncryptedReport: &pb.StandardCiphertext{Data: []byte("encrypted1")},
+			ContextInfo:     []byte("context1"),
+		},
+		{
+			EncryptedReport: &pb.StandardCiphertext{Data: []byte("encrypted2")},
+			ContextInfo:     []byte("context2"),
+		},
+	}
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	wantList := beam.CreateList(scope, want)
+	filename := path.Join(tmpDir, "partial.txt")
+	writePartialReport(scope, wantList, filename, 1)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+
+	gotList := dpfaggregator.ReadPartialReport(scope, filename)
+	passert.Equals(scope, gotList, wantList)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
 	}
 }

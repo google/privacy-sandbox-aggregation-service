@@ -107,7 +107,8 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 	return nil
 }
 
-func readPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
+// ReadPartialReport reads each line from a file, and parses it as a partial report that contains a encrypted DPF key and the context info.
+func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
@@ -435,7 +436,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	encrypted := readPartialReport(scope, params.PartialReportFile)
+	encrypted := ReadPartialReport(scope, params.PartialReportFile)
 	resharded := beam.Reshuffle(scope, encrypted)
 
 	partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKey)

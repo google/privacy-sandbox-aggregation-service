@@ -16,6 +16,7 @@ package dpfaggregator
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -24,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
+	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/go-cmp/cmp"
@@ -351,7 +353,23 @@ func TestReadPartialHistogram(t *testing.T) {
 	}
 }
 
-func TestWriteCompleteHistogram(t *testing.T) {
+func parseCompleteHistogram(line string) (CompleteHistogram, error) {
+	cols := strings.Split(line, ",")
+	if gotLen, wantLen := len(cols), 2; gotLen != wantLen {
+		return CompleteHistogram{}, fmt.Errorf("got %d columns in line %q, want %d", gotLen, line, wantLen)
+	}
+	idx, err := strconv.ParseUint(cols[0], 10, 64)
+	if err != nil {
+		return CompleteHistogram{}, err
+	}
+	sum, err := strconv.ParseUint(cols[1], 10, 64)
+	if err != nil {
+		return CompleteHistogram{}, err
+	}
+	return CompleteHistogram{Index: idx, Sum: sum}, nil
+}
+
+func TestWriteCompleteHistogramWithoutPipeline(t *testing.T) {
 	fileDir, err := ioutil.TempDir("/tmp", "test-file")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -374,21 +392,83 @@ func TestWriteCompleteHistogram(t *testing.T) {
 	}
 	got := make(map[uint64]CompleteHistogram)
 	for _, l := range lines {
-		cols := strings.Split(l, ",")
-		if gotLen, wantLen := len(cols), 2; gotLen != wantLen {
-			t.Fatalf("got %d columns in line %q, want %d", gotLen, l, wantLen)
-		}
-		idx, err := strconv.ParseUint(cols[0], 10, 64)
+		histogram, err := parseCompleteHistogram(l)
 		if err != nil {
 			t.Fatal(err)
 		}
-		sum, err := strconv.ParseUint(cols[1], 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got[idx] = CompleteHistogram{Index: idx, Sum: sum}
+		got[histogram.Index] = histogram
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Read and saved complete histogram mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestWriteReadPartialHistogram(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	want := []idPartialAggregation{
+		{ID: 1, PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 1}},
+		{ID: 2, PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 2}},
+		{ID: 3, PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 3}},
+	}
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	wantList := beam.CreateList(scope, want)
+	table := beam.ParDo(scope, func(p idPartialAggregation) (uint64, *pb.PartialAggregationDpf) {
+		return p.ID, p.PartialAggregation
+	}, wantList)
+	filename := path.Join(tmpDir, "partial.txt")
+	writeHistogram(scope, table, filename, 1)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+
+	gotList := beam.ParDo(scope, convertIDPartialAggregationFn, readPartialHistogram(scope, filename))
+	passert.Equals(scope, gotList, wantList)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func TestWriteReadCompleteHistogramWithPipeline(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	want := []CompleteHistogram{
+		{Index: 1, Sum: 1},
+		{Index: 2, Sum: 2},
+		{Index: 3, Sum: 3},
+	}
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	wantList := beam.CreateList(scope, want)
+	filename := path.Join(tmpDir, "complete.txt")
+	writeCompleteHistogram(scope, wantList, filename)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+
+	gotList := beam.ParDo(scope, func(line string, emit func(CompleteHistogram)) error {
+		histogram, err := parseCompleteHistogram(line)
+		if err != nil {
+			return err
+		}
+		emit(histogram)
+		return nil
+	}, textio.ReadSdf(scope, filename))
+	passert.Equals(scope, gotList, wantList)
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
 	}
 }

@@ -70,27 +70,32 @@ func (fn *parseRawConversionFn) Setup(ctx context.Context) {
 	fn.countConversion = beam.NewCounter("aggregation", "parserawConversionFn_conversion_count")
 }
 
-func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(RawConversion)) error {
+func parseRawConversion(line string, keyBitSize int32) (RawConversion, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
-		return fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
+		return RawConversion{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
-	key64, err := strconv.ParseUint(cols[0], 10, int(fn.KeyBitSize))
+	key64, err := strconv.ParseUint(cols[0], 10, int(keyBitSize))
 	if err != nil {
-		return err
+		return RawConversion{}, err
 	}
 
 	value64, err := strconv.ParseUint(cols[1], 10, 64)
+	if err != nil {
+		return RawConversion{}, err
+	}
+	return RawConversion{Index: key64, Value: value64}, nil
+}
+
+func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(RawConversion)) error {
+	conversion, err := parseRawConversion(line, fn.KeyBitSize)
 	if err != nil {
 		return err
 	}
 
 	fn.countConversion.Inc(ctx, 1)
-	emit(RawConversion{
-		Index: key64,
-		Value: value64,
-	})
+	emit(conversion)
 	return nil
 }
 
@@ -138,45 +143,65 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 	return values
 }
 
-func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
-	fn.countReport.Inc(ctx, 1)
-
-	allParams, err := dpfaggregator.GenerateAllLevelParams(fn.KeyBitSize)
+// GenerateEncryptedReports splits a conversion record into DPF keys, and encrypts the partial reports.
+func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, publicKey1, publicKey2 *pb.StandardPublicKey, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
+	allParams, err := dpfaggregator.GenerateAllLevelParams(keyBitSize)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, c.Index, putValueForHierarchies(allParams, c.Value))
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, conversion.Index, putValueForHierarchies(allParams, conversion.Value))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum1,
-	}, fn.PublicKey1, nil)
+	}, publicKey1, contextInfo)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	emit1(encryptedReport1)
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum2,
-	}, fn.PublicKey2, nil)
+	}, publicKey2, contextInfo)
 
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return encryptedReport1, encryptedReport2, nil
+}
+
+func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
+	fn.countReport.Inc(ctx, 1)
+
+	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKey1, fn.PublicKey2, nil)
 	if err != nil {
 		return err
 	}
+
+	emit1(encryptedReport1)
 	emit2(encryptedReport2)
 	return nil
 }
 
+// FormatEncryptedPartialReport serializes the EncryptedPartialReportDpf into a string.
+func FormatEncryptedPartialReport(encrypted *pb.EncryptedPartialReportDpf) (string, error) {
+	bEncrypted, err := proto.Marshal(encrypted)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(bEncrypted), nil
+}
+
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
 func formatPartialReportFn(encrypted *pb.EncryptedPartialReportDpf, emit func(string)) error {
-	bEncrypted, err := proto.Marshal(encrypted)
+	encryptedStr, err := FormatEncryptedPartialReport(encrypted)
 	if err != nil {
 		return err
 	}
-	emit(base64.StdEncoding.EncodeToString(bEncrypted))
+	emit(encryptedStr)
 	return nil
 }
 
@@ -313,4 +338,22 @@ func CreateConversionIndex(prefixes []uint64, prefixBitSize, totalBitSize uint64
 		}
 	}
 	return otherPrefix<<suffixBitSize | uint64(rand.Int63n(1<<suffixBitSize)), nil
+}
+
+// ReadRawConversions reads conversions from a file. Each line of the file represents a conversion record.
+func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize int32) ([]RawConversion, error) {
+	lines, err := ioutils.ReadLines(ctx, conversionFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var conversions []RawConversion
+	for _, l := range lines {
+		conversion, err := parseRawConversion(l, keyBitSize)
+		if err != nil {
+			return nil, err
+		}
+		conversions = append(conversions, conversion)
+	}
+	return conversions, nil
 }

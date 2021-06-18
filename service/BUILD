@@ -116,3 +116,48 @@ go_test(
         "@com_github_google_go_cmp//cmp:go_default_library",
     ],
 )
+
+go_library(
+    name = "collectorservice",
+    srcs = ["collectorservice.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
+    deps = [
+        "//pipeline:crypto_go_proto",
+        "//pipeline:dpfbrowsersimulator",
+        "//pipeline:ioutils",
+        "@com_github_ugorji_go_codec//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "collector_server",
+    srcs = ["collector_server.go"],
+    deps = [
+        ":collectorservice",
+        "@com_github_golang_glog//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "browser_simulator",
+    srcs = ["browser_simulator.go"],
+    deps = [
+        ":collectorservice",
+        "//pipeline:cryptoio",
+        "//pipeline:dpfbrowsersimulator",
+        "//pipeline:ioutils",
+        "@com_github_golang_glog//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "collectorservice_test",
+    size = "small",
+    srcs = ["collectorservice_test.go"],
+    embed = [":collectorservice"],
+    deps = [
+        "//pipeline:crypto_go_proto",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)

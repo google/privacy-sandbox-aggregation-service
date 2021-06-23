@@ -150,3 +150,35 @@ func TestCborMarshalUnmarshal(t *testing.T) {
 		t.Errorf("Unmarshaled message mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestJoinPath(t *testing.T) {
+	filename := "bar"
+
+	dirGCS := "gs://foo"
+	want := dirGCS + "/" + filename
+	got := JoinPath(dirGCS, filename)
+	if want != got {
+		t.Errorf("expect joint path %s, got %s", want, got)
+	}
+
+	dirGCS = "gs://foo/"
+	want = dirGCS + filename
+	got = JoinPath(dirGCS, filename)
+	if want != got {
+		t.Errorf("expect joint path %s, got %s", want, got)
+	}
+
+	dirLocal := "/foo"
+	want = dirLocal + "/" + filename
+	got = JoinPath(dirLocal, filename)
+	if want != got {
+		t.Errorf("expect joint path %s, got %s", want, got)
+	}
+
+	dirLocal = "/foo/"
+	want = dirLocal + filename
+	got = JoinPath(dirLocal, filename)
+	if want != got {
+		t.Errorf("expect joint path %s, got %s", want, got)
+	}
+}

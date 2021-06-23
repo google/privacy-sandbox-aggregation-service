@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -240,4 +241,17 @@ func UnmarshalCBOR(b []byte, v interface{}) error {
 	decBuf := bytes.NewBuffer(b)
 	dec := codec.NewDecoder(decBuf, &codec.CborHandle{})
 	return dec.Decode(v)
+}
+
+// JoinPath joins the directory and the filename to get the full path of a file.
+func JoinPath(directory, filename string) string {
+	// Function path.Join does not work for GCS files, for example:
+	// path.Join("gs://foo", "bar") returns "gs:/foo/bar"
+	if strings.HasPrefix(directory, "gs://") {
+		if strings.HasSuffix(directory, "/") {
+			return fmt.Sprintf("%s%s", directory, filename)
+		}
+		return fmt.Sprintf("%s/%s", directory, filename)
+	}
+	return path.Join(directory, filename)
 }

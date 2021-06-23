@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path"
 	"sync"
 	"time"
 
@@ -100,13 +99,13 @@ func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if len(h.reportBatch1) == h.BatchSize {
 		filename := time.Now().Format(time.RFC3339Nano)
 		ctx := req.Context()
-		if err := writeBatch(ctx, h.reportBatch1, path.Join(h.BatchDir1, filename)); err != nil {
+		if err := writeBatch(ctx, h.reportBatch1, ioutils.JoinPath(h.BatchDir1, filename)); err != nil {
 			h.err = err
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		h.reportBatch1 = nil
-		if err := writeBatch(ctx, h.reportBatch2, path.Join(h.BatchDir2, filename)); err != nil {
+		if err := writeBatch(ctx, h.reportBatch2, ioutils.JoinPath(h.BatchDir2, filename)); err != nil {
 			h.err = err
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

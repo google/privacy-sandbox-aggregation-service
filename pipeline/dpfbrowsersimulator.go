@@ -38,6 +38,7 @@ import (
 )
 
 func init() {
+	beam.RegisterType(reflect.TypeOf((*pb.EncryptedPartialReportDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*encryptSecretSharesFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())

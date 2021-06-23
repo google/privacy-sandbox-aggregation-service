@@ -137,6 +137,7 @@ func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.Aggregate
 	if s.PipelineRunner == "dataflow" {
 		args = append(args,
 			"--project="+s.DataflowCfg.Project,
+			"--region="+s.DataflowCfg.Region,
 			"--temp_location="+s.DataflowCfg.TempLocation,
 			"--staging_location="+s.DataflowCfg.StagingLocation,
 			"--worker_binary="+s.ServerCfg.DpfAggregatePartialReportBinary,

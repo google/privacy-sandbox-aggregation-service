@@ -3,10 +3,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "6f111c57fd50baf5b8ee9d63024874dd2a014b069426156c55adbf6d3d22cb7b",
+    sha256 = "69de5c704a05ff37862f7e0f5534d4f479418afc21806c887db544a316f3cb6b",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.25.0/rules_go-v0.25.0.tar.gz",
-        "https://github.com/bazelbuild/rules_go/releases/download/v0.25.0/rules_go-v0.25.0.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.27.0/rules_go-v0.27.0.tar.gz",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.27.0/rules_go-v0.27.0.tar.gz",
     ],
 )
 
@@ -14,7 +14,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_depe
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.15.5")
+go_register_toolchains(version = "1.16")
 
 http_archive(
     name = "bazel_gazelle",
@@ -25,37 +25,12 @@ http_archive(
     ],
 )
 
-load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
+load("//:deps.bzl", "go_dependencies")
 
+# gazelle:repository_macro deps.bzl%go_dependencies
+go_dependencies()
 gazelle_dependencies(go_repository_default_config = "@//:WORKSPACE.bazel")
-
-go_repository(
-    name = "com_github_google_go_cmp",
-    importpath = "github.com/google/go-cmp",
-    sum = "h1:pJfrTSHC+QpCQplFZqzlwihfc+0Oty0ViHPHPxXj0SI=",
-    version = "v0.5.3-0.20201020212313-ab46b8bd0abd",
-)
-
-go_repository(
-    name = "com_github_google_uuid",
-    importpath = "github.com/google/uuid",
-    sum = "h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=",
-    version = "v1.1.1",
-)
-
-go_repository(
-    name = "com_github_pborman_uuid",
-    importpath = "github.com/pborman/uuid",
-    sum = "h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=",
-    version = "v1.2.0",
-)
-
-go_repository(
-    name = "org_golang_google_protobuf",
-    importpath = "google.golang.org/protobuf",
-    sum = "h1:jEdfCm+8YTWSYgU4L7Nq0jjU+q9RxIhi0cXLTY+Ih3A=",
-    version = "v1.25.1-0.20201020201750-d3470999428b",
-)
 
 git_repository(
     name = "com_google_absl",
@@ -118,39 +93,10 @@ load("@com_github_google_tink_go//:tink_go_deps_init.bzl", "tink_go_deps_init")
 
 tink_go_deps_init()
 
-go_repository(
-    name = "com_github_apache_beam",
-    build_file_proto_mode = "disable",
-    importpath = "github.com/apache/beam",
-    sum = "h1:+jMgZY9J6ksbbJG8ItlkmLOWSpk/UcWPx3DUI5brsq0=",
-    version = "v2.28.0+incompatible",
-)
-
 git_repository(
     name = "com_github_google_differential_privacy",
     commit = "8c3e89314c6d29dd9c01792122c2398da587d442",
     remote = "https://github.com/google/differential-privacy.git",
-)
-
-go_repository(
-    name = "com_github_googleapis_gax_go",
-    importpath = "github.com/googleapis/gax-go",
-    sum = "h1:silFMLAnr330+NRuag/VjIGF7TLp/LBrV2CJKFLWEww=",
-    version = "v2.0.2",
-)
-
-go_repository(
-    name = "com_github_googleapis_gax_go_v2",
-    importpath = "github.com/googleapis/gax-go/v2",
-    sum = "h1:/rNgUniLy2vDXiK2xyJOcirGpC3G99dtK1NWx26WZ8Y=",
-    version = "v2.0.2",
-)
-
-go_repository(
-    name = "com_google_cloud_go",
-    importpath = "cloud.google.com/go",
-    sum = "h1:e0WKqKTd5BnrG8aKH3J3h+QvEIQtSUcf2n5UZ5ZgLtQ=",
-    version = "v0.26.0",
 )
 
 git_repository(
@@ -203,53 +149,3 @@ http_archive(
     strip_prefix = "googletest-a4ab0abb93620ce26efad9de9296b73b16e88588",
     urls = ["https://github.com/google/googletest/archive/a4ab0abb93620ce26efad9de9296b73b16e88588.zip"],
 )
-
-go_repository(
-    name = "com_github_golang_glog",
-    importpath = "github.com/golang/glog",
-    sum = "h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=",
-    version = "v0.0.0-20160126235308-23def4e6c14b",
-)
-
-go_repository(
-    name = "org_golang_google_grpc",
-    importpath = "google.golang.org/grpc",
-    tag = "v1.20.1",
-)
-
-go_repository(
-    name = "org_golang_x_sync",
-    importpath = "golang.org/x/sync",
-    sum = "h1:Bl/8QSvNqXvPGPGXa2z5xUTmV7VDcZyvRZ+QQXkXTZQ=",
-    version = "v0.0.0-20181108010431-42b317875d0f",
-)
-
-go_repository(
-    name = "org_gonum_v1_gonum",
-    importpath = "gonum.org/v1/gonum",
-    sum = "h1:CCXrcPKiGGotvnN6jfUsKk4rRqm7q09/YbKb5xCEvtM=",
-    version = "v0.8.2",
-)
-
-go_repository(
-    name = "com_github_grd_stat",
-    importpath = "github.com/grd/stat",
-    sum = "h1:TVY1GBBIAAph4RWO9Y3p1wU+7n6khY1jxPKjDphzznA=",
-    version = "v0.0.0-20130623202159-138af3fd5012",
-)
-
-go_repository(
-    name = "com_github_ugorji_go_codec",
-    importpath = "github.com/ugorji/go/codec",
-    sum = "h1:7kbGefxLoDBuYXOms4yD7223OpNMMPNPZxXk5TvFcyQ=",
-    version = "v1.2.6",
-)
-
-go_repository(
-    name = "com_github_fxamacker_cbor_v2",
-    importpath = "github.com/fxamacker/cbor/v2",
-    sum = "h1:aM45YGMctNakddNNAezPxDUpv38j44Abh+hifNuqXik=",
-    version = "v2.3.0",
-)
-
-

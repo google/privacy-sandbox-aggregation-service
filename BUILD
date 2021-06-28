@@ -16,3 +16,7 @@ licenses(["notice"])
 exports_files([
     "LICENSE",
 ])
+
+load("@bazel_gazelle//:def.bzl", "gazelle")
+# gazelle:prefix github.com/google/privacy-sandbox-aggregation-service
+gazelle(name = "gazelle")

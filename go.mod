@@ -19,4 +19,5 @@ require (
 	gonum.org/v1/gonum v0.8.2
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
+  google.golang.org/genproto v0.0.0-20210617175327-b9e0b3197ced
 )

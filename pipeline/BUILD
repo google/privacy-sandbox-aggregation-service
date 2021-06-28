@@ -377,7 +377,9 @@ go_library(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
+        "@com_google_cloud_go//secretmanager/apiv1:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",
+        "@org_golang_google_genproto//googleapis/cloud/secretmanager/v1:go_default_library",
     ],
 )
 

@@ -31,7 +31,9 @@ import (
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
+	"cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/storage"
+	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 	"github.com/ugorji/go/codec"
 )
 
@@ -254,4 +256,62 @@ func JoinPath(directory, filename string) string {
 		return fmt.Sprintf("%s/%s", directory, filename)
 	}
 	return path.Join(directory, filename)
+}
+
+// SaveSecret saves the input payload with Google Cloud Secret Manager.
+func SaveSecret(ctx context.Context, payload []byte, projectID, secretID string) (string, error) {
+	client, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer client.Close()
+
+	createSecretReq := &secretmanagerpb.CreateSecretRequest{
+		Parent:   fmt.Sprintf("projects/%s", projectID),
+		SecretId: secretID,
+		Secret: &secretmanagerpb.Secret{
+			Replication: &secretmanagerpb.Replication{
+				Replication: &secretmanagerpb.Replication_Automatic_{
+					Automatic: &secretmanagerpb.Replication_Automatic{},
+				},
+			},
+		},
+	}
+
+	secret, err := client.CreateSecret(ctx, createSecretReq)
+	if err != nil {
+		return "", err
+	}
+
+	addSecretVersionReq := &secretmanagerpb.AddSecretVersionRequest{
+		Parent: secret.Name,
+		Payload: &secretmanagerpb.SecretPayload{
+			Data: payload,
+		},
+	}
+
+	version, err := client.AddSecretVersion(ctx, addSecretVersionReq)
+	if err != nil {
+		return "", err
+	}
+	return version.Name, nil
+}
+
+// ReadSecret reads a secret payload from Google Cloud Secret Manager.
+func ReadSecret(ctx context.Context, name string) ([]byte, error) {
+	client, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
+		Name: name,
+	}
+
+	result, err := client.AccessSecretVersion(ctx, accessRequest)
+	if err != nil {
+		return nil, err
+	}
+	return result.Payload.Data, nil
 }

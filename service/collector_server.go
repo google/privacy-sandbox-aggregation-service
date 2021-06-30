@@ -24,12 +24,9 @@ import (
 )
 
 var (
-	address       = flag.String("address", "", "Address of the server.")
-	helperOrigin1 = flag.String("helper_origin1", "", "Origin of helper1.")
-	helperOrigin2 = flag.String("helper_origin2", "", "Origin of helper2.")
-	batchDir1     = flag.String("batch_dir1", "", "Directory that stores report batches for helper1.")
-	batchDir2     = flag.String("batch_dir2", "", "Directory that stores report batches for helper2.")
-	batchSize     = flag.Int("batch_size", 1000000, "Number of reports to be included in each batch file.")
+	address   = flag.String("address", "", "Address of the server.")
+	batchDir  = flag.String("batch_dir", "", "Directory that stores report batches.")
+	batchSize = flag.Int("batch_size", 1000000, "Number of reports to be included in each batch file.")
 )
 
 func main() {
@@ -38,11 +35,8 @@ func main() {
 	srv := &http.Server{
 		Addr: *address,
 		Handler: &collectorservice.CollectorHandler{
-			HelperOrigin1: *helperOrigin1,
-			HelperOrigin2: *helperOrigin2,
-			BatchDir1:     *batchDir1,
-			BatchDir2:     *batchDir2,
-			BatchSize:     *batchSize,
+			BatchDir:  *batchDir,
+			BatchSize: *batchSize,
 		},
 		TLSConfig: &tls.Config{},
 	}

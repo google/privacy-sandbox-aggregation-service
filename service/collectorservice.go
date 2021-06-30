@@ -61,16 +61,16 @@ type SharedInfo struct {
 
 // CollectorHandler handles the HTTPS requests with incoming reports.
 //
-// The server keeps receiving reports from the browsers until the number reaches a predefined batch size.
-// Then the report batch is written into a file, which will be the input of the aggregation service.
+// The server keeps receiving reports from the browsers and tracks the number of reports per pair
+// of helper origins. When the report number reaches the predefined batch size, the reports are
+// written into two files, which will be the input of the aggregation service for the corresponding helpers.
 type CollectorHandler struct {
-	BatchSize                    int
-	HelperOrigin1, HelperOrigin2 string
-	BatchDir1, BatchDir2         string
+	BatchSize int
+	BatchDir  string
 
-	err                        error
-	mu                         sync.Mutex
-	reportBatch1, reportBatch2 []*pb.EncryptedPartialReportDpf
+	err         error
+	mu          sync.Mutex
+	reportBatch map[string][]*pb.EncryptedPartialReportDpf
 }
 
 func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -87,59 +87,56 @@ func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	encrypted1, encrypted2, err := matchPayloads(report, h.HelperOrigin1, h.HelperOrigin2)
+	batchKey1, batchKey2, err := collectPayloads(report, h.reportBatch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	h.reportBatch1 = append(h.reportBatch1, encrypted1)
-	h.reportBatch2 = append(h.reportBatch2, encrypted2)
-
-	if len(h.reportBatch1) == h.BatchSize {
-		filename := time.Now().Format(time.RFC3339Nano)
+	if len(h.reportBatch[batchKey1]) == h.BatchSize {
+		timestamp := time.Now().Format(time.RFC3339Nano)
 		ctx := req.Context()
-		if err := writeBatch(ctx, h.reportBatch1, ioutils.JoinPath(h.BatchDir1, filename)); err != nil {
+		if err := writeBatch(ctx, h.reportBatch[batchKey1], ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey1, timestamp))); err != nil {
 			h.err = err
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		h.reportBatch1 = nil
-		if err := writeBatch(ctx, h.reportBatch2, ioutils.JoinPath(h.BatchDir2, filename)); err != nil {
+		h.reportBatch[batchKey1] = nil
+		if err := writeBatch(ctx, h.reportBatch[batchKey2], ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey2, timestamp))); err != nil {
 			h.err = err
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		h.reportBatch2 = nil
+		h.reportBatch[batchKey2] = nil
 	}
 }
 
-func matchPayloads(report *AggregationReport, helperOrigin1, helperOrigin2 string) (encrypted1, encrypted2 *pb.EncryptedPartialReportDpf, err error) {
+func collectPayloads(report *AggregationReport, batch map[string][]*pb.EncryptedPartialReportDpf) (string, string, error) {
 	if got, want := len(report.Payloads), 2; got != want {
-		err = fmt.Errorf("expected %d payloads, got %d", want, got)
-		return
+		return "", "", fmt.Errorf("expected %d payloads, got %d", want, got)
 	}
-	gotOrigin1, gotOrigin2 := report.Payloads[0].Origin, report.Payloads[1].Origin
-	var ciphertext1, ciphertext2 []byte
-	if gotOrigin1 == helperOrigin1 && gotOrigin2 == helperOrigin2 {
-		ciphertext1 = report.Payloads[0].Payload
-		ciphertext2 = report.Payloads[1].Payload
-	} else if gotOrigin1 == helperOrigin2 && gotOrigin2 == helperOrigin1 {
-		ciphertext1 = report.Payloads[1].Payload
-		ciphertext2 = report.Payloads[0].Payload
-	} else {
-		err = fmt.Errorf("expected helper origins %q and %q, got %q and %q", helperOrigin1, helperOrigin2, gotOrigin1, gotOrigin2)
-		return
+	origin1, origin2 := report.Payloads[0].Origin, report.Payloads[1].Origin
+	if origin1 == origin2 {
+		return "", "", fmt.Errorf("secret shares sending to the same helper %q", origin1)
 	}
-	encrypted1 = &pb.EncryptedPartialReportDpf{
+
+	ciphertext1, ciphertext2 := report.Payloads[0].Payload, report.Payloads[1].Payload
+	if origin1 > origin2 {
+		origin1, origin2 = origin2, origin1
+		ciphertext1, ciphertext2 = ciphertext2, ciphertext1
+	}
+
+	batchKey := fmt.Sprintf("%s+%s", origin1, origin2)
+	batchKey1, batchKey2 := batchKey+"+1", batchKey+"+2"
+	batch[batchKey1] = append(batch[batchKey1], &pb.EncryptedPartialReportDpf{
 		EncryptedReport: &pb.StandardCiphertext{Data: ciphertext1},
 		ContextInfo:     report.SharedInfo,
-	}
-	encrypted2 = &pb.EncryptedPartialReportDpf{
+	})
+	batch[batchKey2] = append(batch[batchKey2], &pb.EncryptedPartialReportDpf{
 		EncryptedReport: &pb.StandardCiphertext{Data: ciphertext2},
 		ContextInfo:     report.SharedInfo,
-	}
-	return
+	})
+	return batchKey1, batchKey2, nil
 }
 
 func writeBatch(ctx context.Context, batch []*pb.EncryptedPartialReportDpf, filename string) error {

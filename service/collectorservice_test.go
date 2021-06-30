@@ -23,8 +23,7 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
-func TestMatchPayloads(t *testing.T) {
-	helper1, helper2 := "helper1", "helper2"
+func TestCollectPayloads(t *testing.T) {
 	contextInfo := []byte("shared_info")
 	payload1, payload2 := []byte("payload1"), []byte("payload2")
 	report := &AggregationReport{
@@ -37,15 +36,23 @@ func TestMatchPayloads(t *testing.T) {
 	want1 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
 	want2 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
 
-	got1, got2, err := matchPayloads(report, helper1, helper2)
+	got := make(map[string][]*pb.EncryptedPartialReportDpf)
+	gotKey1, gotKey2, err := collectPayloads(report, got)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if diff := cmp.Diff(want1, got1, protocmp.Transform()); diff != "" {
+	wantKey1, wantKey2 := "helper1+helper2+1", "helper1+helper2+2"
+	want := map[string][]*pb.EncryptedPartialReportDpf{
+		wantKey1: {want1},
+		wantKey2: {want2},
+	}
+
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 		t.Errorf("encrypted report mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(want2, got2, protocmp.Transform()); diff != "" {
-		t.Errorf("encrypted report mismatch (-want +got):\n%s", diff)
+
+	if wantKey1 != gotKey1 || wantKey2 != gotKey2 {
+		t.Errorf("want keys %q and %q, got %q and %q", wantKey1, wantKey2, gotKey1, gotKey2)
 	}
 }

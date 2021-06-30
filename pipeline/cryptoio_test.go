@@ -210,3 +210,40 @@ func TestReadWriteDPFparameters(t *testing.T) {
 		t.Errorf("DPF parameters read/write mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestSaveReadPublicKeyVersions(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "keys")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	want := map[string][]PublicKeyInfo{
+		"version1": {
+			{ID: "id11", Key: "key11", NotBefore: "not_before1", NotAfter: "not_after1"},
+			{ID: "id12", Key: "key12", NotBefore: "not_before2", NotAfter: "not_after2"},
+		},
+		"version2": {{ID: "id21", Key: "key21"}},
+	}
+
+	ctx := context.Background()
+	for _, tc := range []struct {
+		desc, filePath string
+	}{
+		{"file-path", path.Join(tmpDir, "keys")},
+		{"env-var", ""},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if err := SavePublicKeyVersions(ctx, want, tc.filePath); err != nil {
+				t.Fatal(err)
+			}
+			got, err := ReadPublicKeyVersions(ctx, tc.filePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("read/write versioned public keys mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

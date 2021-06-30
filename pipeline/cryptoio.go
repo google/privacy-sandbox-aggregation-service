@@ -17,6 +17,8 @@ package cryptoio
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -43,7 +45,60 @@ const (
 	DefaultElgamalPublicKey  = "ELGAMAL_PUBLIC_KEY"
 	DefaultElgamalPrivateKey = "ELGAMAL_PRIVATE_KEY"
 	DefaultElgamalSecret     = "ELGAMAL_SECRET"
+
+	PublicKeysEnv = "AGGPUBLICKEYS"
 )
+
+// PublicKeyInfo contains the details of a standard public key.
+type PublicKeyInfo struct {
+	ID        string `json:"id"`
+	Key       string `json:"key"`
+	NotBefore string `json:"not_before"`
+	NotAfter  string `json:"not_after"`
+}
+
+// SavePublicKeyVersions saves the standard public keys and corresponding information.
+//
+// Keys are saved as an environment variable when filePath is not empty; otherwise as a local or GCS file.
+func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo, filePath string) error {
+	bKeys, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	if filePath == "" {
+		os.Setenv(PublicKeysEnv, base64.StdEncoding.EncodeToString(bKeys))
+		return nil
+	}
+	return ioutils.WriteBytes(ctx, bKeys, filePath)
+}
+
+// ReadPublicKeyVersions reads the standard public keys and corresponding information.
+//
+// When filePath is empty, keys are read from a environment variable; otherwise from a local or GCS file.
+func ReadPublicKeyVersions(ctx context.Context, filePath string) (map[string][]PublicKeyInfo, error) {
+	var (
+		bKeys []byte
+		err   error
+	)
+	if filePath == "" {
+		strKeys := os.Getenv(PublicKeysEnv)
+		if strKeys == "" {
+			return nil, fmt.Errorf("empty environment variable %q for public keys", PublicKeysEnv)
+		}
+		bKeys, err = base64.StdEncoding.DecodeString(strKeys)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		bKeys, err = ioutils.ReadBytes(ctx, filePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	keys := make(map[string][]PublicKeyInfo)
+	err = json.Unmarshal(bKeys, &keys)
+	return keys, err
+}
 
 func getAEADForKMS(keyURI, credentialPath string) (tink.AEAD, error) {
 	var (

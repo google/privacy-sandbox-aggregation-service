@@ -51,19 +51,21 @@ var (
 	partialReportFile      = flag.String("partial_report_file", "", "Input partial reports.")
 	reencryptedKeyFile     = flag.String("reencrypted_key_file", "", "Input reencrypted conversion keys.")
 	partialAggregationFile = flag.String("partial_aggregation_file", "", "Output partial aggregation.")
-	ignorePrivacy          = flag.Bool("ignore_privacy", false, "Whether to ignore privacy during aggregation.")
-	privateKeyDir          = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
-	privacyEpsilon         = flag.Float64("privacy_epsilon", 6, "Epsilon for Laplace noise.")
-	privacyDelta           = flag.Float64("privacy_delta", 1e-5, "Delta for Laplace noise.")
-	privacyMinValue        = flag.Float64("privacy_min_value", 0, "Minimum value to include in the summation.")
-	privacyMaxValue        = flag.Float64("privacy_max_value", 100, "Maximum value to include in the summation.")
+
+	privateKeyDir = flag.String("private_key_dir", "", "Directory for private keys and exponential secret.")
+
+	ignorePrivacy   = flag.Bool("ignore_privacy", false, "Whether to ignore privacy during aggregation.")
+	privacyEpsilon  = flag.Float64("privacy_epsilon", 6, "Epsilon for Laplace noise.")
+	privacyDelta    = flag.Float64("privacy_delta", 1e-5, "Delta for Laplace noise.")
+	privacyMinValue = flag.Float64("privacy_min_value", 0, "Minimum value to include in the summation.")
+	privacyMaxValue = flag.Float64("privacy_max_value", 100, "Maximum value to include in the summation.")
 )
 
 func main() {
 	flag.Parse()
 	beam.Init()
 	ctx := context.Background()
-	helperInfo, err := conversion.GetPrivateInfo(*privateKeyDir)
+	helperInfo, err := conversion.GetPrivateInfo(ctx, *privateKeyDir)
 	if err != nil {
 		log.Exit(ctx, err)
 	}

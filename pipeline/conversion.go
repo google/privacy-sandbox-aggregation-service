@@ -166,8 +166,8 @@ type ServerPrivateInfo struct {
 }
 
 // GetPrivateInfo reads the standard and ElGamal private keys together with the ElGamal secret from a given directory.
-func GetPrivateInfo(privateKeyDir string) (*ServerPrivateInfo, error) {
-	sPriv, err := cryptoio.ReadStandardPrivateKey(path.Join(privateKeyDir, cryptoio.DefaultStandardPrivateKey))
+func GetPrivateInfo(ctx context.Context, privateKeyDir string) (*ServerPrivateInfo, error) {
+	sPriv, err := cryptoio.ReadStandardPrivateKey(ctx, &cryptoio.ReadStandardPrivateKeyParams{FilePath: path.Join(privateKeyDir, cryptoio.DefaultStandardPrivateKey)})
 	if err != nil {
 		return nil, err
 	}

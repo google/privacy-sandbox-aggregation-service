@@ -44,8 +44,6 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 var (
@@ -57,6 +55,7 @@ var (
 	privateKeyFile       = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if flag 'kms_key_uri' is set.")
 	kmsKeyURI            = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile    = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
+	secretName           = flag.String("secret_project_id", "", "Secret name required for reading from SecretManager service.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -72,16 +71,18 @@ var (
 func main() {
 	flag.Parse()
 	beam.Init()
+
 	ctx := context.Background()
-	var (
-		helperPrivKey *pb.StandardPrivateKey
-		err           error
-	)
 	if *kmsKeyURI == "" {
-		helperPrivKey, err = cryptoio.ReadStandardPrivateKey(*privateKeyFile)
-	} else {
-		helperPrivKey, err = cryptoio.ReadKMSDecryptedStandardPrivateKey(*kmsKeyURI, *kmsCredentialFile, *privateKeyFile)
+		log.Warn(ctx, "non-encrypted private key should be stored only for testing")
 	}
+
+	helperPrivKey, err := cryptoio.ReadStandardPrivateKey(ctx, &cryptoio.ReadStandardPrivateKeyParams{
+		KMSKeyURI:         *kmsKeyURI,
+		KMSCredentialPath: *kmsCredentialFile,
+		SecretName:        *secretName,
+		FilePath:          *privateKeyFile,
+	})
 	if err != nil {
 		log.Exit(ctx, err)
 	}

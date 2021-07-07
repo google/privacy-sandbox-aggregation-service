@@ -32,14 +32,9 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
-func testSaveReadKMSEncryptedStandardPrivateKey(t *testing.T) {
-	privDir, err := ioutil.TempDir("/tmp", "test-private")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(privDir)
-
-	priv, _, err := standardencrypt.GenerateStandardKeyPair()
+// TestKMSEncryptDecryptStandardPrivateKey can be tested with 'blaze run', but fails with 'blaze test'.
+func testKMSEncryptDecryptStandardPrivateKey(t *testing.T) {
+	wantKey, _, err := standardencrypt.GenerateStandardKeyPair()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,24 +43,21 @@ func testSaveReadKMSEncryptedStandardPrivateKey(t *testing.T) {
 	credFile := "../../tink_base/testdata/credential.json"
 	
 
-	privPath := path.Join(privDir, DefaultStandardPrivateKey)
-	if err := SaveKMSEncryptedStandardPrivateKey(keyURI, credFile, privPath, priv); err != nil {
-		t.Fatal(err)
-	}
-	gotEncryptedKey, err := ioutil.ReadFile(privPath)
+	ctx := context.Background()
+	encrypted, err := KMSEncryptData(ctx, keyURI, credFile, wantKey.Key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(priv.Key, gotEncryptedKey); diff == "" {
+	if diff := cmp.Diff(wantKey.Key, encrypted); diff == "" {
 		t.Error("Key bytes should be different after KMS encryption.")
 	}
 
-	gotPriv, err := ReadKMSDecryptedStandardPrivateKey(keyURI, credFile, privPath)
+	decrypted, err := KMSDecryptData(ctx, keyURI, credFile, encrypted)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(priv, gotPriv, protocmp.Transform()); diff != "" {
-		t.Errorf("Saved and read private key mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(wantKey, &pb.StandardPrivateKey{Key: decrypted}, protocmp.Transform()); diff != "" {
+		t.Errorf("Decrypted and original private key mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -76,7 +68,8 @@ func TestKeyGeneration(t *testing.T) {
 	}
 	defer os.RemoveAll(privDir)
 
-	sPub, ePub, err := CreateKeysAndSecret(privDir)
+	ctx := context.Background()
+	sPub, ePub, err := CreateKeysAndSecret(ctx, privDir)
 	if err != nil {
 		t.Fatalf("CreateKeysAndSecret() = %s", err)
 	}
@@ -96,7 +89,7 @@ func TestKeyGeneration(t *testing.T) {
 
 	sPub, err = ReadStandardPublicKey(path.Join(pubDir, DefaultStandardPublicKey))
 	if err != nil {
-		t.Fatalf("ReadStandardPrivateKey() = %s", err)
+		t.Fatalf("ReadStandardPublicKey() = %s", err)
 	}
 	ePub, err = ReadElGamalPublicKey(path.Join(pubDir, DefaultElgamalPublicKey))
 	if err != nil {
@@ -113,7 +106,7 @@ func TestKeyGeneration(t *testing.T) {
 		t.Fatalf("elgamalencrypt.Encrypt() = %s", err)
 	}
 
-	sPriv, err := ReadStandardPrivateKey(path.Join(privDir, DefaultStandardPrivateKey))
+	sPriv, err := ReadStandardPrivateKey(ctx, &ReadStandardPrivateKeyParams{FilePath: path.Join(privDir, DefaultStandardPrivateKey)})
 	if err != nil {
 		t.Fatalf("ReadStandardPrivateKey() = %s", err)
 	}

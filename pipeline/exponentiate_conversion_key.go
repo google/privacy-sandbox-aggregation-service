@@ -63,7 +63,7 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperInfo, err := conversion.GetPrivateInfo(*privateKeyDir)
+	helperInfo, err := conversion.GetPrivateInfo(ctx, *privateKeyDir)
 	if err != nil {
 		log.Exit(ctx, err)
 	}

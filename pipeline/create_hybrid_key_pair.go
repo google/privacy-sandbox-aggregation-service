@@ -16,7 +16,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 
 	log "github.com/golang/glog"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
@@ -24,10 +26,12 @@ import (
 )
 
 var (
-	privateKeyFile    = flag.String("private_key_file", "", "Output file path for the private key.")
-	publicKeyFile     = flag.String("public_key_file", "", "Output file path for the public key.")
 	kmsKeyURI         = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
+	secretProjectID   = flag.String("secret_project_id", "", "ID of the GCP project that provides the SecretManager service.")
+	secretID          = flag.String("secret_id", "", "Secret ID for data stored with SecretManager service.")
+	privateKeyFile    = flag.String("private_key_file", "", "Output file path for the private key.")
+	publicKeyFile     = flag.String("public_key_file", "", "Output file path for the public key.")
 )
 
 func main() {
@@ -38,16 +42,25 @@ func main() {
 		log.Exit(err)
 	}
 
+	ctx := context.Background()
 	if err := cryptoio.SaveStandardPublicKey(*publicKeyFile, pub); err != nil {
 		log.Exit(err)
 	}
 
-	if *kmsKeyURI != "" {
-		err = cryptoio.SaveKMSEncryptedStandardPrivateKey(*kmsKeyURI, *kmsCredentialFile, *privateKeyFile, priv)
-	} else {
-		err = cryptoio.SaveStandardPrivateKey(*privateKeyFile, priv)
+	if *kmsKeyURI == "" {
+		log.Warning("non-encrypted private key should be stored only for testing")
 	}
+
+	name, err := cryptoio.SaveStandardPrivateKey(ctx, &cryptoio.SaveStandardPrivateKeyParams{
+		KMSKeyURI:         *kmsKeyURI,
+		KMSCredentialPath: *kmsCredentialFile,
+		SecretProjectID:   *secretProjectID,
+		SecretID:          *secretID,
+		FilePath:          *privateKeyFile,
+	}, priv)
 	if err != nil {
 		log.Exit(err)
 	}
+	// TODO: save the name of the private-key secret, or map this name with the key ID.
+	fmt.Printf("Private key saved by SecretManager with name: %s", name)
 }

@@ -15,6 +15,7 @@
 package browsersimulator
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -91,13 +92,13 @@ func TestCreateRandomUniqueID(t *testing.T) {
 	}
 }
 
-func prepareKeys(helper string) (privKeyDir, pubKeyDir string, err error) {
+func prepareKeys(ctx context.Context, helper string) (privKeyDir, pubKeyDir string, err error) {
 	privKeyDir, err = ioutil.TempDir("/tmp", helper+"_priv")
 	if err != nil {
 		return
 	}
 
-	sPub, ePub, err := cryptoio.CreateKeysAndSecret(privKeyDir)
+	sPub, ePub, err := cryptoio.CreateKeysAndSecret(ctx, privKeyDir)
 	if err != nil {
 		return
 	}
@@ -140,14 +141,15 @@ func mergeReportFn(reportID string, prIter1, prIter2 func(**pb.PartialReport) bo
 }
 
 func TestSplitAndEncryption(t *testing.T) {
-	helperPriv1, helperPub1, err := prepareKeys("helper1")
+	ctx := context.Background()
+	helperPriv1, helperPub1, err := prepareKeys(ctx, "helper1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(helperPriv1)
 	defer os.RemoveAll(helperPub1)
 
-	helperPriv2, helperPub2, err := prepareKeys("helper2")
+	helperPriv2, helperPub2, err := prepareKeys(ctx, "helper2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,12 +166,12 @@ func TestSplitAndEncryption(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privInfo1, err := conversion.GetPrivateInfo(helperPriv1)
+	privInfo1, err := conversion.GetPrivateInfo(ctx, helperPriv1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	privInfo2, err := conversion.GetPrivateInfo(helperPriv2)
+	privInfo2, err := conversion.GetPrivateInfo(ctx, helperPriv2)
 	if err != nil {
 		t.Fatal(err)
 	}

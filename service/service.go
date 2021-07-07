@@ -59,7 +59,7 @@ func New(serverCfg ServerCfg, runner string, dataflowCfg DataflowCfg) grpcpb.Agg
 }
 
 func (s *server) CreateCryptoKeys(ctx context.Context, in *pb.CreateCryptoKeysRequest) (*pb.CreateCryptoKeysResponse, error) {
-	sPub, ePub, err := cryptoio.CreateKeysAndSecret(s.ServerCfg.PrivateKeyDir)
+	sPub, ePub, err := cryptoio.CreateKeysAndSecret(ctx, s.ServerCfg.PrivateKeyDir)
 	if err != nil {
 		return nil, err
 	}

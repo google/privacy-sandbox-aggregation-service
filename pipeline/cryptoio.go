@@ -124,37 +124,24 @@ func getAEADForKMS(keyURI, credentialPath string) (tink.AEAD, error) {
 	return aead.New(kh)
 }
 
-// SaveKMSEncryptedStandardPrivateKey encrypts the standard private key with GCP KMS and saves it into a file.
-func SaveKMSEncryptedStandardPrivateKey(keyURI, credentialPath, filePath string, sPriv *pb.StandardPrivateKey) error {
+// KMSEncryptData encrypts the input data with GCP KMS.
+func KMSEncryptData(ctx context.Context, keyURI, credentialPath string, data []byte) ([]byte, error) {
 	a, err := getAEADForKMS(keyURI, credentialPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	ct, err := a.Encrypt(sPriv.Key, nil)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filePath, ct, os.ModePerm)
+	return a.Encrypt(data, nil)
 }
 
-// ReadKMSDecryptedStandardPrivateKey reads the KMS-encrypted standard private key from a file and decrypts it.
-func ReadKMSDecryptedStandardPrivateKey(keyURI, credentialPath, filePath string) (*pb.StandardPrivateKey, error) {
-	ct, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
+// KMSDecryptData decrypts the input data with GCP KMS.
+func KMSDecryptData(ctx context.Context, keyURI, credentialPath string, encryptedData []byte) ([]byte, error) {
 	a, err := getAEADForKMS(keyURI, credentialPath)
 	if err != nil {
 		return nil, err
 	}
 
-	bsPriv, err := a.Decrypt(ct, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.StandardPrivateKey{Key: bsPriv}, nil
+	return a.Decrypt(encryptedData, nil)
 }
 
 // ReadElGamalSecret is called by the helper servers, which reads the ElGamal secret.
@@ -166,13 +153,36 @@ func ReadElGamalSecret(filePath string) (string, error) {
 	return string(bs), nil
 }
 
+// ReadStandardPrivateKeyParams contains necessary parameters for function ReadStandardPrivateKey.
+type ReadStandardPrivateKeyParams struct {
+	// KMSKeyURI and KMSCredentialPath are required by Google Key Mangagement service.
+	// If KMSKeyURI is empty, the private key is not encrypted with KMS.
+	KMSKeyURI, KMSCredentialPath string
+	// SecretName is required by Google SecretManager service.
+	// If SecretProjectID is empty, the key is stored without SecretManager.
+	SecretName string
+	// File path of the (encrypted) private key if it's not stored with SecretManager.
+	FilePath string
+}
+
 // ReadStandardPrivateKey is called by the helper servers, which reads the standard private key.
-func ReadStandardPrivateKey(filePath string) (*pb.StandardPrivateKey, error) {
-	bsPriv, err := ioutil.ReadFile(filePath)
+func ReadStandardPrivateKey(ctx context.Context, params *ReadStandardPrivateKeyParams) (*pb.StandardPrivateKey, error) {
+	var (
+		data []byte
+		err  error
+	)
+	if params.SecretName != "" {
+		data, err = ioutils.ReadSecret(ctx, params.SecretName)
+	} else {
+		data, err = ioutils.ReadBytes(ctx, params.FilePath)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return &pb.StandardPrivateKey{Key: bsPriv}, nil
+	if params.KMSKeyURI != "" {
+		data, err = KMSDecryptData(ctx, params.KMSKeyURI, params.KMSCredentialPath, data)
+	}
+	return &pb.StandardPrivateKey{Key: data}, err
 }
 
 // ReadElGamalPrivateKey is called by the helper servers, which reads the ElGamal private key.
@@ -215,9 +225,36 @@ func SaveStandardPublicKey(filePath string, sPub *pb.StandardPublicKey) error {
 	return ioutil.WriteFile(filePath, sPub.Key, os.ModePerm)
 }
 
+// SaveStandardPrivateKeyParams contains necessary parameters for function SaveStandardPrivateKey.
+type SaveStandardPrivateKeyParams struct {
+	// KMSKeyURI and KMSCredentialPath are required by Google Key Mangagement service.
+	// If KMSKeyURI is empty, the private key is not encrypted with KMS.
+	KMSKeyURI, KMSCredentialPath string
+	// SecretProjectID and SecretID are required by Google SecretManager service.
+	// If SecretProjectID is empty, the key is stored without SecretManager.
+	SecretProjectID, SecretID string
+	// File path of the (encrypted) private key if it's not stored with SecretManager.
+	FilePath string
+}
+
 // SaveStandardPrivateKey saves the standard encryption private key into a file.
-func SaveStandardPrivateKey(filePath string, sPriv *pb.StandardPrivateKey) error {
-	return ioutil.WriteFile(filePath, sPriv.Key, os.ModePerm)
+//
+// When the private key is stored with Google SecretManager, a secret name should be returned.
+// The private keys are allowed to be stored without KMS encryption for testing only, otherwise
+// they should always be encrypted before storage.
+func SaveStandardPrivateKey(ctx context.Context, params *SaveStandardPrivateKeyParams, privateKey *pb.StandardPrivateKey) (string, error) {
+	data := privateKey.Key
+	var err error
+	if params.KMSKeyURI != "" {
+		data, err = KMSEncryptData(ctx, params.KMSKeyURI, params.KMSCredentialPath, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	if params.SecretProjectID != "" {
+		return ioutils.SaveSecret(ctx, data, params.SecretProjectID, params.SecretID)
+	}
+	return "", ioutils.WriteBytes(ctx, data, params.FilePath)
 }
 
 // SaveElGamalPublicKey is called by the browser and the other helper, which saves the public ElGamal encryption key into a file.
@@ -232,14 +269,14 @@ func SaveElGamalPublicKey(filePath string, hPub *pb.ElGamalPublicKey) error {
 // CreateKeysAndSecret is called by the helper, which generates all the private/public key pairs and secrets.
 //
 // The private keys and secret are saved by the helper, and the public keys will be saved by other parties in the aggregation process.
-func CreateKeysAndSecret(fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPublicKey, error) {
+func CreateKeysAndSecret(ctx context.Context, fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPublicKey, error) {
 	// Create/save keys for the standard public-key encryption.
 	sPriv, sPub, err := standardencrypt.GenerateStandardKeyPair()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := SaveStandardPrivateKey(path.Join(fileDir, DefaultStandardPrivateKey), sPriv); err != nil {
+	if _, err := SaveStandardPrivateKey(ctx, &SaveStandardPrivateKeyParams{FilePath: path.Join(fileDir, DefaultStandardPrivateKey)}, sPriv); err != nil {
 		return nil, nil, err
 	}
 

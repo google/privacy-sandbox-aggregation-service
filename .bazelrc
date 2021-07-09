@@ -1,0 +1,2 @@
+build --define=GCR_PROJECT=dummy_project
+build --define=VERSION=dummy_version

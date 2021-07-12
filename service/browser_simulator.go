@@ -20,9 +20,11 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"net/http"
 
 	log "github.com/golang/glog"
+	"cloud.google.com/go/compute/metadata"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -42,6 +44,12 @@ var (
 
 func main() {
 	flag.Parse()
+
+	tokenURL := fmt.Sprintf("/instance/service-accounts/default/identity?audience=%s", *address)
+	idToken, err := metadata.Get(tokenURL)
+	if err != nil {
+		log.Exit("metadata.Get: failed to query id_token: %+v", err)
+	}
 
 	client := &http.Client{
 		Transport: &http.Transport{},
@@ -84,7 +92,14 @@ func main() {
 			log.Exit(err)
 		}
 
-		_, err = client.Post(*address, "encrypted-report", bytes.NewBuffer(report))
+		req, err := http.NewRequest("POST", *address, bytes.NewBuffer(report))
+		if err != nil {
+			log.Exit(err)
+		}
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", idToken))
+		req.Header.Set("Content-Type", "encrypted-report")
+
+		_, err = client.Do(req)
 		if err != nil {
 			log.Exit(err)
 		}

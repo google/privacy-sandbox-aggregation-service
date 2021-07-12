@@ -147,6 +147,7 @@ go_binary(
         "//pipeline:dpfbrowsersimulator",
         "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
+        "@com_google_cloud_go//compute/metadata:go_default_library",
     ],
 )
 

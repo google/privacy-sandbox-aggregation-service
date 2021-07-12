@@ -73,6 +73,15 @@ type CollectorHandler struct {
 	reportBatch map[string][]*pb.EncryptedPartialReportDpf
 }
 
+// NewHandler creates a new CollectorHandler with initialized values
+func NewHandler(batchSize int, batchDir string) http.Handler {
+	return &CollectorHandler{
+		BatchDir:    batchDir,
+		BatchSize:   batchSize,
+		reportBatch: make(map[string][]*pb.EncryptedPartialReportDpf),
+	}
+}
+
 func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

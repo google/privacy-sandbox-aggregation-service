@@ -33,11 +33,8 @@ func main() {
 	flag.Parse()
 
 	srv := &http.Server{
-		Addr: *address,
-		Handler: &collectorservice.CollectorHandler{
-			BatchDir:  *batchDir,
-			BatchSize: *batchSize,
-		},
+		Addr:      *address,
+		Handler:   collectorservice.NewHandler(*batchSize, *batchDir),
 		TLSConfig: &tls.Config{},
 	}
 	log.Exit(srv.ListenAndServe())

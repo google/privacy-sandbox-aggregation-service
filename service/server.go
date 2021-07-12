@@ -38,7 +38,7 @@ var (
 	privateKeyFile                  = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if '--kms_key_uri' is set.")
 	kmsKeyURI                       = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile               = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
-	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "", "Binary for partial report aggregation with DPF protocol.")
+	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
 	dataflowProject         = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")

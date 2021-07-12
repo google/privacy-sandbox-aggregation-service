@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -220,10 +221,27 @@ func WriteBytes(ctx context.Context, data []byte, filename string) error {
 	return ioutil.WriteFile(filename, data, os.ModePerm)
 }
 
-// ReadBytes reads bytes from a local or GCS file.
+func readBytesFromURL(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	content := make([]byte, resp.ContentLength)
+	if _, err := resp.Body.Read(content); err != nil {
+		return nil, err
+	}
+	return content, nil
+}
+
+// ReadBytes reads bytes from a file stored locally, in GCS or served at an URL.
 func ReadBytes(ctx context.Context, filename string) ([]byte, error) {
-	if strings.HasPrefix(filename, "gs://") {
-		return readGCSObject(ctx, filename)
+	u, err := url.Parse(filename)
+	if err == nil {
+		if u.Scheme == "gs" {
+			return readGCSObject(ctx, filename)
+		} else if u.Scheme == "http" || u.Scheme == "https" {
+			return readBytesFromURL(filename)
+		}
 	}
 	return ioutil.ReadFile(filename)
 }

@@ -13,6 +13,7 @@
 
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
 
 licenses(["notice"])
 
@@ -132,15 +133,41 @@ go_library(
 go_binary(
     name = "collector_server",
     srcs = ["collector_server.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+    ],
     deps = [
         ":collectorservice",
         "@com_github_golang_glog//:go_default_library",
     ],
 )
 
+container_image(
+    name = "collector_server_image",
+    base = "@static_base//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/collector_server"],
+    files = [":collector_server"],
+    stamp = True,
+)
+
+container_push(
+    name = "collector_server_image_publish",
+    format = "Docker",
+    image = ":collector_server_image",
+    registry = "gcr.io",
+    repository = "$(GCR_PROJECT)/collector_server",
+    tag = "$(VERSION)",
+)
+
 go_binary(
     name = "browser_simulator",
     srcs = ["browser_simulator.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+    ],
     deps = [
         ":collectorservice",
         "//pipeline:cryptoio",
@@ -149,6 +176,24 @@ go_binary(
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go//compute/metadata:go_default_library",
     ],
+)
+
+container_image(
+    name = "browser_simulator_image",
+    base = "@static_base//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/browser_simulator"],
+    files = [":browser_simulator"],
+    stamp = True,
+)
+
+container_push(
+    name = "browser_simulator_image_publish",
+    format = "Docker",
+    image = ":browser_simulator_image",
+    registry = "gcr.io",
+    repository = "$(GCR_PROJECT)/browser_simulator",
+    tag = "$(VERSION)",
 )
 
 go_test(

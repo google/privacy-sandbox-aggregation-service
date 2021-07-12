@@ -1,6 +1,15 @@
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+## START - docker toolchain protobuf workaround
+
+http_archive(
+    name = "rules_python",
+    sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+    urls = ["https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz"],
+)
+## END - docker toolchain protobuf workaround
+
 http_archive(
     name = "io_bazel_rules_go",
     sha256 = "69de5c704a05ff37862f7e0f5534d4f479418afc21806c887db544a316f3cb6b",
@@ -148,4 +157,54 @@ http_archive(
     name = "com_github_google_googletest",
     strip_prefix = "googletest-a4ab0abb93620ce26efad9de9296b73b16e88588",
     urls = ["https://github.com/google/googletest/archive/a4ab0abb93620ce26efad9de9296b73b16e88588.zip"],
+)
+
+http_archive(
+    name = "io_bazel_rules_docker",
+    sha256 = "59d5b42ac315e7eadffa944e86e90c2990110a1c8075f1cd145f487e999d22b3",
+    strip_prefix = "rules_docker-0.17.0",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.17.0/rules_docker-v0.17.0.tar.gz"],
+)
+
+load(
+    "@io_bazel_rules_docker//toolchains/docker:toolchain.bzl",
+    docker_toolchain_configure = "toolchain_configure",
+)
+
+docker_toolchain_configure(
+    name = "docker_config",
+    docker_path = "/usr/bin/docker",
+)
+
+load(
+    "@io_bazel_rules_docker//repositories:repositories.bzl",
+    container_repositories = "repositories",
+)
+
+container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_pull",
+)
+
+container_pull(
+    name = "bazel_image",
+    digest = "sha256:ace9881e6e9c5d48b5fd637321361aeffe54000265894a65f7d818dc1065bd80",
+    registry = "launcher.gcr.io",
+    repository = "google/bazel",
+    tag = "3.5.0",
+)
+
+container_pull(
+    name = "static_base",
+    # 'tag' is also supported, but digest is encouraged for reproducibility.
+    digest = "sha256:c070202f5ea785303a9f8cfc5f094d210336e3e0ef09806b2edcce3d5e223eb7",  #prod-image
+    #digest = "sha256:a17f6eadc08cb7a806f576dd7667b0f4355312ea77538e5d4692d6971d413897",  #debug-image
+    registry = "gcr.io",
+    repository = "distroless/static",
 )

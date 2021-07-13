@@ -126,6 +126,7 @@ go_library(
         "//pipeline:crypto_go_proto",
         "//pipeline:dpfbrowsersimulator",
         "//pipeline:ioutils",
+        "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
     ],
 )
@@ -136,7 +137,10 @@ go_binary(
     gc_linkopts = [
         "-extldflags",
         "-static",
+        "-X",
+        "main.version=$(VERSION)",
     ],
+    x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
         ":collectorservice",
         "@com_github_golang_glog//:go_default_library",
@@ -167,7 +171,10 @@ go_binary(
     gc_linkopts = [
         "-extldflags",
         "-static",
+        "-X",
+        "main.version=$(VERSION)",
     ],
+    x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
         ":collectorservice",
         "//pipeline:cryptoio",

@@ -22,6 +22,8 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	log "github.com/golang/glog"
 	"cloud.google.com/go/compute/metadata"
@@ -40,10 +42,29 @@ var (
 	conversionFile       = flag.String("conversion_file", "", "Input raw conversion data.")
 	helperOrigin1        = flag.String("helper_origin1", "", "Origin of helper1.")
 	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2.")
+
+	version string // set by linker -X
+	build   string // set by linker -X
 )
 
 func main() {
 	flag.Parse()
+
+	buildDate := time.Unix(0, 0)
+	if i, err := strconv.ParseInt(build, 10, 64); err != nil {
+		log.Error(err)
+	} else {
+		buildDate = time.Unix(i, 0)
+	}
+
+	log.Info("- Debugging enabled - \n")
+	log.Infof("Running browser simulator version: %v, build: %v\n", version, buildDate)
+
+	log.Infof("Requests sent to %v", *address)
+	log.Infof("Helper public key file locations. 1: %v, 2: %v", *helperPublicKeyFile1, *helperPublicKeyFile2)
+	log.Infof("Key Bit size %v", *keyBitSize)
+	log.Infof("Conversions file uri: %v", *conversionFile)
+	log.Infof("Helper origins. 1: %v, 2: %v", *helperOrigin1, *helperOrigin2)
 
 	tokenURL := fmt.Sprintf("/instance/service-accounts/default/identity?audience=%s", *address)
 	idToken, err := metadata.Get(tokenURL)

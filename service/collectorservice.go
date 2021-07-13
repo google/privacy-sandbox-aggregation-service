@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/golang/glog"
 	"github.com/ugorji/go/codec"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -87,33 +88,41 @@ func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer h.mu.Unlock()
 	if h.err != nil {
 		http.Error(w, h.err.Error(), http.StatusInternalServerError)
+		log.Error(h.err.Error())
 		return
 	}
 
 	report := &AggregationReport{}
 	if err := codec.NewDecoder(req.Body, &codec.CborHandle{}).Decode(report); err != nil {
-		http.Error(w, "Failed in decoding CBOR message", http.StatusBadRequest)
+		errMsg := "Failed in decoding CBOR message"
+		http.Error(w, errMsg, http.StatusBadRequest)
+		log.Error(errMsg, err)
 		return
 	}
 
 	batchKey1, batchKey2, err := collectPayloads(report, h.reportBatch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Error(err.Error())
 		return
 	}
 
 	if len(h.reportBatch[batchKey1]) == h.BatchSize {
 		timestamp := time.Now().Format(time.RFC3339Nano)
 		ctx := req.Context()
+		log.Infof("Writing batch for %v to: %v", batchKey1, ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey1, timestamp)))
 		if err := writeBatch(ctx, h.reportBatch[batchKey1], ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey1, timestamp))); err != nil {
 			h.err = err
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Error(err.Error())
 			return
 		}
 		h.reportBatch[batchKey1] = nil
+		log.Infof("Writing batch for %v to: %v", batchKey2, ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey2, timestamp)))
 		if err := writeBatch(ctx, h.reportBatch[batchKey2], ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey2, timestamp))); err != nil {
 			h.err = err
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Error(err.Error())
 			return
 		}
 		h.reportBatch[batchKey2] = nil

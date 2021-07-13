@@ -18,6 +18,8 @@ import (
 	"crypto/tls"
 	"flag"
 	"net/http"
+	"strconv"
+	"time"
 
 	log "github.com/golang/glog"
 	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
@@ -27,10 +29,25 @@ var (
 	address   = flag.String("address", "", "Address of the server.")
 	batchDir  = flag.String("batch_dir", "", "Directory that stores report batches.")
 	batchSize = flag.Int("batch_size", 1000000, "Number of reports to be included in each batch file.")
+
+	version string // set by linker -X
+	build   string // set by linker -X
 )
 
 func main() {
 	flag.Parse()
+
+	buildDate := time.Unix(0, 0)
+	if i, err := strconv.ParseInt(build, 10, 64); err != nil {
+		log.Error(err)
+	} else {
+		buildDate = time.Unix(i, 0)
+	}
+
+	log.Info("- Debugging enabled - \n")
+	log.Infof("Running collector server version: %v, build: %v\n", version, buildDate)
+	log.Infof("Listening to %v", *address)
+	log.Infof("Batch size %v, Batch Dir: %v", *batchSize, *batchDir)
 
 	srv := &http.Server{
 		Addr:      *address,

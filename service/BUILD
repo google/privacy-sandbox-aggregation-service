@@ -208,9 +208,4 @@ go_test(
     size = "small",
     srcs = ["collectorservice_test.go"],
     embed = [":collectorservice"],
-    deps = [
-        "//pipeline:crypto_go_proto",
-        "@com_github_google_go_cmp//cmp:go_default_library",
-        "@org_golang_google_protobuf//testing/protocmp",
-    ],
 )

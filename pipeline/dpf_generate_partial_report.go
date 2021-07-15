@@ -55,9 +55,9 @@ var (
 	partialReportFile1 = flag.String("partial_report_file1", "", "Output partial report for helper 1.")
 	partialReportFile2 = flag.String("partial_report_file2", "", "Output partial report for helper 2.")
 
-	publicKeyFile1 = flag.String("public_key_file1", "", "Input file containing the public key from helper 1.")
-	publicKeyFile2 = flag.String("public_key_file2", "", "Input file containing the public key from helper 2.")
-	keyBitSize     = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	publicKeysFile1 = flag.String("public_keys_file1", "", "Input file containing the public keys from helper 1.")
+	publicKeysFile2 = flag.String("public_keys_file2", "", "Input file containing the public keys from helper 2.")
+	keyBitSize      = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -68,13 +68,22 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPubKey1, err := cryptoio.ReadStandardPublicKey(*publicKeyFile1)
+	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysFile1)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	helperPubKey2, err := cryptoio.ReadStandardPublicKey(*publicKeyFile2)
+	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysFile2)
 	if err != nil {
 		log.Exit(ctx, err)
+	}
+
+	// Use any version of the public keys until the version control is designed.
+	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
+	for _, v := range helperPubKeys1 {
+		publicKeyInfo1 = v
+	}
+	for _, v := range helperPubKeys2 {
+		publicKeyInfo2 = v
 	}
 
 	pipeline := beam.NewPipeline()
@@ -85,8 +94,8 @@ func main() {
 		PartialReportFile1: *partialReportFile1,
 		PartialReportFile2: *partialReportFile2,
 		KeyBitSize:         int32(*keyBitSize),
-		PublicKey1:         helperPubKey1,
-		PublicKey2:         helperPubKey2,
+		PublicKeys1:        publicKeyInfo1,
+		PublicKeys2:        publicKeyInfo2,
 		Shards:             *fileShards,
 	})
 	if err := beamx.Run(ctx, pipeline); err != nil {

@@ -117,11 +117,16 @@ func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollect
 
 // decryptPartialReportFn decrypts the StandardCiphertext and gets a PartialReportDpf with the private key from the helper server.
 type decryptPartialReportFn struct {
-	StandardPrivateKey *pb.StandardPrivateKey
+	StandardPrivateKeys map[string]*pb.StandardPrivateKey
 }
 
 func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.EncryptedPartialReportDpf, emit func(*pb.PartialReportDpf)) error {
-	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, fn.StandardPrivateKey)
+	privateKey, ok := fn.StandardPrivateKeys[encrypted.KeyId]
+	if !ok {
+		return fmt.Errorf("no private key found for keyID = %q", encrypted.KeyId)
+	}
+
+	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
 	if err != nil {
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}
@@ -140,9 +145,9 @@ func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.EncryptedPartialR
 }
 
 // DecryptPartialReport decrypts every line in the input file with the helper private key, and gets the partial report.
-func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standardPrivateKey *pb.StandardPrivateKey) beam.PCollection {
+func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standardPrivateKeys map[string]*pb.StandardPrivateKey) beam.PCollection {
 	s = s.Scope("DecryptPartialReport")
-	return beam.ParDo(s, &decryptPartialReportFn{StandardPrivateKey: standardPrivateKey}, encryptedReport)
+	return beam.ParDo(s, &decryptPartialReportFn{StandardPrivateKeys: standardPrivateKeys}, encryptedReport)
 }
 
 // GenerateAllLevelParams generates the DPF parameters for creating DPF keys or evaluation context for all possible prefix lengths.
@@ -382,8 +387,8 @@ type AggregatePartialReportParams struct {
 	SumParameters *pb.IncrementalDpfParameters
 	// Prefixes for the DPF key expansion in each of the hierarchical domains.
 	Prefixes *pb.HierarchicalPrefixes
-	// The private key for the standard encryption from the helper server.
-	HelperPrivateKey *pb.StandardPrivateKey
+	// The private keys for the standard encryption from the helper server.
+	HelperPrivateKeys map[string]*pb.StandardPrivateKey
 	// Weather to use directCombine() or segmentCombine() when combining the expanded vectors.
 	DirectCombine bool
 	// The segment length when using segmentCombine().
@@ -440,7 +445,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 	encrypted := ReadPartialReport(scope, params.PartialReportFile)
 	resharded := beam.Reshuffle(scope, encrypted)
 
-	partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKey)
+	partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
 	partialHistogram, err := ExpandAndCombineHistogram(scope, partialReport, params)
 	if err != nil {
 		return err

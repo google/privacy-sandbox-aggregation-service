@@ -52,10 +52,7 @@ var (
 	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
 	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	privateKeyFile       = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if flag 'kms_key_uri' is set.")
-	kmsKeyURI            = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
-	kmsCredentialFile    = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
-	secretName           = flag.String("secret_project_id", "", "Secret name required for reading from SecretManager service.")
+	privateKeyParamsFile = flag.String("private_key_params_file", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -73,16 +70,7 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	if *kmsKeyURI == "" {
-		log.Warn(ctx, "non-encrypted private key should be stored only for testing")
-	}
-
-	helperPrivKey, err := cryptoio.ReadStandardPrivateKey(ctx, &cryptoio.ReadStandardPrivateKeyParams{
-		KMSKeyURI:         *kmsKeyURI,
-		KMSCredentialPath: *kmsCredentialFile,
-		SecretName:        *secretName,
-		FilePath:          *privateKeyFile,
-	})
+	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsFile)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
@@ -104,7 +92,7 @@ func main() {
 			PartialHistogramFile: *partialHistogramFile,
 			SumParameters:        sumParams,
 			Prefixes:             prefixes,
-			HelperPrivateKey:     helperPrivKey,
+			HelperPrivateKeys:    helperPrivKeys,
 			DirectCombine:        *directCombine,
 			SegmentLength:        *segmentLength,
 			Shards:               *fileShards,

@@ -16,8 +16,10 @@ package dpfaggregator
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path"
 	"strconv"
@@ -32,6 +34,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
@@ -42,8 +45,17 @@ import (
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
 
+func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
+	keyInfo := keys[rand.Intn(len(keys))]
+	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
+	if err != nil {
+		return "", nil, err
+	}
+	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
+}
+
 type standardEncryptFn struct {
-	PublicKey *pb.StandardPublicKey
+	PublicKeys []cryptoio.PublicKeyInfo
 }
 
 func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.EncryptedPartialReportDpf)) error {
@@ -59,16 +71,21 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 	}
 
 	contextInfo := []byte("context")
-	result, err := standardencrypt.Encrypt(bPayload, contextInfo, fn.PublicKey)
+	keyID, publicKey, err := getRandomPublicKey(fn.PublicKeys)
 	if err != nil {
 		return err
 	}
-	emit(&pb.EncryptedPartialReportDpf{EncryptedReport: result, ContextInfo: contextInfo})
+	result, err := standardencrypt.Encrypt(bPayload, contextInfo, publicKey)
+	if err != nil {
+		return err
+	}
+	emit(&pb.EncryptedPartialReportDpf{EncryptedReport: result, ContextInfo: contextInfo, KeyId: keyID})
 	return nil
 }
 
 func TestDecryptPartialReport(t *testing.T) {
-	priv, pub, err := standardencrypt.GenerateStandardKeyPair()
+	ctx := context.Background()
+	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 1, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +102,8 @@ func TestDecryptPartialReport(t *testing.T) {
 	pipeline, scope := beam.NewPipelineWithRoot()
 
 	wantReports := beam.CreateList(scope, reports)
-	encryptedReports := beam.ParDo(scope, &standardEncryptFn{PublicKey: pub}, wantReports)
-	getReports := DecryptPartialReport(scope, encryptedReports, priv)
+	encryptedReports := beam.ParDo(scope, &standardEncryptFn{PublicKeys: pubKeysInfo}, wantReports)
+	getReports := DecryptPartialReport(scope, encryptedReports, privKeys)
 
 	passert.Equals(scope, getReports, wantReports)
 

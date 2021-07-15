@@ -42,7 +42,7 @@ type ServerCfg struct {
 	ReencryptConversionKeyBinary string
 	AggregatePartialReportBinary string
 
-	PrivateKeyFile                  string
+	PrivateKeyParamsURI             string
 	KmsKeyURI, KmsCredentialFile    string
 	DpfAggregatePartialReportBinary string
 }
@@ -128,9 +128,7 @@ func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.Aggregate
 		"--prefixes_file=" + in.PrefixesFile,
 		"--partial_histogram_file=" + in.PartialHistogramFile,
 		"--epsilon=" + fmt.Sprintf("%f", in.Epsilon),
-		"--private_key_file=" + s.ServerCfg.PrivateKeyFile,
-		"--kms_key_uri=" + s.ServerCfg.KmsKeyURI,
-		"--kms_credential_file=" + s.ServerCfg.KmsCredentialFile,
+		"--private_key_params_uri=" + s.ServerCfg.PrivateKeyParamsURI,
 		"--runner=" + s.PipelineRunner,
 	}
 

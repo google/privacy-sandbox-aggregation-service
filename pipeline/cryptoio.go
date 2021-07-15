@@ -25,6 +25,7 @@ import (
 	"path"
 
 	"google.golang.org/protobuf/proto"
+	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
@@ -352,4 +353,64 @@ func ReadDPFParameters(ctx context.Context, filename string) (*pb.IncrementalDpf
 		return nil, err
 	}
 	return params, nil
+}
+
+// SavePrivateKeyParamsCollection saves the information how the private keys are saved.
+func SavePrivateKeyParamsCollection(ctx context.Context, idKeys map[string]*ReadStandardPrivateKeyParams, uri string) error {
+	b, err := json.Marshal(idKeys)
+	if err != nil {
+		return err
+	}
+	return ioutils.WriteBytes(ctx, b, uri)
+}
+
+// ReadPrivateKeyParamsCollection reads the information how the private keys can be read.
+func ReadPrivateKeyParamsCollection(ctx context.Context, filePath string) (map[string]*ReadStandardPrivateKeyParams, error) {
+	b, err := ioutils.ReadBytes(ctx, filePath)
+	if err != nil {
+		return nil, err
+	}
+	output := make(map[string]*ReadStandardPrivateKeyParams)
+	if err := json.Unmarshal(b, &output); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+// ReadPrivateKeyCollection reads the private storage information from a file, and then uses it to read the private keys.
+func ReadPrivateKeyCollection(ctx context.Context, filePath string) (map[string]*pb.StandardPrivateKey, error) {
+	keyParams, err := ReadPrivateKeyParamsCollection(ctx, filePath)
+	if err != nil {
+		return nil, err
+	}
+	keys := make(map[string]*pb.StandardPrivateKey)
+	for keyID, params := range keyParams {
+		key, err := ReadStandardPrivateKey(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		keys[keyID] = key
+	}
+	return keys, nil
+}
+
+// GenerateHybridKeyPairs generates encryption key pairs with specified valid time window.
+func GenerateHybridKeyPairs(ctx context.Context, keyCount int, notBefore, notAfter string) (map[string]*pb.StandardPrivateKey, []PublicKeyInfo, error) {
+	privKeys := make(map[string]*pb.StandardPrivateKey)
+	var pubInfo []PublicKeyInfo
+	for i := 0; i < keyCount; i++ {
+		keyID := uuid.New()
+		priv, pub, err := standardencrypt.GenerateStandardKeyPair()
+		if err != nil {
+			return nil, nil, err
+		}
+		privKeys[keyID] = priv
+		pubInfo = append(pubInfo, PublicKeyInfo{
+			ID:        keyID,
+			Key:       base64.StdEncoding.EncodeToString(pub.Key),
+			NotBefore: notBefore,
+			NotAfter:  notAfter,
+		})
+	}
+	return privKeys, pubInfo, nil
 }

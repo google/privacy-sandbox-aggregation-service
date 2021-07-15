@@ -12,38 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This binary creates a pair of private and public keys for hybrid encryption.
+// This binary creates pairs of private and public keys for hybrid encryption.
 package main
 
 import (
 	"context"
 	"flag"
-	"fmt"
 
 	log "github.com/golang/glog"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 )
 
 var (
 	kmsKeyURI         = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
 	secretProjectID   = flag.String("secret_project_id", "", "ID of the GCP project that provides the SecretManager service.")
-	secretID          = flag.String("secret_id", "", "Secret ID for data stored with SecretManager service.")
-	privateKeyFile    = flag.String("private_key_file", "", "Output file path for the private key.")
-	publicKeyFile     = flag.String("public_key_file", "", "Output file path for the public key.")
+	privateKeyDir     = flag.String("private_key_dir", "", "Output directory for the private keys.")
+	keyCount          = flag.Int("key_count", 10, "Count of key pairs to generate.")
+	notBefore         = flag.String("not_before", "", "Start valid timestamp for the keys.")
+	notAfter          = flag.String("not_after", "", "End valid timestamp for the keys.")
+	versionID         = flag.String("version_id", "", "Version of the key pairs.")
+
+	publicKeyInfoFile  = flag.String("public_key_info_file", "", "Output file that contains the public keys and related info.")
+	privateKeyInfoFile = flag.String("private_key_info_file", "", "Output file that includes information about how to get the private keys.")
 )
 
 func main() {
 	flag.Parse()
 
-	priv, pub, err := standardencrypt.GenerateStandardKeyPair()
-	if err != nil {
-		log.Exit(err)
-	}
-
 	ctx := context.Background()
-	if err := cryptoio.SaveStandardPublicKey(*publicKeyFile, pub); err != nil {
+	privKeys, pubInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, *keyCount, *notBefore, *notAfter)
+	if err != nil {
 		log.Exit(err)
 	}
 
@@ -51,16 +51,31 @@ func main() {
 		log.Warning("non-encrypted private key should be stored only for testing")
 	}
 
-	name, err := cryptoio.SaveStandardPrivateKey(ctx, &cryptoio.SaveStandardPrivateKeyParams{
-		KMSKeyURI:         *kmsKeyURI,
-		KMSCredentialPath: *kmsCredentialFile,
-		SecretProjectID:   *secretProjectID,
-		SecretID:          *secretID,
-		FilePath:          *privateKeyFile,
-	}, priv)
-	if err != nil {
+	privInfo := make(map[string]*cryptoio.ReadStandardPrivateKeyParams)
+	for keyID, key := range privKeys {
+		privKeyFile := ioutils.JoinPath(*privateKeyDir, keyID)
+		secretName, err := cryptoio.SaveStandardPrivateKey(ctx, &cryptoio.SaveStandardPrivateKeyParams{
+			KMSKeyURI:         *kmsKeyURI,
+			KMSCredentialPath: *kmsCredentialFile,
+			SecretProjectID:   *secretProjectID,
+			SecretID:          keyID,
+			FilePath:          privKeyFile,
+		}, key)
+		if err != nil {
+			log.Exit(err)
+		}
+		privInfo[keyID] = &cryptoio.ReadStandardPrivateKeyParams{
+			KMSKeyURI:         *kmsKeyURI,
+			KMSCredentialPath: *kmsCredentialFile,
+			SecretName:        secretName,
+			FilePath:          privKeyFile,
+		}
+	}
+
+	if err := cryptoio.SavePrivateKeyParamsCollection(ctx, privInfo, *privateKeyInfoFile); err != nil {
 		log.Exit(err)
 	}
-	// TODO: save the name of the private-key secret, or map this name with the key ID.
-	fmt.Printf("Private key saved by SecretManager with name: %s", name)
+	if err := cryptoio.SavePublicKeyVersions(ctx, map[string][]cryptoio.PublicKeyInfo{*versionID: pubInfo}, *publicKeyInfoFile); err != nil {
+		log.Exit(err)
+	}
 }

@@ -15,6 +15,7 @@
 package dpfbrowsersimulator
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -25,8 +26,8 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 
@@ -133,11 +134,12 @@ func TestAggregationPipelineDPF(t *testing.T) {
 }
 
 func testAggregationPipelineDPF(t testing.TB) {
-	privKey1, pubKey1, err := standardencrypt.GenerateStandardKeyPair()
+	ctx := context.Background()
+	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	privKey2, pubKey2, err := standardencrypt.GenerateStandardKeyPair()
+	privKeys2, pubKeysInfo2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,13 +160,13 @@ func testAggregationPipelineDPF(t testing.TB) {
 		conversions := beam.CreateList(scope, testData.Conversions)
 		want := beam.CreateList(scope, testData.WantResults[i])
 		ePr1, ePr2 := splitRawConversion(scope, conversions, &GeneratePartialReportParams{
-			PublicKey1: pubKey1,
-			PublicKey2: pubKey2,
-			KeyBitSize: keyBitSize,
+			PublicKeys1: pubKeysInfo1,
+			PublicKeys2: pubKeysInfo2,
+			KeyBitSize:  keyBitSize,
 		})
 
-		pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKey1)
-		pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKey2)
+		pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKeys1)
+		pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKeys2)
 
 		aggregateParams := &dpfaggregator.AggregatePartialReportParams{
 			SumParameters: params,

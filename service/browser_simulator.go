@@ -35,13 +35,13 @@ import (
 
 // TODO: Store some of the flag values in manifest files.
 var (
-	address              = flag.String("address", "", "Address of the server.")
-	helperPublicKeyFile1 = flag.String("helper_public_key_file1", "", "A file that contains the public encryption key from helper1.")
-	helperPublicKeyFile2 = flag.String("helper_public_key_file2", "", "A file that contains the public encryption key from helper2.")
-	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	conversionFile       = flag.String("conversion_file", "", "Input raw conversion data.")
-	helperOrigin1        = flag.String("helper_origin1", "", "Origin of helper1.")
-	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2.")
+	address               = flag.String("address", "", "Address of the server.")
+	helperPublicKeysFile1 = flag.String("helper_public_keys_file1", "", "A file that contains the public encryption key from helper1.")
+	helperPublicKeysFile2 = flag.String("helper_public_keys_file2", "", "A file that contains the public encryption key from helper2.")
+	keyBitSize            = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	conversionFile        = flag.String("conversion_file", "", "Input raw conversion data.")
+	helperOrigin1         = flag.String("helper_origin1", "", "Origin of helper1.")
+	helperOrigin2         = flag.String("helper_origin2", "", "Origin of helper2.")
 
 	version string // set by linker -X
 	build   string // set by linker -X
@@ -61,7 +61,7 @@ func main() {
 	log.Infof("Running browser simulator version: %v, build: %v\n", version, buildDate)
 
 	log.Infof("Requests sent to %v", *address)
-	log.Infof("Helper public key file locations. 1: %v, 2: %v", *helperPublicKeyFile1, *helperPublicKeyFile2)
+	log.Infof("Helper public key file locations. 1: %v, 2: %v", *helperPublicKeysFile1, *helperPublicKeysFile2)
 	log.Infof("Key Bit size %v", *keyBitSize)
 	log.Infof("Conversions file uri: %v", *conversionFile)
 	log.Infof("Helper origins. 1: %v, 2: %v", *helperOrigin1, *helperOrigin2)
@@ -76,29 +76,37 @@ func main() {
 		Transport: &http.Transport{},
 	}
 
-	publicKey1, err := cryptoio.ReadStandardPublicKey(*helperPublicKeyFile1)
+	ctx := context.Background()
+	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysFile1)
 	if err != nil {
 		log.Exit(err)
 	}
-	publicKey2, err := cryptoio.ReadStandardPublicKey(*helperPublicKeyFile2)
+	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysFile2)
 	if err != nil {
 		log.Exit(err)
 	}
 
+	// Use any version of the public keys until the version control is designed.
+	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
+	for _, v := range helperPubKeys1 {
+		publicKeyInfo1 = v
+	}
+	for _, v := range helperPubKeys2 {
+		publicKeyInfo2 = v
+	}
 	// Empty context information for demo.
 	contextInfo, err := ioutils.MarshalCBOR(&collectorservice.SharedInfo{})
 	if err != nil {
 		log.Exit(err)
 	}
 
-	ctx := context.Background()
 	conversions, err := dpfbrowsersimulator.ReadRawConversions(ctx, *conversionFile, int32(*keyBitSize))
 	if err != nil {
 		log.Exit(err)
 	}
 
 	for _, c := range conversions {
-		report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, int32(*keyBitSize), publicKey1, publicKey2, contextInfo)
+		report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, int32(*keyBitSize), publicKeyInfo1, publicKeyInfo2, contextInfo)
 		if err != nil {
 			log.Exit(err)
 		}

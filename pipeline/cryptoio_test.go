@@ -240,3 +240,36 @@ func TestSaveReadPublicKeyVersions(t *testing.T) {
 		})
 	}
 }
+
+func TestSaveReadPrivateKeyParamsCollection(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "key_params")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	want := map[string]*ReadStandardPrivateKeyParams{
+		"key_id_1": {
+			KMSKeyURI:         "kms_key_uri_1",
+			KMSCredentialPath: "kms_credential_path",
+			SecretName:        "secret_name_1",
+			FilePath:          "file_path_1"},
+		"key_id_2": {
+			SecretName: "secret_name_2",
+			FilePath:   "file_path_2"},
+	}
+	ctx := context.Background()
+	filePath := path.Join(tmpDir, "key_params")
+	if err := SavePrivateKeyParamsCollection(ctx, want, filePath); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ReadPrivateKeyParamsCollection(ctx, filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("read/write private key parameters mismatch (-want +got):\n%s", diff)
+	}
+}

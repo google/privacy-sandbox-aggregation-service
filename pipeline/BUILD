@@ -244,6 +244,7 @@ go_library(
         "@com_github_google_tink_go//integration/gcpkms:go_default_library",
         "@com_github_google_tink_go//keyset:go_default_library",
         "@com_github_google_tink_go//tink:go_default_library",
+        "@com_github_pborman_uuid//:uuid",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -482,6 +483,7 @@ go_test(
     embed = [":dpfaggregator"],
     deps = [
         ":crypto_go_proto",
+        ":cryptoio",
         ":incrementaldpf",
         ":ioutils",
         ":standardencrypt",
@@ -504,6 +506,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator",
     deps = [
         ":crypto_go_proto",
+        ":cryptoio",
         ":dpfaggregator",
         ":incrementaldpf",
         ":ioutils",
@@ -523,8 +526,8 @@ go_test(
     embed = [":dpfbrowsersimulator"],
     deps = [
         ":crypto_go_proto",
+        ":cryptoio",
         ":dpfaggregator",
-        ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
@@ -584,7 +587,7 @@ go_binary(
     srcs = ["create_hybrid_key_pair.go"],
     deps = [
         ":cryptoio",
-        ":standardencrypt",
+        ":ioutils",
         "@com_github_golang_glog//:go_default_library",
     ],
 )

@@ -85,6 +85,8 @@ message PartialReportDpf {
 message EncryptedPartialReportDpf {
   StandardCiphertext encrypted_report = 1;
   bytes context_info = 2;
+  // The ID to find the corresponding private key for decryption.
+  string key_id = 3;
 }
 
 // PartialAggregationDpf contains the aggregation results from one of the

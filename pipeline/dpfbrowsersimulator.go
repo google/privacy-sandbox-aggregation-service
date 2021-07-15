@@ -28,6 +28,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -101,13 +102,23 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 }
 
 type encryptSecretSharesFn struct {
-	PublicKey1, PublicKey2 *pb.StandardPublicKey
-	KeyBitSize             int32
+	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
+	KeyBitSize               int32
 
 	countReport beam.Counter
 }
 
-func encryptPartialReport(partialReport *pb.PartialReportDpf, key *pb.StandardPublicKey, contextInfo []byte) (*pb.EncryptedPartialReportDpf, error) {
+// TODO: Check if the chosen public key is out of date.
+func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
+	keyInfo := keys[rand.Intn(len(keys))]
+	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
+	if err != nil {
+		return "", nil, err
+	}
+	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
+}
+
+func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, error) {
 	bDpfKey, err := proto.Marshal(partialReport.SumKey)
 	if err != nil {
 		return nil, err
@@ -122,11 +133,15 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, key *pb.StandardPu
 		return nil, err
 	}
 
+	keyID, key, err := getRandomPublicKey(keys)
+	if err != nil {
+		return nil, err
+	}
 	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.EncryptedPartialReportDpf{EncryptedReport: encrypted, ContextInfo: contextInfo}, nil
+	return &pb.EncryptedPartialReportDpf{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
 }
 
 func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
@@ -145,7 +160,7 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 }
 
 // GenerateEncryptedReports splits a conversion record into DPF keys, and encrypts the partial reports.
-func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, publicKey1, publicKey2 *pb.StandardPublicKey, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
+func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
 	allParams, err := dpfaggregator.GenerateAllLevelParams(keyBitSize)
 	if err != nil {
 		return nil, nil, err
@@ -158,14 +173,14 @@ func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, public
 
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum1,
-	}, publicKey1, contextInfo)
+	}, publicKeys1, contextInfo)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum2,
-	}, publicKey2, contextInfo)
+	}, publicKeys2, contextInfo)
 
 	if err != nil {
 		return nil, nil, err
@@ -177,7 +192,7 @@ func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, public
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKey1, fn.PublicKey2, nil)
+	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKeys1, fn.PublicKeys2, nil)
 	if err != nil {
 		return err
 	}
@@ -218,16 +233,16 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 
 	return beam.ParDo2(s,
 		&encryptSecretSharesFn{
-			PublicKey1: params.PublicKey1,
-			PublicKey2: params.PublicKey2,
-			KeyBitSize: params.KeyBitSize,
+			PublicKeys1: params.PublicKeys1,
+			PublicKeys2: params.PublicKeys2,
+			KeyBitSize:  params.KeyBitSize,
 		}, reports)
 }
 
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
 	ConversionFile, PartialReportFile1, PartialReportFile2 string
-	PublicKey1, PublicKey2                                 *pb.StandardPublicKey
+	PublicKeys1, PublicKeys2                               []cryptoio.PublicKeyInfo
 	KeyBitSize                                             int32
 	Shards                                                 int64
 }

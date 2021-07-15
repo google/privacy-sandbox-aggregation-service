@@ -35,7 +35,7 @@ var (
 	reencryptConversionKeyBinary = flag.String("reencrypt_conversion_key_binary", "", "Binary for conversion key reencryption.")
 	aggregatePartialReportBinary = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
 
-	privateKeyFile                  = flag.String("private_key_file", "", "Input file that stores the standard private key. The key should have been encrypted with Google KMS if '--kms_key_uri' is set.")
+	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
 	kmsKeyURI                       = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile               = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
 	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "", "Binary for partial report aggregation with DPF protocol.")
@@ -63,9 +63,7 @@ func main() {
 			ReencryptConversionKeyBinary: *reencryptConversionKeyBinary,
 			AggregatePartialReportBinary: *aggregatePartialReportBinary,
 
-			PrivateKeyFile:                  *privateKeyFile,
-			KmsKeyURI:                       *kmsKeyURI,
-			KmsCredentialFile:               *kmsCredentialFile,
+			PrivateKeyParamsURI:             *privateKeyParamsURI,
 			DpfAggregatePartialReportBinary: *dpfAggregatePartialReportBinary,
 		},
 		*pipelineRunner,

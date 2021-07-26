@@ -539,6 +539,10 @@ go_test(
 go_binary(
     name = "dpf_aggregate_partial_report",
     srcs = ["dpf_aggregate_partial_report.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+    ],
     deps = [
         ":cryptoio",
         ":dpfaggregator",

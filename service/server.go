@@ -18,6 +18,8 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"strconv"
+	"time"
 
 	log "github.com/golang/glog"
 	"google.golang.org/grpc"
@@ -38,17 +40,31 @@ var (
 	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
 	kmsKeyURI                       = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
 	kmsCredentialFile               = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
-	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "", "Binary for partial report aggregation with DPF protocol.")
+	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
 	dataflowProject         = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")
 	dataflowRegion          = flag.String("dataflow_region", "", "Region of Dataflow workers.")
 	dataflowTempLocation    = flag.String("dataflow_temp_location", "", "TempLocation for the Dataflow pipeline.")
 	dataflowStagingLocation = flag.String("dataflow_staging_location", "", "StagingLocation for the Dataflow pipeline.")
+
+	version string // set by linker -X
+	build   string // set by linker -X
 )
 
 func main() {
 	flag.Parse()
+
+	buildDate := time.Unix(0, 0)
+	if i, err := strconv.ParseInt(build, 10, 64); err != nil {
+		log.Error(err)
+	} else {
+		buildDate = time.Unix(i, 0)
+	}
+
+	log.Info("- Debugging enabled - \n")
+	log.Infof("Running aggregation helper version: %v, build: %v\n", version, buildDate)
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Exit(err)

@@ -36,6 +36,13 @@ go_proto_library(
 go_binary(
     name = "server",
     srcs = ["server.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+        "-X",
+        "main.version=$(VERSION)",
+    ],
+    x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
         ":service",
         ":service_go_grpc_proto",
@@ -43,6 +50,27 @@ go_binary(
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//reflection:go_default_library",
     ],
+)
+
+container_image(
+    name = "helper_server_image",
+    base = "@static_base//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/server"],
+    files = [
+        "//pipeline:dpf_aggregate_partial_report",
+        "//service:server",
+    ],
+    stamp = True,
+)
+
+container_push(
+    name = "helper_server_image_publish",
+    format = "Docker",
+    image = ":helper_server_image",
+    registry = "gcr.io",
+    repository = "$(GCR_PROJECT)/helper_server",
+    tag = "$(VERSION)",
 )
 
 go_library(

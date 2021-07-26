@@ -2,6 +2,7 @@
 
 #include <sys/param.h>
 
+#include <cstdint>
 #include <cstdlib>
 
 #include <gmock/gmock.h>
@@ -17,6 +18,7 @@ namespace {
 using ::convagg::crypto::AllocateCBytes;
 using ::convagg::crypto::StrToCBytes;
 using ::distributed_point_functions::DpfParameters;
+using ::distributed_point_functions::ValueType;
 
 TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
   DpfParameters param0, param1;
@@ -195,4 +197,168 @@ TEST(DistributedPointFunctionBridge, TestReturnError) {
   free(error.c);
   free(b_params.c);
 }
+
+ValueType GetReachUint64TupleValueType() {
+  ValueType result;
+  ValueType::Tuple *tuple = result.mutable_tuple();
+  for (int i = 0; i < 5; i++) {
+    tuple->add_elements()->mutable_integer()->set_bitsize(8 * sizeof(uint64_t));
+  }
+  return result;
+}
+
+ValueType GetReachIntModNTupleValueType() {
+  ValueType result;
+  ValueType::Tuple *tuple = result.mutable_tuple();
+  for (int i = 0; i < 5; i++) {
+    auto m = tuple->add_elements()->mutable_int_mod_n();
+    m->mutable_base_integer()->set_bitsize(8 * sizeof(uint64_t));
+    m->mutable_modulus()->set_value_uint64(reach_module);
+  }
+  return result;
+}
+
+TEST(DistributedPointFunctionBridge, TestReachUint64TupleKeyGenEval) {
+  DpfParameters params;
+  params.set_log_domain_size(18);
+  (*params.mutable_value_type()) = GetReachUint64TupleValueType();
+
+  CBytes b_params;
+  ASSERT_TRUE(AllocateCBytes(params.ByteSizeLong(), &b_params) &&
+              params.SerializePartialToArray(b_params.c, b_params.l));
+
+  uint64_t alpha = 8;
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, alpha, &beta, &b_key1, &b_key2,
+                                    &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(
+      CCreateEvaluationContext(&b_params, 1, &b_key1, &b_eval_ctx1, &error),
+      static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(
+      CCreateEvaluationContext(&b_params, 1, &b_key2, &b_eval_ctx2, &error),
+      static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateReachTuple(&b_eval_ctx1, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateReachTuple(&b_eval_ctx2, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  EXPECT_EQ(vec1.vec_size, int64_t{1} << params.log_domain_size())
+      << "expect vector size " << int64_t{1} << params.log_domain_size()
+      << "got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    if (i == 8) {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 1 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 2 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 3 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 4 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 0 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 0 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 0 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 0 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  free(b_params.c);
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
+TEST(DistributedPointFunctionBridge, TestReachIntModNTupleKeyGenEval) {
+  DpfParameters params;
+  params.set_log_domain_size(18);
+  (*params.mutable_value_type()) = GetReachIntModNTupleValueType();
+
+  CBytes b_params;
+  ASSERT_TRUE(AllocateCBytes(params.ByteSizeLong(), &b_params) &&
+              params.SerializePartialToArray(b_params.c, b_params.l));
+
+  uint64_t alpha = 8;
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+
+  CCreateReachIntModNTuple(&beta);
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, alpha, &beta, &b_key1, &b_key2,
+                                    &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(
+      CCreateEvaluationContext(&b_params, 1, &b_key1, &b_eval_ctx1, &error),
+      static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(
+      CCreateEvaluationContext(&b_params, 1, &b_key2, &b_eval_ctx2, &error),
+      static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateReachTuple(&b_eval_ctx1, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateReachTuple(&b_eval_ctx2, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  EXPECT_EQ(vec1.vec_size, int64_t{1} << params.log_domain_size())
+      << "expect vector size " << int64_t{1} << params.log_domain_size()
+      << "got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    CAddReachIntModNTuple(&vec1.vec[i], &vec2.vec[i]);
+    if (i == 8) {
+      ASSERT_TRUE(vec1.vec[i].c == 1 && vec1.vec[i].rf == 2 &&
+                  vec1.vec[i].r == 3 && vec1.vec[i].qf == 4 &&
+                  vec1.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c == 0 && vec1.vec[i].rf == 0 &&
+                  vec1.vec[i].r == 0 && vec1.vec[i].qf == 0 &&
+                  vec1.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  free(b_params.c);
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
 }  // namespace

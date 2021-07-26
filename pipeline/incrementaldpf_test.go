@@ -252,3 +252,97 @@ func TestCalculateBucketID(t *testing.T) {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}
 }
+
+func TestReachUint64TupleDpfGenEvalFunctions(t *testing.T) {
+	os.Setenv("GODEBUG", "cgocheck=2")
+	params := CreateReachUint64TupleDpfParameters(17)
+
+	wantTuple := &ReachTuple{C: 1, Rf: 2, R: 3, Qf: 4, Q: 5}
+	alpha := uint64(123)
+	k1, k2, err := GenerateReachTupleKeys(params, alpha, wantTuple)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx1, err := CreateEvaluationContext([]*dpfpb.DpfParameters{params}, k1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded1, err := EvaluateReachTuple(evalCtx1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx2, err := CreateEvaluationContext([]*dpfpb.DpfParameters{params}, k2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded2, err := EvaluateReachTuple(evalCtx2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]*ReachTuple, len(expanded1))
+	for i := 0; i < len(expanded1); i++ {
+		got[i] = &ReachTuple{
+			C:  expanded1[i].C + expanded2[i].C,
+			Rf: expanded1[i].Rf + expanded2[i].Rf,
+			R:  expanded1[i].R + expanded2[i].R,
+			Qf: expanded1[i].Qf + expanded2[i].Qf,
+			Q:  expanded1[i].Q + expanded2[i].Q,
+		}
+	}
+	want := make([]*ReachTuple, 1<<params.LogDomainSize)
+	for i := range want {
+		want[i] = &ReachTuple{}
+	}
+	want[alpha] = wantTuple
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+}
+
+func TestReachIntModNTupleDpfGenEvalFunctions(t *testing.T) {
+	os.Setenv("GODEBUG", "cgocheck=2")
+	params := CreateReachIntModNTupleDpfParameters(17)
+
+	wantTuple := &ReachTuple{C: 1, Rf: 2, R: 3, Qf: 4, Q: 5}
+	CreateReachIntModNTuple(wantTuple)
+	alpha := uint64(123)
+	k1, k2, err := GenerateReachTupleKeys(params, alpha, wantTuple)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx1, err := CreateEvaluationContext([]*dpfpb.DpfParameters{params}, k1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded1, err := EvaluateReachTuple(evalCtx1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx2, err := CreateEvaluationContext([]*dpfpb.DpfParameters{params}, k2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded2, err := EvaluateReachTuple(evalCtx2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]*ReachTuple, len(expanded1))
+	for i := 0; i < len(expanded1); i++ {
+		AddReachIntModNTuple(expanded1[i], expanded2[i])
+		got[i] = expanded1[i]
+	}
+	want := make([]*ReachTuple, 1<<params.LogDomainSize)
+	for i := range want {
+		want[i] = &ReachTuple{}
+	}
+	want[alpha] = wantTuple
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+}

@@ -409,6 +409,8 @@ cc_library(
         ":cbytes_utils",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
+        "@com_github_google_distributed_point_functions//dpf:int_mod_n",
+        "@com_github_google_distributed_point_functions//dpf:tuple",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -614,5 +616,79 @@ go_test(
     deps = [
         "@com_github_grd_stat//:go_default_library",
         "@org_gonum_v1_gonum//floats:go_default_library",
+    ],
+)
+
+go_test(
+    name = "reachbrowsersimulator_test",
+    size = "small",
+    srcs = ["reachbrowsersimulator_test.go"],
+    embed = [":reachbrowsersimulator"],
+    deps = [
+        ":cryptoio",
+        ":reachaggregator",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+    ],
+)
+
+go_library(
+    name = "reachaggregator",
+    srcs = ["reachaggregator.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reachaggregator",
+    deps = [
+        ":crypto_go_proto",
+        ":distributednoise",
+        ":incrementaldpf",
+        ":ioutils",
+        ":standardencrypt",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_library(
+    name = "reachbrowsersimulator",
+    srcs = ["reachbrowsersimulator.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reachbrowsersimulator",
+    deps = [
+        ":crypto_go_proto",
+        ":cryptoio",
+        ":dpfaggregator",
+        ":incrementaldpf",
+        ":ioutils",
+        ":standardencrypt",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_binary(
+    name = "reach_aggregate_partial_report",
+    srcs = ["reach_aggregate_partial_report.go"],
+    deps = [
+        ":cryptoio",
+        ":reachaggregator",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "reach_generate_partial_report",
+    srcs = ["reach_generate_partial_report.go"],
+    deps = [
+        ":cryptoio",
+        ":reachbrowsersimulator",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
     ],
 )

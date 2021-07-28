@@ -66,31 +66,30 @@ type SharedInfo struct {
 // of helper origins. When the report number reaches the predefined batch size, the reports are
 // written into two files, which will be the input of the aggregation service for the corresponding helpers.
 type CollectorHandler struct {
-	BatchSize int
-	BatchDir  string
-
-	err         error
-	mu          sync.Mutex
-	reportBatch map[string][]*pb.EncryptedPartialReportDpf
+	bufferedReportWriter bufferedReportWriter
 }
 
 // NewHandler creates a new CollectorHandler with initialized values
-func NewHandler(batchSize int, batchDir string) http.Handler {
+func NewHandler(ctx context.Context, batchSize int, batchDir string) *CollectorHandler {
+	brw := bufferedReportWriter{
+		batchSize: batchSize,
+		batchDir:  batchDir,
+		wg:        &sync.WaitGroup{},
+		reportsCh: make(chan *AggregationReport),
+	}
+	brw.start(ctx, brw.reportsCh)
+
 	return &CollectorHandler{
-		BatchDir:    batchDir,
-		BatchSize:   batchSize,
-		reportBatch: make(map[string][]*pb.EncryptedPartialReportDpf),
+		bufferedReportWriter: brw,
 	}
 }
 
+// Handler helper function to get Handler for http.Server
+func (h *CollectorHandler) Handler() http.Handler {
+	return h
+}
+
 func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.err != nil {
-		http.Error(w, h.err.Error(), http.StatusInternalServerError)
-		log.Error(h.err.Error())
-		return
-	}
 
 	report := &AggregationReport{}
 	if err := codec.NewDecoder(req.Body, &codec.CborHandle{}).Decode(report); err != nil {
@@ -100,64 +99,89 @@ func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	batchKey1, batchKey2, err := collectPayloads(report, h.reportBatch)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Error(err.Error())
-		return
-	}
-
-	if len(h.reportBatch[batchKey1]) == h.BatchSize {
-		timestamp := time.Now().Format(time.RFC3339Nano)
-		ctx := req.Context()
-		log.Infof("Writing batch for %v to: %v", batchKey1, ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey1, timestamp)))
-		if err := writeBatch(ctx, h.reportBatch[batchKey1], ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey1, timestamp))); err != nil {
-			h.err = err
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			log.Error(err.Error())
-			return
-		}
-		h.reportBatch[batchKey1] = nil
-		log.Infof("Writing batch for %v to: %v", batchKey2, ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey2, timestamp)))
-		if err := writeBatch(ctx, h.reportBatch[batchKey2], ioutils.JoinPath(h.BatchDir, fmt.Sprintf("%s-%s", batchKey2, timestamp))); err != nil {
-			h.err = err
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			log.Error(err.Error())
-			return
-		}
-		h.reportBatch[batchKey2] = nil
-	}
-}
-
-func collectPayloads(report *AggregationReport, batch map[string][]*pb.EncryptedPartialReportDpf) (string, string, error) {
 	if got, want := len(report.Payloads), 2; got != want {
-		return "", "", fmt.Errorf("expected %d payloads, got %d", want, got)
+		errMsg := fmt.Sprintf("expected %d payloads, got %d", want, got)
+		http.Error(w, errMsg, http.StatusBadRequest)
+		log.Error(errMsg)
 	}
+
 	origin1, origin2 := report.Payloads[0].Origin, report.Payloads[1].Origin
 	if origin1 == origin2 {
-		return "", "", fmt.Errorf("secret shares sending to the same helper %q", origin1)
+		errMsg := fmt.Sprintf("secret shares sending to the same helper %q", origin1)
+		http.Error(w, errMsg, http.StatusBadRequest)
+		log.Error(errMsg)
 	}
 
-	ciphertext1, ciphertext2 := report.Payloads[0].Payload, report.Payloads[1].Payload
-	if origin1 > origin2 {
-		origin1, origin2 = origin2, origin1
-		ciphertext1, ciphertext2 = ciphertext2, ciphertext1
-	}
-
-	batchKey := fmt.Sprintf("%s+%s", origin1, origin2)
-	batchKey1, batchKey2 := batchKey+"+1", batchKey+"+2"
-	batch[batchKey1] = append(batch[batchKey1], &pb.EncryptedPartialReportDpf{
-		EncryptedReport: &pb.StandardCiphertext{Data: ciphertext1},
-		ContextInfo:     report.SharedInfo,
-	})
-	batch[batchKey2] = append(batch[batchKey2], &pb.EncryptedPartialReportDpf{
-		EncryptedReport: &pb.StandardCiphertext{Data: ciphertext2},
-		ContextInfo:     report.SharedInfo,
-	})
-	return batchKey1, batchKey2, nil
+	h.bufferedReportWriter.reportsCh <- report
 }
 
-func writeBatch(ctx context.Context, batch []*pb.EncryptedPartialReportDpf, filename string) error {
+// Shutdown function used in http.Server.RegisterOnShutdown to close channel and flush
+// remaining reports
+func (h *CollectorHandler) Shutdown() {
+	close(h.bufferedReportWriter.reportsCh)
+	h.bufferedReportWriter.wg.Wait()
+}
+
+type bufferedReportWriter struct {
+	batchSize  int
+	bufferSize int
+	batchDir   string
+	wg         *sync.WaitGroup
+	reportsCh  chan *AggregationReport
+}
+
+func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *AggregationReport) {
+	log.Infof("Starting buffered report writer with %v batch size", brw.batchSize)
+	batches := make(map[string][]*AggregationReport)
+
+	brw.wg.Add(1)
+	go func() {
+		for report := range reportsCh {
+			origin1, origin2 := report.Payloads[0].Origin, report.Payloads[1].Origin
+			if origin1 > origin2 {
+				origin1, origin2 = origin2, origin1
+			}
+			batchKey := fmt.Sprintf("%s+%s", origin1, origin2)
+			batches[batchKey] = append(batches[batchKey], report)
+			// TODO: harden against batchKey attacks
+			if len(batches[batchKey]) == brw.batchSize {
+				brw.writeReports(ctx, batchKey, batches[batchKey])
+				batches[batchKey] = []*AggregationReport{}
+			}
+		}
+		log.Info("Buffered Report Writer channel closed, flushing remaining reports...")
+		for key, batch := range batches {
+			if len(batch) > 0 {
+				brw.writeReports(ctx, key, batch)
+			}
+		}
+		brw.wg.Done()
+	}()
+}
+
+func (brw *bufferedReportWriter) writeReports(ctx context.Context, batchKey string, batch []*AggregationReport) {
+	reportBatches := make(map[string][]*pb.EncryptedPartialReportDpf, 2)
+	for _, report := range batch {
+		for _, payload := range report.Payloads {
+			reportBatches[payload.Origin] = append(reportBatches[payload.Origin], &pb.EncryptedPartialReportDpf{
+				EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
+				ContextInfo:     report.SharedInfo,
+			})
+		}
+	}
+
+	timestamp := time.Now().Format(time.RFC3339Nano)
+
+	for origin := range reportBatches {
+		log.Infof("Writing batch for %v to: %v", origin, ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, timestamp, origin)))
+		if err := brw.writeBatch(ctx, reportBatches[origin], ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, timestamp, origin))); err != nil {
+			log.Error(err.Error())
+			return
+		}
+	}
+}
+
+func (brw *bufferedReportWriter) writeBatch(ctx context.Context, batch []*pb.EncryptedPartialReportDpf, filename string) error {
 	var lines []string
 	for _, b := range batch {
 		line, err := dpfbrowsersimulator.FormatEncryptedPartialReport(b)

@@ -15,10 +15,14 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	log "github.com/golang/glog"
@@ -49,10 +53,41 @@ func main() {
 	log.Infof("Listening to %v", *address)
 	log.Infof("Batch size %v, Batch Dir: %v", *batchSize, *batchDir)
 
+	handler := collectorservice.NewHandler(context.Background(), *batchSize, *batchDir)
 	srv := &http.Server{
 		Addr:      *address,
-		Handler:   collectorservice.NewHandler(*batchSize, *batchDir),
+		Handler:   handler.Handler(),
 		TLSConfig: &tls.Config{},
 	}
-	log.Exit(srv.ListenAndServe())
+
+	// Create channel to listen for signals.
+	signalChan := make(chan os.Signal, 1)
+	// SIGINT handles Ctrl+C locally.
+	// SIGTERM handles e.g. Cloud Run termination signal.
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start HTTP server.
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	// Receive output from signalChan.
+	sig := <-signalChan
+	log.Infof("%s signal caught", sig)
+
+	// Timeout if waiting for connections to return idle.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Gracefully shutdown the server by waiting on existing requests (except websockets).
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Infof("server shutdown failed: %+v", err)
+	}
+
+	// Flush all remaining reports
+	handler.Shutdown()
+
+	log.Infof("server exited")
 }

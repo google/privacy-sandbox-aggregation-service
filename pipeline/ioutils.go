@@ -190,9 +190,11 @@ func writeGCSObject(ctx context.Context, data []byte, filename string) error {
 		return err
 	}
 	writer := client.Bucket(bucket).Object(object).NewWriter(ctx)
-	defer writer.Close()
-	_, err = writer.Write(data)
-	return err
+	if _, err := writer.Write(data); err != nil {
+		return err
+	}
+
+	return writer.Close()
 }
 
 func readGCSObject(ctx context.Context, filename string) ([]byte, error) {

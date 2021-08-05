@@ -52,7 +52,7 @@ var (
 	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
 	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	privateKeyParamsFile = flag.String("private_key_params_file", "", "Input file that stores the parameters required to read the standard private keys.")
+	privateKeyParamsURI  = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -70,7 +70,7 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsFile)
+	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
 	if err != nil {
 		log.Exit(ctx, err)
 	}

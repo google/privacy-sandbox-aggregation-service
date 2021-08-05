@@ -43,7 +43,6 @@ type ServerCfg struct {
 	AggregatePartialReportBinary string
 
 	PrivateKeyParamsURI             string
-	KmsKeyURI, KmsCredentialFile    string
 	DpfAggregatePartialReportBinary string
 }
 

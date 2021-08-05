@@ -38,8 +38,6 @@ var (
 	aggregatePartialReportBinary = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
 
 	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
-	kmsKeyURI                       = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
-	kmsCredentialFile               = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
 	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")

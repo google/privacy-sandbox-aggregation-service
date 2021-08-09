@@ -17,19 +17,23 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 
 	log "github.com/golang/glog"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
-	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 )
 
 var (
-	helperAddr1 = flag.String("helper_addr1", "", "Address of helper 1.")
-	helperAddr2 = flag.String("helper_addr2", "", "Address of helper 2.")
+	helperAddr1            = flag.String("helper_addr1", "", "Address of helper 1.")
+	helperAddr2            = flag.String("helper_addr2", "", "Address of helper 2.")
+	insecure               = flag.Bool("insecure", false, "Insecure helper connections - default false")
+	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
 	partialReportFile1        = flag.String("partial_report_file1", "", "Input partial report for helper 1.")
 	partialReportFile2        = flag.String("partial_report_file2", "", "Input partial report for helper 2.")
@@ -49,32 +53,46 @@ func main() {
 	if err != nil {
 		log.Exit(err)
 	}
-
+	systemRoots, err := x509.SystemCertPool()
+	if err != nil {
+		log.Exit(err)
+	}
+	cred := credentials.NewTLS(&tls.Config{
+		RootCAs: systemRoots,
+	})
 	// grpc.WithInsecure() is used for demonstration, and for real instances we should use more secure options.
-	conn1, err := grpc.Dial(*helperAddr1, grpc.WithInsecure())
+	var option grpc.DialOption
+	if *insecure {
+		option = grpc.WithInsecure()
+	} else {
+		option = grpc.WithTransportCredentials(cred)
+	}
+
+	conn1, err := grpc.Dial(*helperAddr1, option)
 	if err != nil {
 		log.Exit(err)
 	}
 	defer conn1.Close()
 
-	conn2, err := grpc.Dial(*helperAddr2, grpc.WithInsecure())
+	conn2, err := grpc.Dial(*helperAddr2, option)
 	if err != nil {
 		log.Exit(err)
 	}
 	defer conn2.Close()
 
-	params := &query.PrefixHistogramParams{
-		Prefixes:              &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
-		SumParams:             &pb.IncrementalDpfParameters{},
-		PartialReportFile1:    *partialReportFile1,
-		PartialReportFile2:    *partialReportFile2,
-		PartialAggregationDir: *partialAggregationDir,
-		ParamsDir:             *paramsDir,
-		Helper1:               grpcpb.NewAggregatorClient(conn1),
-		Helper2:               grpcpb.NewAggregatorClient(conn2),
+	prefixQuery := &query.PrefixHistogramQuery{
+		Prefixes:               &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
+		SumParams:              &pb.IncrementalDpfParameters{},
+		PartialReportFile1:     *partialReportFile1,
+		PartialReportFile2:     *partialReportFile2,
+		PartialAggregationDir:  *partialAggregationDir,
+		ParamsDir:              *paramsDir,
+		Helper1:                conn1,
+		Helper2:                conn2,
+		ImpersonatedSvcAccount: *impersonatedSvcAccount,
 	}
 
-	results, err := query.HierarchicalAggregation(ctx, params, *epsilon, expansionConfig)
+	results, err := prefixQuery.HierarchicalAggregation(ctx, *epsilon, expansionConfig)
 	if err != nil {
 		log.Exit(err)
 	}

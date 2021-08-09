@@ -113,8 +113,8 @@ func main() {
 		report, err := ioutils.MarshalCBOR(&collectorservice.AggregationReport{
 			SharedInfo: contextInfo,
 			Payloads: []*collectorservice.AggregationServicePayload{
-				{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: "example_key_id"},
-				{Origin: *helperOrigin2, Payload: report2.EncryptedReport.Data, KeyID: "example_key_id"},
+				{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: report1.KeyId},
+				{Origin: *helperOrigin2, Payload: report2.EncryptedReport.Data, KeyID: report2.KeyId},
 			},
 		})
 		if err != nil {

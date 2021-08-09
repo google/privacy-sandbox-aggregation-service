@@ -166,6 +166,7 @@ func (brw *bufferedReportWriter) writeReports(ctx context.Context, batchKey stri
 			reportBatches[payload.Origin] = append(reportBatches[payload.Origin], &pb.EncryptedPartialReportDpf{
 				EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
 				ContextInfo:     report.SharedInfo,
+				KeyId:           payload.KeyID,
 			})
 		}
 	}

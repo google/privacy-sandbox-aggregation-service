@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	log "github.com/golang/glog"
+	"cloud.google.com/go/pubsub"
 	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/gonum/floats"
 	"google.golang.org/api/iamcredentials/v1"
@@ -344,4 +345,29 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 
 	// Add AccessToken to grpcContext
 	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
+}
+
+// PublishTopic publishes a message to certain pubsub topic.
+func PublishTopic(ctx context.Context, pubsubProject, pubsubTopic, message string) error {
+	client, err := pubsub.NewClient(ctx, pubsubProject)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	topic := client.Topic(pubsubTopic)
+	ext, err := topic.Exists(ctx)
+	if err != nil {
+		return err
+	}
+	if !ext {
+		return fmt.Errorf("topic %q not exist", pubsubTopic)
+	}
+
+	msg := &pubsub.Message{
+		Data: []byte(message),
+	}
+
+	_, err = topic.Publish(ctx, msg).Get(ctx)
+	return err
 }

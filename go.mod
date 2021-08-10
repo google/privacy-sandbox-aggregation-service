@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	cloud.google.com/go v0.84.0
+  cloud.google.com/go/pubsub v1.13.0
 	cloud.google.com/go/storage v1.15.0
 	github.com/apache/beam v2.30.0+incompatible
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529
@@ -19,7 +20,8 @@ require (
 	github.com/ugorji/go/codec v1.2.6
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	gonum.org/v1/gonum v0.8.2
-	google.golang.org/grpc v1.38.0
+	google.golang.org/api v0.42.0
+  google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.27.0
 	google.golang.org/genproto v0.0.0-20210617175327-b9e0b3197ced
 )

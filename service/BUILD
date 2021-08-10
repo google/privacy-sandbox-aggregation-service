@@ -131,6 +131,7 @@ go_library(
         "@com_github_golang_glog//:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
+        "@com_google_cloud_go_pubsub//:go_default_library",
         "@org_golang_google_api//iamcredentials/v1:go_default_library",
         "@org_golang_google_api//idtoken:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
@@ -247,4 +248,22 @@ go_test(
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
     ],
+)
+
+container_image(
+    name = "pubsub_server_image",
+    base = "@static_base//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/pubsub_server"],
+    files = [":pubsub_server"],
+    stamp = True,
+)
+
+container_push(
+    name = "pubsub_server_image_publish",
+    format = "Docker",
+    image = ":pubsub_server_image",
+    registry = "gcr.io",
+    repository = "$(GCR_PROJECT)/pubsub_server",
+    tag = "$(VERSION)",
 )

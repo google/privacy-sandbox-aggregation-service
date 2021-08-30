@@ -174,8 +174,8 @@ func (brw *bufferedReportWriter) writeReports(ctx context.Context, batchKey stri
 	timestamp := time.Now().Format(time.RFC3339Nano)
 
 	for origin := range reportBatches {
-		log.Infof("Writing batch for %v to: %v", origin, ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, timestamp, origin)))
-		if err := brw.writeBatch(ctx, reportBatches[origin], ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, timestamp, origin))); err != nil {
+		log.Infof("Writing batch for %v to: %v", origin, ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, origin, timestamp)))
+		if err := brw.writeBatch(ctx, reportBatches[origin], ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, origin, timestamp))); err != nil {
 			log.Error(err.Error())
 			return
 		}

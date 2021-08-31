@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
@@ -156,8 +157,15 @@ go_test(
     srcs = ["query_test.go"],
     embed = [":query"],
     deps = [
+        "//pipeline:crypto_go_proto",
+        "//pipeline:cryptoio",
         "//pipeline:dpfaggregator",
+        "//pipeline:ioutils",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//testing/protocmp",
     ],
 )
 

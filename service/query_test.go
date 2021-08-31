@@ -2,13 +2,23 @@ package query
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func TestExpansionConfigReadWrite(t *testing.T) {
@@ -71,5 +81,187 @@ func TestHierarchicalResultsReadWrite(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantResults, got); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestMergePartialHistogram(t *testing.T) {
+	partial1 := map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 1},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+		2: &pb.PartialAggregationDpf{PartialSum: 1},
+		3: &pb.PartialAggregationDpf{PartialSum: 1},
+	}
+	partial2 := map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 0},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+		2: &pb.PartialAggregationDpf{PartialSum: 2},
+		3: &pb.PartialAggregationDpf{PartialSum: 3},
+	}
+
+	got, err := mergePartialHistogram(partial1, partial2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []dpfaggregator.CompleteHistogram{
+		{Index: 0, Sum: 1},
+		{Index: 1, Sum: 2},
+		{Index: 2, Sum: 3},
+		{Index: 3, Sum: 4},
+	}
+	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Index < b.Index })); diff != "" {
+		t.Errorf("results mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func writePartialHistogram(ctx context.Context, filename string, results map[uint64]*pb.PartialAggregationDpf) error {
+	var lines []string
+	for id, result := range results {
+		b, err := proto.Marshal(result)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, fmt.Sprintf("%d,%s", id, base64.StdEncoding.EncodeToString(b)))
+	}
+	return ioutils.WriteLines(ctx, lines, filename)
+}
+
+func TestGetNextLevelRequest(t *testing.T) {
+	config := &ExpansionConfig{
+		PrefixLengths:               []int32{1, 2},
+		PrivacyBudgetPerPrefix:      []float64{0.6, 0.4},
+		ExpansionThresholdPerPrefix: []uint64{2, 5},
+	}
+	partial1 := map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 1},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+	}
+	partial2 := map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 0},
+		1: &pb.PartialAggregationDpf{PartialSum: 2},
+	}
+
+	tmpDir, err := ioutil.TempDir("/tmp", "test-results")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %s", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	sharedDir1 := path.Join(tmpDir, "sharedDir1")
+	if err := os.MkdirAll(sharedDir1, 0755); err != nil {
+		t.Fatal(err)
+	}
+	sharedDir2 := path.Join(tmpDir, "sharedDir2")
+	if err := os.MkdirAll(sharedDir2, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	expandConfigFile := path.Join(tmpDir, "expand_config_file.json")
+	if err := WriteExpansionConfigFile(ctx, config, expandConfigFile); err != nil {
+		t.Fatal(err)
+	}
+
+	queryID := "unit-test"
+	partialFile1 := ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 1))
+	if err := writePartialHistogram(ctx, partialFile1, partial1); err != nil {
+		t.Fatal(err)
+	}
+	partialFile2 := ioutils.JoinPath(sharedDir2, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 1))
+	if err := writePartialHistogram(ctx, partialFile2, partial2); err != nil {
+		t.Fatal(err)
+	}
+
+	request := &AggregateRequest{
+		ExpandConfigFile:     expandConfigFile,
+		QueryID:              queryID,
+		TotalEpsilon:         0.5,
+		HelperSharedDir:      sharedDir1,
+		OtherHelperSharedDir: sharedDir2,
+	}
+	type aggParams struct {
+		NextRequest *AggregateRequest
+		SumParams   *pb.IncrementalDpfParameters
+		Prefixes    *pb.HierarchicalPrefixes
+	}
+	for i, want := range []*aggParams{
+		{
+			NextRequest: &AggregateRequest{
+				ExpandConfigFile:     expandConfigFile,
+				QueryID:              queryID,
+				TotalEpsilon:         0.5,
+				HelperSharedDir:      sharedDir1,
+				OtherHelperSharedDir: sharedDir2,
+				Level:                1,
+				SumParamsFile:        ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 1)),
+				PrefixesFile:         ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 1)),
+			},
+			SumParams: &pb.IncrementalDpfParameters{
+				Params: []*dpfpb.DpfParameters{
+					{LogDomainSize: 1, ElementBitsize: elementBitSize},
+				},
+			},
+			Prefixes: &pb.HierarchicalPrefixes{
+				Prefixes: []*pb.DomainPrefixes{
+					{},
+				},
+			},
+		},
+		{
+			NextRequest: &AggregateRequest{
+				ExpandConfigFile:     expandConfigFile,
+				QueryID:              queryID,
+				TotalEpsilon:         0.5,
+				HelperSharedDir:      sharedDir1,
+				OtherHelperSharedDir: sharedDir2,
+				Level:                2,
+				SumParamsFile:        ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 2)),
+				PrefixesFile:         ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 2)),
+			},
+			SumParams: &pb.IncrementalDpfParameters{
+				Params: []*dpfpb.DpfParameters{
+					{LogDomainSize: 1, ElementBitsize: elementBitSize},
+					{LogDomainSize: 2, ElementBitsize: elementBitSize},
+				},
+			},
+			Prefixes: &pb.HierarchicalPrefixes{
+				Prefixes: []*pb.DomainPrefixes{
+					{},
+					{Prefix: []uint64{1}},
+				},
+			},
+		},
+		{},
+	} {
+		got, err := GetNextLevelRequest(ctx, config, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 2 {
+			if got != nil {
+				t.Fatalf("expect nil next request, got %+v", got)
+			}
+			continue
+		}
+		if diff := cmp.Diff(want.NextRequest, got); diff != "" {
+			t.Fatalf("request mismatch for i=%d (-want +got):\n%s", i, diff)
+		}
+
+		gotSumParams, err := cryptoio.ReadDPFParameters(ctx, got.SumParamsFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(want.SumParams, gotSumParams, protocmp.Transform()); diff != "" {
+			t.Errorf("sum params mismatch (-want +got):\n%s", diff)
+		}
+
+		gotPrefixes, err := cryptoio.ReadPrefixes(ctx, got.PrefixesFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(want.Prefixes, gotPrefixes, protocmp.Transform()); diff != "" {
+			t.Errorf("prefixes mismatch (-want +got):\n%s", diff)
+		}
+		*request = *got
 	}
 }

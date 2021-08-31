@@ -23,14 +23,16 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/golang/glog"
-	"cloud.google.com/go/compute/metadata"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
+	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
 )
 
 // TODO: Store some of the flag values in manifest files.
@@ -40,8 +42,13 @@ var (
 	helperPublicKeysFile2 = flag.String("helper_public_keys_file2", "", "A file that contains the public encryption key from helper2.")
 	keyBitSize            = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 	conversionFile        = flag.String("conversion_file", "", "Input raw conversion data.")
+	conversionRaw         = flag.String("conversion_raw", "20,20", "Raw conversion.")
+	sendCount             = flag.Int("send_count", 1, "How many times to send each conversion.")
 	helperOrigin1         = flag.String("helper_origin1", "", "Origin of helper1.")
 	helperOrigin2         = flag.String("helper_origin2", "", "Origin of helper2.")
+	concurrency           = flag.Int("concurrency", 10, "Concurrent requests.")
+
+	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
 	version string // set by linker -X
 	build   string // set by linker -X
@@ -66,17 +73,27 @@ func main() {
 	log.Infof("Conversions file uri: %v", *conversionFile)
 	log.Infof("Helper origins. 1: %v, 2: %v", *helperOrigin1, *helperOrigin2)
 
-	tokenURL := fmt.Sprintf("/instance/service-accounts/default/identity?audience=%s", *address)
-	idToken, err := metadata.Get(tokenURL)
-	if err != nil {
-		log.Exit("metadata.Get: failed to query id_token: %+v", err)
-	}
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 100
+	t.MaxConnsPerHost = 100
+	t.MaxIdleConnsPerHost = 100
 
 	client := &http.Client{
-		Transport: &http.Transport{},
+		Timeout:   10 * time.Second,
+		Transport: t,
 	}
 
 	ctx := context.Background()
+	var token string
+	var err error
+	if token, err = utils.GetAuthorizationToken(ctx, *address, *impersonatedSvcAccount); err != nil {
+		log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
+	}
+
+	var conversionsSent uint64
+	requestCh := make(chan *bytes.Buffer)
+	done := setupRequestWorkers(client, token, *concurrency, &conversionsSent, requestCh)
+
 	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysFile1)
 	if err != nil {
 		log.Exit(err)
@@ -100,37 +117,85 @@ func main() {
 		log.Exit(err)
 	}
 
-	conversions, err := dpfbrowsersimulator.ReadRawConversions(ctx, *conversionFile, int32(*keyBitSize))
-	if err != nil {
-		log.Exit(err)
+	var conversions []dpfbrowsersimulator.RawConversion
+	if *conversionFile != "" {
+		var err error
+		conversions, err = dpfbrowsersimulator.ReadRawConversions(ctx, *conversionFile, int32(*keyBitSize))
+		if err != nil {
+			log.Exit(err)
+		}
+	} else {
+		conversion, err := dpfbrowsersimulator.ParseRawConversion(*conversionRaw, int32(*keyBitSize))
+		if err != nil {
+			log.Exit(err)
+		}
+		conversions = append(conversions, conversion)
 	}
 
-	for _, c := range conversions {
-		report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, int32(*keyBitSize), publicKeyInfo1, publicKeyInfo2, contextInfo)
-		if err != nil {
-			log.Exit(err)
-		}
-		report, err := ioutils.MarshalCBOR(&collectorservice.AggregationReport{
-			SharedInfo: contextInfo,
-			Payloads: []*collectorservice.AggregationServicePayload{
-				{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: report1.KeyId},
-				{Origin: *helperOrigin2, Payload: report2.EncryptedReport.Data, KeyID: report2.KeyId},
-			},
-		})
-		if err != nil {
-			log.Exit(err)
-		}
+	if *sendCount <= 0 {
+		*sendCount = 1
+	}
 
-		req, err := http.NewRequest("POST", *address, bytes.NewBuffer(report))
-		if err != nil {
-			log.Exit(err)
-		}
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", idToken))
-		req.Header.Set("Content-Type", "encrypted-report")
-
-		_, err = client.Do(req)
-		if err != nil {
-			log.Exit(err)
+	for i := 0; i < *sendCount; i++ {
+		for _, c := range conversions {
+			report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, int32(*keyBitSize), publicKeyInfo1, publicKeyInfo2, contextInfo)
+			if err != nil {
+				log.Exit(err)
+			}
+			report, err := ioutils.MarshalCBOR(&collectorservice.AggregationReport{
+				SharedInfo: contextInfo,
+				Payloads: []*collectorservice.AggregationServicePayload{
+					{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: report1.KeyId},
+					{Origin: *helperOrigin2, Payload: report2.EncryptedReport.Data, KeyID: report2.KeyId},
+				},
+			})
+			if err != nil {
+				log.Exit(err)
+			}
+			requestCh <- bytes.NewBuffer(report)
 		}
 	}
+	close(requestCh)
+	<-done
+	log.Infof("All %v conversions sent!", conversionsSent)
+}
+
+func setupRequestWorkers(client *http.Client, token string, concurrency int, sent *uint64, in <-chan *bytes.Buffer) <-chan bool {
+	var wg sync.WaitGroup
+	done := make(chan bool)
+
+	worker := func(in <-chan *bytes.Buffer) {
+		for data := range in {
+			// send request
+			req, err := http.NewRequest("POST", *address, data)
+			if err != nil {
+				log.Exit(err)
+			}
+
+			if token != "" {
+				req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+			}
+
+			req.Header.Set("Content-Type", "encrypted-report")
+
+			_, err = client.Do(req)
+			if err != nil {
+				log.Exit(err)
+			}
+			atomic.AddUint64(sent, 1)
+			log.Infof("%v Conversions sent.", *sent)
+		}
+		wg.Done()
+	}
+
+	for i := 0; i < concurrency; i++ {
+		go worker(in)
+	}
+	wg.Add(concurrency)
+
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	return done
 }

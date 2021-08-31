@@ -72,7 +72,8 @@ func (fn *parseRawConversionFn) Setup(ctx context.Context) {
 	fn.countConversion = beam.NewCounter("aggregation", "parserawConversionFn_conversion_count")
 }
 
-func parseRawConversion(line string, keyBitSize int32) (RawConversion, error) {
+//ParseRawConversion parses a raw conversion into RawConversion
+func ParseRawConversion(line string, keyBitSize int32) (RawConversion, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
 		return RawConversion{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
@@ -91,7 +92,7 @@ func parseRawConversion(line string, keyBitSize int32) (RawConversion, error) {
 }
 
 func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(RawConversion)) error {
-	conversion, err := parseRawConversion(line, fn.KeyBitSize)
+	conversion, err := ParseRawConversion(line, fn.KeyBitSize)
 	if err != nil {
 		return err
 	}
@@ -365,7 +366,7 @@ func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize i
 
 	var conversions []RawConversion
 	for _, l := range lines {
-		conversion, err := parseRawConversion(l, keyBitSize)
+		conversion, err := ParseRawConversion(l, keyBitSize)
 		if err != nil {
 			return nil, err
 		}

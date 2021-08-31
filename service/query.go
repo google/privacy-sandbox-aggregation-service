@@ -25,14 +25,13 @@ import (
 	log "github.com/golang/glog"
 	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/gonum/floats"
-	"google.golang.org/api/iamcredentials/v1"
-	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	grpcMetadata "google.golang.org/grpc/metadata"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	cryptopb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
@@ -89,7 +88,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			var err error
 			newCtx, err = addGRPCAuthHeaderToContext(newCtx, audience, phq.ImpersonatedSvcAccount)
 			if err != nil {
-				log.Errorf("Helper Server 1 - Auth Error: %v", err)
+				log.Errorf("Helper Server 1 - Continuing without auth header: %v", err)
 				return err
 			}
 		}
@@ -115,7 +114,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			var err error
 			newCtx, err = addGRPCAuthHeaderToContext(newCtx, audience, phq.ImpersonatedSvcAccount)
 			if err != nil {
-				log.Errorf("Helper Server 2 - Auth Error: %v", err)
+				log.Errorf("Helper Server 2 - Continuing without auth header: %v", err)
 				return err
 			}
 		}
@@ -301,45 +300,9 @@ func extendPrefixDomains(sumParams *cryptopb.IncrementalDpfParameters, prefixLen
 }
 
 func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAccount string) (context.Context, error) {
-	// First we try the idtoken package, which only works for service accounts
-	var token string
-	tokenSource, err := idtoken.NewTokenSource(ctx, audience)
+	token, err := utils.GetAuthorizationToken(ctx, audience, impersonatedSvcAccount)
 	if err != nil {
-		if !strings.Contains(err.Error(), `idtoken: credential must be service_account, found`) {
-			return nil, err
-		}
-		log.Info("no service account found, using application default credentials to impersonate service account")
-		if impersonatedSvcAccount == "" {
-			return nil, fmt.Errorf("Auth Error, no svc account for impersonation set (flag 'impersonated_svc_account'): %v", err)
-		}
-		// TODO Switch to this implementation once google api upgraded to v0.52.0+
-		// tokenSource, err = impersonate.IDTokenSource(ctx, impersonate.IDTokenConfig{
-		// 	Audience:        audience,
-		// 	TargetPrincipal: impersonatedSvcAccount,
-		// 	IncludeEmail:    true,
-		// })
-		// if err != nil {
-		// 	return nil, err
-		// }
-
-		svc, err := iamcredentials.NewService(ctx)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := svc.Projects.ServiceAccounts.GenerateIdToken("projects/-/serviceAccounts/"+impersonatedSvcAccount, &iamcredentials.GenerateIdTokenRequest{
-			Audience: audience,
-		}).Do()
-		if err != nil {
-			return nil, err
-		}
-		token = resp.Token
-
-	} else {
-		t, err := tokenSource.Token()
-		if err != nil {
-			return nil, fmt.Errorf("TokenSource.Token: %v", err)
-		}
-		token = t.AccessToken
+		return ctx, err
 	}
 
 	// Add AccessToken to grpcContext

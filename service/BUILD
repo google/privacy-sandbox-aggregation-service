@@ -33,6 +33,17 @@ go_proto_library(
     ],
 )
 
+go_library(
+    name = "utils",
+    srcs = ["utils.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/utils",
+    deps = [
+        "@com_github_golang_glog//:go_default_library",
+        "@org_golang_google_api//iamcredentials/v1:go_default_library",
+        "@org_golang_google_api//idtoken:go_default_library",
+    ],
+)
+
 go_binary(
     name = "server",
     srcs = ["server.go"],
@@ -124,6 +135,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/query",
     deps = [
         ":service_go_grpc_proto",
+        ":utils",
         "//pipeline:crypto_go_proto",
         "//pipeline:cryptoio",
         "//pipeline:dpfaggregator",
@@ -131,8 +143,6 @@ go_library(
         "@com_github_golang_glog//:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
-        "@org_golang_google_api//iamcredentials/v1:go_default_library",
-        "@org_golang_google_api//idtoken:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//metadata:go_default_library",
         "@org_golang_x_sync//errgroup:go_default_library",

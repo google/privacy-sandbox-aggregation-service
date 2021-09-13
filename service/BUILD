@@ -39,7 +39,10 @@ go_library(
     srcs = ["utils.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/utils",
     deps = [
+        "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
+        "@com_google_cloud_go_pubsub//:go_default_library",
+        "@com_google_cloud_go_storage//:go_default_library",
         "@org_golang_google_api//iamcredentials/v1:go_default_library",
         "@org_golang_google_api//idtoken:go_default_library",
     ],
@@ -265,4 +268,76 @@ go_test(
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
     ],
+)
+
+go_binary(
+    name = "simulate_reporter_hierarchical_aggregation_pubsub",
+    srcs = ["simulate_reporter_hierarchical_aggregation_pubsub.go"],
+    deps = [
+        ":aggregatorservice",
+        ":query",
+        ":utils",
+        "@com_github_golang_glog//:go_default_library",
+        "@com_github_pborman_uuid//:uuid",
+        "@com_google_cloud_go_pubsub//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "aggregator_server",
+    srcs = ["aggregator_server.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+        "-X",
+        "main.version=$(VERSION)",
+    ],
+    x_defs = {"build": "{BUILD_TIMESTAMP}"},
+    deps = [
+        ":aggregatorservice",
+        ":query",
+        "@com_github_golang_glog//:go_default_library",
+    ],
+)
+
+go_library(
+    name = "aggregatorservice",
+    srcs = ["aggregatorservice.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/aggregatorservice",
+    deps = [
+        ":query",
+        ":utils",
+        "//pipeline:ioutils",
+        "@com_github_golang_glog//:go_default_library",
+        "@com_google_cloud_go_pubsub//:go_default_library",
+        "@com_google_cloud_go_storage//:go_default_library",
+    ],
+)
+
+container_image(
+    name = "aggregator_server_image",
+    base = "@static_base//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/aggregator_server"],
+    files = [
+        ":aggregator_server",
+        "//pipeline:dpf_aggregate_partial_report",
+    ],
+    stamp = True,
+)
+
+container_push(
+    name = "aggregator_server_image_publish",
+    format = "Docker",
+    image = ":aggregator_server_image",
+    registry = "gcr.io",
+    repository = "$(GCR_PROJECT)/aggregator_server",
+    tag = "$(VERSION)",
+)
+
+go_test(
+    name = "utils_test",
+    size = "small",
+    srcs = ["utils_test.go"],
+    embed = [":utils"],
 )

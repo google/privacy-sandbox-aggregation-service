@@ -238,56 +238,60 @@ const (
 	DefaultPartialResultFile = "PARTIALRESULT"
 )
 
+// HelperSharedInfo stores information that is shared by other helpers.
+type HelperSharedInfo struct {
+	Origin string
+	// The shared directory where the other helpers will read the intermediate results.
+	SharedDir   string
+	PubSubTopic string
+}
+
 // AggregateRequest contains infomation that are necessary for the query.
 type AggregateRequest struct {
-	PartialReportFile, OtherPartialReportFile string
-	HelperOrigin, OtherHelperOrigin           string
-	PrefixesFile, SumParamsFile               string
-	ExpandConfigFile                          string
-	QueryID                                   string
-	Level                                     int32
-	TotalEpsilon                              float64
+	PartialReportURI          string
+	PrefixesURI, SumParamsURI string
+	ExpandConfigURI           string
+	QueryID                   string
+	Level                     int32
+	TotalEpsilon              float64
 
-	// TODO: the following infomation should be fetched between helpers, not provided by the query.
-	HelperSharedDir, OtherHelperSharedDir         string
-	HelperPubSubProject, OtherHelperPubSubProject string
-	HelperPubSubTopic, OtherHelperPubSubTopic     string
+	PartnerSharedInfo *HelperSharedInfo
+	ResultDir         string
 }
 
 // GetRequestPartialResultURI returns the URI of the expected result file for a request.
-func GetRequestPartialResultURI(sharedDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultPartialResultFile, request.Level))
+func GetRequestPartialResultURI(sharedDir, queryID string, level int32) string {
+	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, level))
 }
 
-// GetNextLevelRequest determines what to do for the next-level aggregation.
-//
-// Level 0 means that the aggregation is not started yet.
-func GetNextLevelRequest(ctx context.Context, config *ExpansionConfig, request *AggregateRequest) (*AggregateRequest, error) {
-	// If the input request already covers all the wanted hierarchies, return nil.
-	if int(request.Level) >= len(config.PrefixLengths) {
-		return nil, nil
+// GetRequestParams calculates the parameters for the aggregation request.
+func GetRequestParams(ctx context.Context, config *ExpansionConfig, request *AggregateRequest, sharedDir, partnerSharedDir string) (*AggregateRequest, error) {
+	finalLevel := int32(len(config.PrefixLengths)) - 1
+	if request.Level > finalLevel {
+		return nil, fmt.Errorf("expect request level <= final level %d, got %d", finalLevel, request.Level)
 	}
 
 	var (
-		curPrefixes  *cryptopb.HierarchicalPrefixes
-		curSumParams *cryptopb.IncrementalDpfParameters
+		prePrefixes  *cryptopb.HierarchicalPrefixes
+		preSumParams *cryptopb.IncrementalDpfParameters
 		results      []dpfaggregator.CompleteHistogram
 		err          error
 	)
+	// Read the parameters and results of the previous level.
 	if request.Level > 0 {
-		curPrefixes, err = cryptoio.ReadPrefixes(ctx, request.PrefixesFile)
+		prePrefixes, err = cryptoio.ReadPrefixes(ctx, request.PrefixesURI)
 		if err != nil {
 			return nil, err
 		}
-		curSumParams, err = cryptoio.ReadDPFParameters(ctx, request.SumParamsFile)
+		preSumParams, err = cryptoio.ReadDPFParameters(ctx, request.SumParamsURI)
 		if err != nil {
 			return nil, err
 		}
-		partial1, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(request.HelperSharedDir, request))
+		partial1, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(sharedDir, request.QueryID, request.Level-1))
 		if err != nil {
 			return nil, err
 		}
-		partial2, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(request.OtherHelperSharedDir, request))
+		partial2, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(partnerSharedDir, request.QueryID, request.Level-1))
 		if err != nil {
 			return nil, err
 		}
@@ -298,23 +302,22 @@ func GetNextLevelRequest(ctx context.Context, config *ExpansionConfig, request *
 		}
 	}
 
-	nxtSumParams, nxtPrefixes, err := getNextLevelParams(curSumParams, curPrefixes, results, config)
+	curSumParams, curPrefixes, err := getCurrentLevelParams(preSumParams, prePrefixes, results, config)
 	if err != nil {
 		return nil, err
 	}
 
-	request.Level = int32(len(nxtSumParams.Params))
-	nxtSumParamsFile := getRequestSumParamsURI(request.HelperSharedDir, request)
-	if err := cryptoio.SaveDPFParameters(ctx, nxtSumParamsFile, nxtSumParams); err != nil {
+	curSumParamsFile := getRequestSumParamsURI(sharedDir, request)
+	if err := cryptoio.SaveDPFParameters(ctx, curSumParamsFile, curSumParams); err != nil {
 		return nil, err
 	}
-	nxtPrefixesFile := getRequestPrefixesURI(request.HelperSharedDir, request)
-	if err := cryptoio.SavePrefixes(ctx, nxtPrefixesFile, nxtPrefixes); err != nil {
+	curPrefixesFile := getRequestPrefixesURI(sharedDir, request)
+	if err := cryptoio.SavePrefixes(ctx, curPrefixesFile, curPrefixes); err != nil {
 		return nil, err
 	}
 
-	request.SumParamsFile = nxtSumParamsFile
-	request.PrefixesFile = nxtPrefixesFile
+	request.SumParamsURI = curSumParamsFile
+	request.PrefixesURI = curPrefixesFile
 	return request, nil
 }
 
@@ -380,7 +383,7 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
-func getNextLevelParams(sumParams *cryptopb.IncrementalDpfParameters, prefixes *cryptopb.HierarchicalPrefixes, curResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*cryptopb.IncrementalDpfParameters, *cryptopb.HierarchicalPrefixes, error) {
+func getCurrentLevelParams(sumParams *cryptopb.IncrementalDpfParameters, prefixes *cryptopb.HierarchicalPrefixes, curResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*cryptopb.IncrementalDpfParameters, *cryptopb.HierarchicalPrefixes, error) {
 	if curResults == nil {
 		return &cryptopb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{{
 			LogDomainSize:  config.PrefixLengths[0],
@@ -415,9 +418,9 @@ func mergePartialHistogram(partial1, partial2 map[uint64]*cryptopb.PartialAggreg
 }
 
 func getRequestPrefixesURI(sharedDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(request.HelperSharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultPrefixesFile, request.Level))
+	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultPrefixesFile, request.Level))
 }
 
 func getRequestSumParamsURI(sharedDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(request.HelperSharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultSumParamsFile, request.Level))
+	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultSumParamsFile, request.Level))
 }

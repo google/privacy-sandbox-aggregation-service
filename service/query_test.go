@@ -157,44 +157,40 @@ func TestGetNextLevelRequest(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	expandConfigFile := path.Join(tmpDir, "expand_config_file.json")
-	if err := WriteExpansionConfigFile(ctx, config, expandConfigFile); err != nil {
+	expandConfigURI := path.Join(tmpDir, "expand_config_file.json")
+	if err := WriteExpansionConfigFile(ctx, config, expandConfigURI); err != nil {
 		t.Fatal(err)
 	}
 
 	queryID := "unit-test"
-	partialFile1 := ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 1))
+	partialFile1 := ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 0))
 	if err := writePartialHistogram(ctx, partialFile1, partial1); err != nil {
 		t.Fatal(err)
 	}
-	partialFile2 := ioutils.JoinPath(sharedDir2, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 1))
+	partialFile2 := ioutils.JoinPath(sharedDir2, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 0))
 	if err := writePartialHistogram(ctx, partialFile2, partial2); err != nil {
 		t.Fatal(err)
 	}
 
 	request := &AggregateRequest{
-		ExpandConfigFile:     expandConfigFile,
-		QueryID:              queryID,
-		TotalEpsilon:         0.5,
-		HelperSharedDir:      sharedDir1,
-		OtherHelperSharedDir: sharedDir2,
+		ExpandConfigURI: expandConfigURI,
+		QueryID:         queryID,
+		TotalEpsilon:    0.5,
 	}
 	type aggParams struct {
-		NextRequest *AggregateRequest
-		SumParams   *pb.IncrementalDpfParameters
-		Prefixes    *pb.HierarchicalPrefixes
+		Request   *AggregateRequest
+		SumParams *pb.IncrementalDpfParameters
+		Prefixes  *pb.HierarchicalPrefixes
 	}
 	for i, want := range []*aggParams{
 		{
-			NextRequest: &AggregateRequest{
-				ExpandConfigFile:     expandConfigFile,
-				QueryID:              queryID,
-				TotalEpsilon:         0.5,
-				HelperSharedDir:      sharedDir1,
-				OtherHelperSharedDir: sharedDir2,
-				Level:                1,
-				SumParamsFile:        ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 1)),
-				PrefixesFile:         ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 1)),
+			Request: &AggregateRequest{
+				ExpandConfigURI: expandConfigURI,
+				QueryID:         queryID,
+				TotalEpsilon:    0.5,
+				Level:           0,
+				SumParamsURI:    ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 0)),
+				PrefixesURI:     ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 0)),
 			},
 			SumParams: &pb.IncrementalDpfParameters{
 				Params: []*dpfpb.DpfParameters{
@@ -208,15 +204,13 @@ func TestGetNextLevelRequest(t *testing.T) {
 			},
 		},
 		{
-			NextRequest: &AggregateRequest{
-				ExpandConfigFile:     expandConfigFile,
-				QueryID:              queryID,
-				TotalEpsilon:         0.5,
-				HelperSharedDir:      sharedDir1,
-				OtherHelperSharedDir: sharedDir2,
-				Level:                2,
-				SumParamsFile:        ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 2)),
-				PrefixesFile:         ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 2)),
+			Request: &AggregateRequest{
+				ExpandConfigURI: expandConfigURI,
+				QueryID:         queryID,
+				TotalEpsilon:    0.5,
+				Level:           1,
+				SumParamsURI:    ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 1)),
+				PrefixesURI:     ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 1)),
 			},
 			SumParams: &pb.IncrementalDpfParameters{
 				Params: []*dpfpb.DpfParameters{
@@ -233,21 +227,18 @@ func TestGetNextLevelRequest(t *testing.T) {
 		},
 		{},
 	} {
-		got, err := GetNextLevelRequest(ctx, config, request)
+		got, err := GetRequestParams(ctx, config, request, sharedDir1, sharedDir2)
 		if err != nil {
+			if err.Error() == "expect request level <= final level 1, got 2" {
+				continue
+			}
 			t.Fatal(err)
 		}
-		if i == 2 {
-			if got != nil {
-				t.Fatalf("expect nil next request, got %+v", got)
-			}
-			continue
-		}
-		if diff := cmp.Diff(want.NextRequest, got); diff != "" {
+		if diff := cmp.Diff(want.Request, got); diff != "" {
 			t.Fatalf("request mismatch for i=%d (-want +got):\n%s", i, diff)
 		}
 
-		gotSumParams, err := cryptoio.ReadDPFParameters(ctx, got.SumParamsFile)
+		gotSumParams, err := cryptoio.ReadDPFParameters(ctx, got.SumParamsURI)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -255,7 +246,7 @@ func TestGetNextLevelRequest(t *testing.T) {
 			t.Errorf("sum params mismatch (-want +got):\n%s", diff)
 		}
 
-		gotPrefixes, err := cryptoio.ReadPrefixes(ctx, got.PrefixesFile)
+		gotPrefixes, err := cryptoio.ReadPrefixes(ctx, got.PrefixesURI)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,5 +254,6 @@ func TestGetNextLevelRequest(t *testing.T) {
 			t.Errorf("prefixes mismatch (-want +got):\n%s", diff)
 		}
 		*request = *got
+		request.Level++
 	}
 }

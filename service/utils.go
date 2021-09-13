@@ -17,12 +17,17 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	log "github.com/golang/glog"
+	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/storage"
 	"google.golang.org/api/iamcredentials/v1"
 	"google.golang.org/api/idtoken"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 )
 
 // GetAuthorizationToken gets GCP service auth token based env service account or impersonated service account through default credentials
@@ -68,4 +73,47 @@ func GetAuthorizationToken(ctx context.Context, audience, impersonatedSvcAccount
 		token = t.AccessToken
 	}
 	return token, nil
+}
+
+// IsGCSObjectExist checks if a GCS object exists.
+func IsGCSObjectExist(ctx context.Context, client *storage.Client, filename string) (bool, error) {
+	bucket, object, err := ioutils.ParseGCSPath(filename)
+	if err != nil {
+		return false, err
+	}
+	_, err = client.Bucket(bucket).Object(object).Attrs(ctx)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+// PublishRequest publishes on a topic with the aggregation request as the content.
+func PublishRequest(ctx context.Context, client *pubsub.Client, pubsubTopic string, content interface{}) error {
+	topic := client.Topic(pubsubTopic)
+
+	b, err := json.Marshal(content)
+	if err != nil {
+		return err
+	}
+	log.Infof("topic: %s; request: %s", pubsubTopic, string(b))
+
+	_, err = topic.Publish(ctx, &pubsub.Message{Data: b}).Get(ctx)
+	return err
+}
+
+// ParsePubSubResourceName parses the PubSub resource name and get the project ID and topic or subscription.
+//
+// Details about the resource names: https://cloud.google.com/pubsub/docs/admin#resource_names
+func ParsePubSubResourceName(name string) (projectID, relativeName string, err error) {
+	strs := strings.Split(name, "/")
+	if len(strs) != 4 || strs[0] != "projects" || (strs[2] != "subscriptions" && strs[2] != "topics") {
+		err = fmt.Errorf("expect format %s, got %s", "projects/project-identifier/collection/relative-name", name)
+		return
+	}
+	projectID, relativeName = strs[1], strs[3]
+	return
 }

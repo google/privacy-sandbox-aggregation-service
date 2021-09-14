@@ -369,8 +369,8 @@ def go_dependencies():
         name = "com_github_hashicorp_go_retryablehttp",
         build_file_proto_mode = "disable_global",
         importpath = "github.com/hashicorp/go-retryablehttp",
-        sum = "h1:1BZvpawXoJCWX6pNtow9+rpEj+3itIlutiqnntI6jOE=",
-        version = "v0.5.4",
+        sum = "h1:8/CAEZt/+F7kR7GevNHulKkUjLht3CPmn7egmhieNKo=",
+        version = "v0.6.7",
     )
     go_repository(
         name = "com_github_hashicorp_go_rootcerts",

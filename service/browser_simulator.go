@@ -21,6 +21,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"sync"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -73,15 +75,7 @@ func main() {
 	log.Infof("Conversions file uri: %v", *conversionFile)
 	log.Infof("Helper origins. 1: %v, 2: %v", *helperOrigin1, *helperOrigin2)
 
-	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.MaxIdleConns = 100
-	t.MaxConnsPerHost = 100
-	t.MaxIdleConnsPerHost = 100
-
-	client := &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: t,
-	}
+	client := retryablehttp.NewClient().StandardClient()
 
 	ctx := context.Background()
 	var token string
@@ -169,7 +163,8 @@ func setupRequestWorkers(client *http.Client, token string, concurrency int, sen
 			// send request
 			req, err := http.NewRequest("POST", *address, data)
 			if err != nil {
-				log.Exit(err)
+				log.Error(err)
+				continue
 			}
 
 			if token != "" {
@@ -178,12 +173,21 @@ func setupRequestWorkers(client *http.Client, token string, concurrency int, sen
 
 			req.Header.Set("Content-Type", "encrypted-report")
 
-			_, err = client.Do(req)
+			resp, err := client.Do(req)
 			if err != nil {
-				log.Exit(err)
+				log.Error(err)
+				continue
 			}
-			atomic.AddUint64(sent, 1)
-			log.Infof("%v Conversions sent.", *sent)
+			switch resp.Status {
+
+			case "200 OK":
+				atomic.AddUint64(sent, 1)
+				log.Infof("%v Conversions sent.", *sent)
+			default:
+				body, _ := ioutil.ReadAll(resp.Body)
+				log.Infof("%v: %s", resp.Status, string(body))
+			}
+			resp.Body.Close()
 		}
 		wg.Done()
 	}

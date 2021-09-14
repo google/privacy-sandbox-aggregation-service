@@ -236,6 +236,7 @@ go_binary(
         "//pipeline:dpfbrowsersimulator",
         "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
+        "@com_github_hashicorp_go_retryablehttp//:go_default_library",
     ],
 )
 

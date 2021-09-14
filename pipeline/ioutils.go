@@ -162,6 +162,12 @@ func WriteLines(ctx context.Context, lines []string, filename string) error {
 		defer cw.Close()
 		buf = bufio.NewWriter(cw)
 	} else {
+		// create all dirs if not existing, ignore errors
+		idx := strings.LastIndex(filename, "/")
+		if idx != -1 {
+			os.MkdirAll(filename[:idx], os.ModePerm)
+		}
+
 		fs, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return err

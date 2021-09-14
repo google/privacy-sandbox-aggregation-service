@@ -69,7 +69,7 @@ func TestCollectPayloads(t *testing.T) {
 	want2 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
 
 	filesWritten := false
-
+	dir = dir + "/helper1+helper2"
 	fileInfo, err := ioutil.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -157,19 +157,19 @@ func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
 
 	filesWritten := false
 
-	fileInfo, err := ioutil.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, file := range fileInfo {
-		filesWritten = true
-		matchedFile := false
-		partialReports, err := readFile(dir, file.Name())
+	for key, expected := range originCombos {
+		bdir := dir + "/" + key
+		fileInfo, err := ioutil.ReadDir(bdir)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for key, expected := range originCombos {
+		for _, file := range fileInfo {
+			filesWritten = true
+			matchedFile := false
+			partialReports, err := readFile(bdir, file.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
 			if strings.HasPrefix(file.Name(), key) {
 				matchedFile = true
 				matchedOriginCombo[key] = true
@@ -183,9 +183,9 @@ func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
 					}
 				}
 			}
-		}
-		if !matchedFile {
-			t.Errorf("No matching expected originCombo for file %s", file.Name())
+			if !matchedFile {
+				t.Errorf("No matching expected originCombo for file %s", file.Name())
+			}
 		}
 	}
 

@@ -182,6 +182,7 @@ go_library(
         "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
+        "@org_golang_x_sync//errgroup:go_default_library",
     ],
 )
 

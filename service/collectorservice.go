@@ -24,12 +24,17 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"golang.org/x/sync/errgroup"
 	"github.com/ugorji/go/codec"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
+
+/* 20% reportsChannel buffer to allow for reports being processed while writing batches but
+limiting outstanding reports to cap memory consumption */
+const reportsChannelBufferFactor = 0.2
 
 // The struct tags in the following structs need to be consistent with the field names defined in:
 // https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#aggregate-attribution-reports
@@ -75,7 +80,7 @@ func NewHandler(ctx context.Context, batchSize int, batchDir string) *CollectorH
 		batchSize: batchSize,
 		batchDir:  batchDir,
 		wg:        &sync.WaitGroup{},
-		reportsCh: make(chan *AggregationReport),
+		reportsCh: make(chan *AggregationReport, int(float64(batchSize)*reportsChannelBufferFactor)),
 	}
 	brw.start(ctx, brw.reportsCh)
 
@@ -132,8 +137,8 @@ type bufferedReportWriter struct {
 
 func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *AggregationReport) {
 	log.Infof("Starting buffered report writer with %v batch size", brw.batchSize)
-	batches := make(map[string][]*AggregationReport)
 
+	batches := make(map[string]map[string][]string)
 	brw.wg.Add(1)
 	go func() {
 		for report := range reportsCh {
@@ -142,55 +147,68 @@ func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *Ag
 				origin1, origin2 = origin2, origin1
 			}
 			batchKey := fmt.Sprintf("%s+%s", origin1, origin2)
-			batches[batchKey] = append(batches[batchKey], report)
+			if batches[batchKey] == nil {
+				batches[batchKey] = make(map[string][]string)
+			}
+			// Use temp map for catching if any payload fails to be processed
+			tempMap := make(map[string]string)
+			itemsCount := 0
+			for _, payload := range report.Payloads {
+				encryptedPayload, err := dpfbrowsersimulator.FormatEncryptedPartialReport(&pb.EncryptedPartialReportDpf{
+					EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
+					ContextInfo:     report.SharedInfo,
+					KeyId:           payload.KeyID,
+				})
+				if err != nil {
+					log.Error(err)
+					break
+				}
+				tempMap[payload.Origin] = encryptedPayload
+				itemsCount++
+			}
+			// Skip shares where not all payloads could be processed
+			if len(report.Payloads) != itemsCount {
+				log.Errorf("Error during processing of payload")
+				continue
+			}
+
+			for origin, encryptedPayload := range tempMap {
+				batches[batchKey][origin] = append(batches[batchKey][origin], encryptedPayload)
+			}
+
 			// TODO: harden against batchKey attacks
-			if len(batches[batchKey]) == brw.batchSize {
-				brw.writeReports(ctx, batchKey, batches[batchKey])
-				batches[batchKey] = []*AggregationReport{}
+			if len(batches[batchKey][origin1]) == brw.batchSize {
+				brw.writeBatchKeyBatches(ctx, batchKey, batches[batchKey])
+				// reset batchKey map
+				batches[batchKey] = make(map[string][]string)
 			}
 		}
 		log.Info("Buffered Report Writer channel closed, flushing remaining reports...")
-		for key, batch := range batches {
-			if len(batch) > 0 {
-				brw.writeReports(ctx, key, batch)
-			}
+		for batchKey, reports := range batches {
+			brw.writeBatchKeyBatches(ctx, batchKey, reports)
 		}
 		brw.wg.Done()
 	}()
 }
 
-func (brw *bufferedReportWriter) writeReports(ctx context.Context, batchKey string, batch []*AggregationReport) {
-	reportBatches := make(map[string][]*pb.EncryptedPartialReportDpf, 2)
-	for _, report := range batch {
-		for _, payload := range report.Payloads {
-			reportBatches[payload.Origin] = append(reportBatches[payload.Origin], &pb.EncryptedPartialReportDpf{
-				EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
-				ContextInfo:     report.SharedInfo,
-				KeyId:           payload.KeyID,
-			})
-		}
+func (brw *bufferedReportWriter) writeBatchKeyBatches(ctx context.Context, batchKey string, reports map[string][]string) {
+	start := time.Now()
+	timestamp := start.Format(time.RFC3339Nano)
+	g, ctx := errgroup.WithContext(ctx)
+	for origin, encryptedReports := range reports {
+		origin, encryptedReports := origin, encryptedReports // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			if len(encryptedReports) > 0 {
+				batchedReportsURI := ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s/%s+%s+%s", batchKey, batchKey, origin, timestamp))
+				log.Infof("Writing %v records in batch for %v to: %v", len(encryptedReports), origin, batchedReportsURI)
+				return ioutils.WriteLines(ctx, encryptedReports, batchedReportsURI)
+			}
+			log.Infof("Empty batch, nothing to write!")
+			return nil
+		})
 	}
-
-	timestamp := time.Now().Format(time.RFC3339Nano)
-
-	for origin := range reportBatches {
-		log.Infof("Writing batch for %v to: %v", origin, ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, origin, timestamp)))
-		if err := brw.writeBatch(ctx, reportBatches[origin], ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s+%s+%s", batchKey, origin, timestamp))); err != nil {
-			log.Error(err.Error())
-			return
-		}
+	if err := g.Wait(); err != nil {
+		log.Error(err)
 	}
-}
-
-func (brw *bufferedReportWriter) writeBatch(ctx context.Context, batch []*pb.EncryptedPartialReportDpf, filename string) error {
-	var lines []string
-	for _, b := range batch {
-		line, err := dpfbrowsersimulator.FormatEncryptedPartialReport(b)
-		if err != nil {
-			return err
-		}
-		lines = append(lines, line)
-	}
-
-	return ioutils.WriteLines(ctx, lines, filename)
+	log.Infof("Writing batches at %s took %s.", timestamp, time.Now().Sub(start))
 }

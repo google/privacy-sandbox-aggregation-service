@@ -272,6 +272,7 @@ go_library(
     name = "standardencrypt",
     srcs = ["standardencrypt.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt",
+    visibility = ["//visibility:private"],
     deps = [
         ":crypto_go_proto",
         "@com_github_google_tink_go//hybrid:go_default_library",
@@ -440,6 +441,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf",
+    visibility = ["//visibility:private"],
     deps = [
         ":crypto_go_proto",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",

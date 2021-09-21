@@ -43,6 +43,7 @@ type DataflowCfg struct {
 type ServerCfg struct {
 	PrivateKeyParamsURI             string
 	DpfAggregatePartialReportBinary string
+	WorkspaceURI                    string
 }
 
 // SharedInfoHandler handles HTTP requests for the information shared with other helpers.
@@ -147,14 +148,15 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	}
 
 	finalLevel := int32(len(config.PrefixLengths)) - 1
-	if request.Level > finalLevel {
-		return fmt.Errorf("expect request level <= finalLevel %d, got %d", finalLevel, request.Level)
+	if request.QueryLevel > finalLevel {
+		return fmt.Errorf("expect request level <= finalLevel %d, got %d", finalLevel, request.QueryLevel)
 	}
 
-	// If it is not the first-level aggregation, check if the result from the partner helper is ready for the previous level.
-	if request.Level > 0 {
+	partialReportURI := request.PartialReportURI
+	if request.QueryLevel > 0 {
+		// If it is not the first-level aggregation, check if the result from the partner helper is ready for the previous level.
 		exist, err := utils.IsGCSObjectExist(ctx, h.GCSClient,
-			query.GetRequestPartialResultURI(request.PartnerSharedInfo.SharedDir, request.QueryID, request.Level-1),
+			query.GetRequestPartialResultURI(request.PartnerSharedInfo.SharedDir, request.QueryID, request.QueryLevel-1),
 		)
 		if err != nil {
 			return err
@@ -163,9 +165,13 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 			// When the partial result from the partner helper is not ready, nack the message with an error.
 			return fmt.Errorf("result from %s for level %s is not ready", request.PartnerSharedInfo.Origin, request.QueryID)
 		}
+
+		// If it is not the first-level aggregation, the pipeline should read the evaluation context instead of the original encrypted partial reports.
+		partialReportURI = query.GetRequestEvaluationContextURI(h.ServerCfg.WorkspaceURI, request.QueryID, request.QueryLevel-1)
 	}
 
-	request, err = query.GetRequestParams(ctx, config, request,
+	expandParamsURI, err := query.GetRequestExpandParamsURI(ctx, config, request,
+		h.ServerCfg.WorkspaceURI,
 		h.SharedDir,
 		request.PartnerSharedInfo.SharedDir,
 	)
@@ -175,18 +181,19 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 
 	var outputResultURI string
 	// The final-level results are not supposed to be shared with the partner helpers.
-	if request.Level == finalLevel {
-		outputResultURI = query.GetRequestPartialResultURI(request.ResultDir, request.QueryID, request.Level)
+	if request.QueryLevel == finalLevel {
+		outputResultURI = query.GetRequestPartialResultURI(request.ResultDir, request.QueryID, request.QueryLevel)
 	} else {
-		outputResultURI = query.GetRequestPartialResultURI(h.SharedDir, request.QueryID, request.Level)
+		outputResultURI = query.GetRequestPartialResultURI(h.SharedDir, request.QueryID, request.QueryLevel)
 	}
+	outputEvalCtxURI := query.GetRequestEvaluationContextURI(h.ServerCfg.WorkspaceURI, request.QueryID, request.QueryLevel)
 
 	args := []string{
-		"--partial_report_uri=" + request.PartialReportURI,
-		"--sum_parameters_uri=" + request.SumParamsURI,
-		"--prefixes_uri=" + request.PrefixesURI,
-		"--partial_histogram_uri=" + outputResultURI,
-		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.Level]),
+		"--partial_report_file=" + partialReportURI,
+		"--expand_parameters_uri=" + expandParamsURI,
+		"--partial_histogram_file=" + outputResultURI,
+		"--evaluation_context_uri=" + outputEvalCtxURI,
+		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.QueryLevel]),
 		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
 		"--runner=" + h.PipelineRunner,
 	}
@@ -219,13 +226,13 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	}
 	log.Infof("output of cmd: %s", out.String())
 
-	if request.Level == finalLevel {
+	if request.QueryLevel == finalLevel {
 		log.Infof("query %q complete", request.QueryID)
 		return nil
 	}
 
 	// If the hierarchical query is not finished yet, publish the requests for the next-level aggregation.
-	request.Level++
+	request.QueryLevel++
 	_, topic, err := utils.ParsePubSubResourceName(h.RequestPubSubTopic)
 	if err != nil {
 		return err

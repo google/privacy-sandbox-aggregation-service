@@ -25,8 +25,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
-
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 var (
@@ -81,8 +79,6 @@ func main() {
 	defer conn2.Close()
 
 	prefixQuery := &query.PrefixHistogramQuery{
-		Prefixes:               &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
-		SumParams:              &pb.IncrementalDpfParameters{},
 		PartialReportURI1:      *partialReportURI1,
 		PartialReportURI2:      *partialReportURI2,
 		PartialAggregationDir:  *partialAggregationDir,

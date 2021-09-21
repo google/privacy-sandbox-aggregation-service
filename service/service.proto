@@ -79,10 +79,11 @@ message AggregatePartialReportResponse {}
 message AggregateDpfPartialReportRequest{
   string partial_report_uri = 1;
   string partial_histogram_uri = 2;
-  string prefixes_uri = 3;
-  string sum_dpf_parameters_uri = 4;
-  string count_dpf_parameters_uri = 5;
-  double epsilon = 6;
+  string expand_parameters_uri = 3;
+  double epsilon = 4;
+  string query_id = 5;
+  int32 previous_prefix_length = 6;
+  repeated int32 prefix_lengths = 7;
 }
 
 message AggregateDpfPartialReportResponse {}

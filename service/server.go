@@ -39,6 +39,7 @@ var (
 
 	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
 	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
+	workspaceURI                    = flag.String("workspace_uri", "", "The Private directory to save the intermediate query states.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
 	dataflowProject         = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")
@@ -79,6 +80,7 @@ func main() {
 
 			PrivateKeyParamsURI:             *privateKeyParamsURI,
 			DpfAggregatePartialReportBinary: *dpfAggregatePartialReportBinary,
+			WorkspaceURI:                    *workspaceURI,
 		},
 		*pipelineRunner,
 		service.DataflowCfg{

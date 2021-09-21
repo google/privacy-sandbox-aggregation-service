@@ -17,7 +17,6 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
-	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
@@ -126,7 +125,7 @@ func writePartialHistogram(ctx context.Context, filename string, results map[uin
 	return ioutils.WriteLines(ctx, lines, filename)
 }
 
-func TestGetNextLevelRequest(t *testing.T) {
+func TestGetRequestExpandParams(t *testing.T) {
 	config := &ExpansionConfig{
 		PrefixLengths:               []int32{1, 2},
 		PrivacyBudgetPerPrefix:      []float64{0.6, 0.4},
@@ -146,6 +145,11 @@ func TestGetNextLevelRequest(t *testing.T) {
 		t.Fatalf("failed to create temp dir: %s", err)
 	}
 	defer os.RemoveAll(tmpDir)
+
+	workspace := path.Join(tmpDir, "workspace")
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	sharedDir1 := path.Join(tmpDir, "sharedDir1")
 	if err := os.MkdirAll(sharedDir1, 0755); err != nil {
@@ -178,82 +182,55 @@ func TestGetNextLevelRequest(t *testing.T) {
 		TotalEpsilon:    0.5,
 	}
 	type aggParams struct {
-		Request   *AggregateRequest
-		SumParams *pb.IncrementalDpfParameters
-		Prefixes  *pb.HierarchicalPrefixes
+		ExpandParamsURI string
+		ExpandParams    *pb.ExpandParameters
 	}
-	for i, want := range []*aggParams{
+	for _, want := range []*aggParams{
 		{
-			Request: &AggregateRequest{
-				ExpandConfigURI: expandConfigURI,
-				QueryID:         queryID,
-				TotalEpsilon:    0.5,
-				Level:           0,
-				SumParamsURI:    ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 0)),
-				PrefixesURI:     ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 0)),
-			},
-			SumParams: &pb.IncrementalDpfParameters{
-				Params: []*dpfpb.DpfParameters{
-					{LogDomainSize: 1, ElementBitsize: elementBitSize},
+			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 0)),
+			ExpandParams: &pb.ExpandParameters{
+				Levels: []int32{0},
+				Prefixes: &pb.HierarchicalPrefixes{
+					Prefixes: []*pb.DomainPrefixes{
+						{},
+					},
 				},
-			},
-			Prefixes: &pb.HierarchicalPrefixes{
-				Prefixes: []*pb.DomainPrefixes{
-					{},
-				},
+				PreviousLevel: -1,
 			},
 		},
 		{
-			Request: &AggregateRequest{
-				ExpandConfigURI: expandConfigURI,
-				QueryID:         queryID,
-				TotalEpsilon:    0.5,
-				Level:           1,
-				SumParamsURI:    ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultSumParamsFile, 1)),
-				PrefixesURI:     ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 1)),
-			},
-			SumParams: &pb.IncrementalDpfParameters{
-				Params: []*dpfpb.DpfParameters{
-					{LogDomainSize: 1, ElementBitsize: elementBitSize},
-					{LogDomainSize: 2, ElementBitsize: elementBitSize},
+			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 1)),
+			ExpandParams: &pb.ExpandParameters{
+				Levels: []int32{1},
+				Prefixes: &pb.HierarchicalPrefixes{
+					Prefixes: []*pb.DomainPrefixes{
+						{Prefix: []uint64{1}},
+					},
 				},
-			},
-			Prefixes: &pb.HierarchicalPrefixes{
-				Prefixes: []*pb.DomainPrefixes{
-					{},
-					{Prefix: []uint64{1}},
-				},
+				PreviousLevel: 0,
 			},
 		},
 		{},
 	} {
-		got, err := GetRequestParams(ctx, config, request, sharedDir1, sharedDir2)
+		gotExpandParamsFile, err := GetRequestExpandParamsURI(ctx, config, request, workspace, sharedDir1, sharedDir2)
 		if err != nil {
 			if err.Error() == "expect request level <= final level 1, got 2" {
 				continue
 			}
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(want.Request, got); diff != "" {
-			t.Fatalf("request mismatch for i=%d (-want +got):\n%s", i, diff)
+		if gotExpandParamsFile != want.ExpandParamsURI {
+			t.Fatalf("expect expand params URI %q, got %q", want.ExpandParamsURI, gotExpandParamsFile)
 		}
 
-		gotSumParams, err := cryptoio.ReadDPFParameters(ctx, got.SumParamsURI)
+		gotExpandParams, err := cryptoio.ReadExpandParameters(ctx, gotExpandParamsFile)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(want.SumParams, gotSumParams, protocmp.Transform()); diff != "" {
-			t.Errorf("sum params mismatch (-want +got):\n%s", diff)
-		}
 
-		gotPrefixes, err := cryptoio.ReadPrefixes(ctx, got.PrefixesURI)
-		if err != nil {
-			t.Fatal(err)
+		if diff := cmp.Diff(want.ExpandParams, gotExpandParams, protocmp.Transform()); diff != "" {
+			t.Errorf("expand params mismatch (-want +got):\n%s", diff)
 		}
-		if diff := cmp.Diff(want.Prefixes, gotPrefixes, protocmp.Transform()); diff != "" {
-			t.Errorf("prefixes mismatch (-want +got):\n%s", diff)
-		}
-		*request = *got
-		request.Level++
+		request.QueryLevel++
 	}
 }

@@ -26,7 +26,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/gonum/floats"
 	"google.golang.org/grpc"
-	grpcMetadata "google.golang.org/grpc/metadata"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
@@ -34,6 +33,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
+	grpcMetadata "google.golang.org/grpc/metadata"
 	cryptopb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 	servicepb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
@@ -50,8 +50,10 @@ type ExpansionConfig struct {
 
 // PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
 type PrefixHistogramQuery struct {
+	QueryID                              string
 	Prefixes                             *cryptopb.HierarchicalPrefixes
-	SumParams                            *cryptopb.IncrementalDpfParameters
+	PrefixeLengths                       []int32
+	PreviousPrefixLength                 int32
 	PartialReportURI1, PartialReportURI2 string
 	PartialAggregationDir                string
 	ParamsDir                            string
@@ -71,8 +73,7 @@ type HierarchicalResult struct {
 }
 
 type aggregateParams struct {
-	PrefixesURI                                string
-	SumParamsURI                               string
+	ExpandParamsURI                            string
 	PartialHistogramURI1, PartialHistogramURI2 string
 	Epsilon                                    float64
 }
@@ -94,11 +95,13 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 		}
 
 		_, err := grpcpb.NewAggregatorClient(phq.Helper1).AggregateDpfPartialReport(newCtx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportUri:    phq.PartialReportURI1,
-			PartialHistogramUri: params.PartialHistogramURI1,
-			PrefixesUri:         params.PrefixesURI,
-			SumDpfParametersUri: params.SumParamsURI,
-			Epsilon:             params.Epsilon,
+			PartialReportUri:     phq.PartialReportURI1,
+			PartialHistogramUri:  params.PartialHistogramURI1,
+			Epsilon:              params.Epsilon,
+			ExpandParametersUri:  params.ExpandParamsURI,
+			QueryId:              phq.QueryID,
+			PreviousPrefixLength: phq.PreviousPrefixLength,
+			PrefixLengths:        phq.PrefixeLengths,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 1: %v", err)
@@ -120,11 +123,13 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 		}
 
 		_, err := grpcpb.NewAggregatorClient(phq.Helper2).AggregateDpfPartialReport(newCtx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportUri:    phq.PartialReportURI2,
-			PartialHistogramUri: params.PartialHistogramURI2,
-			PrefixesUri:         params.PrefixesURI,
-			SumDpfParametersUri: params.SumParamsURI,
-			Epsilon:             params.Epsilon,
+			PartialReportUri:     phq.PartialReportURI2,
+			PartialHistogramUri:  params.PartialHistogramURI2,
+			Epsilon:              params.Epsilon,
+			ExpandParametersUri:  params.ExpandParamsURI,
+			QueryId:              phq.QueryID,
+			PreviousPrefixLength: phq.PreviousPrefixLength,
+			PrefixLengths:        phq.PrefixeLengths,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 2: %v", err)
@@ -137,22 +142,24 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 
 // getPrefixHistogram calls the RPC methods on both helpers and merges the generated partial aggregation results.
 func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfaggregator.CompleteHistogram, error) {
-	tempID := uuid.New()
-	prefixURI := fmt.Sprintf("%s/prefixes%s.txt", phq.ParamsDir, tempID)
-	if err := cryptoio.SavePrefixes(ctx, prefixURI, phq.Prefixes); err != nil {
-		return nil, err
+	expandParams := &cryptopb.ExpandParameters{
+		PreviousLevel: phq.PreviousPrefixLength - 1,
+		Prefixes:      phq.Prefixes,
 	}
-	sumParamsURI := fmt.Sprintf("%s/sum_params%s.txt", phq.ParamsDir, tempID)
-	if err := cryptoio.SaveDPFParameters(ctx, sumParamsURI, phq.SumParams); err != nil {
+	for _, l := range phq.PrefixeLengths {
+		expandParams.Levels = append(expandParams.Levels, l-1)
+	}
+
+	expandParamsURI := fmt.Sprintf("%s/expand_params%s.txt", phq.ParamsDir, phq.QueryID)
+	if err := cryptoio.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
 		return nil, err
 	}
 
-	tempPartialResultURI1 := fmt.Sprintf("%s/%s_1.txt", phq.PartialAggregationDir, tempID)
-	tempPartialResultURI2 := fmt.Sprintf("%s/%s_2.txt", phq.PartialAggregationDir, tempID)
+	tempPartialResultURI1 := fmt.Sprintf("%s/%s_1.txt", phq.PartialAggregationDir, phq.QueryID)
+	tempPartialResultURI2 := fmt.Sprintf("%s/%s_2.txt", phq.PartialAggregationDir, phq.QueryID)
 
 	if err := phq.aggregateReports(ctx, aggregateParams{
-		PrefixesURI:          prefixURI,
-		SumParamsURI:         sumParamsURI,
+		ExpandParamsURI:      expandParamsURI,
 		PartialHistogramURI1: tempPartialResultURI1,
 		PartialHistogramURI2: tempPartialResultURI2,
 	}); err != nil {
@@ -172,17 +179,25 @@ func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfa
 
 // HierarchicalAggregation queries the hierarchical aggregation results.
 func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, epsilon float64, config *ExpansionConfig) ([]HierarchicalResult, error) {
+	phq.QueryID = uuid.New()
+
 	var results []HierarchicalResult
+	phq.PreviousPrefixLength = 0
+	phq.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{{}}}
 	for i, threshold := range config.ExpansionThresholdPerPrefix {
-		extendPrefixDomains(phq.SumParams, config.PrefixLengths[i])
+		// The user is supposed to query one hierarchy at a time.
+		phq.PrefixeLengths = []int32{config.PrefixLengths[i]}
 		// Use naive composition by simply splitting the epsilon based on the privacy budget config.
 		phq.Epsilon = epsilon * config.PrivacyBudgetPerPrefix[i]
 		result, err := phq.getPrefixHistogram(ctx)
 		if err != nil {
 			return nil, err
 		}
-		phq.Prefixes.Prefixes = append(phq.Prefixes.Prefixes, &cryptopb.DomainPrefixes{Prefix: getNextNonemptyPrefixes(result, threshold)})
+		phq.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{
+			{Prefix: getNextNonemptyPrefixes(result, threshold)},
+		}}
 		results = append(results, HierarchicalResult{PrefixLength: config.PrefixLengths[i], Histogram: result, ExpansionThreshold: threshold})
+		phq.PreviousPrefixLength = config.PrefixLengths[i]
 	}
 	return results, nil
 }
@@ -231,11 +246,11 @@ func ReadExpansionConfigFile(ctx context.Context, filename string) (*ExpansionCo
 	return config, validateExpansionConfig(config)
 }
 
-// Default basic file names and element size.
+// Default basic file names.
 const (
-	DefaultPrefixesFile      = "PREFIXES"
-	DefaultSumParamsFile     = "SUMPARAMS"
-	DefaultPartialResultFile = "PARTIALRESULT"
+	DefaultExpandParamsFile      = "EXPANDPARAMS"
+	DefaultPartialResultFile     = "PARTIALRESULT"
+	DefaultEvaluationContextFile = "EVALUATIONCONTEXT"
 )
 
 // HelperSharedInfo stores information that is shared by other helpers.
@@ -248,12 +263,11 @@ type HelperSharedInfo struct {
 
 // AggregateRequest contains infomation that are necessary for the query.
 type AggregateRequest struct {
-	PartialReportURI          string
-	PrefixesURI, SumParamsURI string
-	ExpandConfigURI           string
-	QueryID                   string
-	Level                     int32
-	TotalEpsilon              float64
+	PartialReportURI string
+	ExpandConfigURI  string
+	QueryID          string
+	QueryLevel       int32
+	TotalEpsilon     float64
 
 	PartnerSharedInfo *HelperSharedInfo
 	ResultDir         string
@@ -264,61 +278,50 @@ func GetRequestPartialResultURI(sharedDir, queryID string, level int32) string {
 	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, level))
 }
 
-// GetRequestParams calculates the parameters for the aggregation request.
-func GetRequestParams(ctx context.Context, config *ExpansionConfig, request *AggregateRequest, sharedDir, partnerSharedDir string) (*AggregateRequest, error) {
+// GetRequestEvaluationContextURI returns the URI of the expected evaluation context file.
+func GetRequestEvaluationContextURI(workDir, queryID string, level int32) string {
+	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultEvaluationContextFile, level))
+}
+
+// GetRequestExpandParamsURI calculates the expand parameters, saves it into a file and returns the URI.
+func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, request *AggregateRequest, workDir, sharedDir, partnerSharedDir string) (string, error) {
 	finalLevel := int32(len(config.PrefixLengths)) - 1
-	if request.Level > finalLevel {
-		return nil, fmt.Errorf("expect request level <= final level %d, got %d", finalLevel, request.Level)
+	if request.QueryLevel > finalLevel {
+		return "", fmt.Errorf("expect request level <= final level %d, got %d", finalLevel, request.QueryLevel)
 	}
 
 	var (
-		prePrefixes  *cryptopb.HierarchicalPrefixes
-		preSumParams *cryptopb.IncrementalDpfParameters
-		results      []dpfaggregator.CompleteHistogram
-		err          error
+		results []dpfaggregator.CompleteHistogram
+		err     error
 	)
 	// Read the parameters and results of the previous level.
-	if request.Level > 0 {
-		prePrefixes, err = cryptoio.ReadPrefixes(ctx, request.PrefixesURI)
+	if request.QueryLevel > 0 {
+		partial1, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(sharedDir, request.QueryID, request.QueryLevel-1))
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		preSumParams, err = cryptoio.ReadDPFParameters(ctx, request.SumParamsURI)
+		partial2, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(partnerSharedDir, request.QueryID, request.QueryLevel-1))
 		if err != nil {
-			return nil, err
-		}
-		partial1, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(sharedDir, request.QueryID, request.Level-1))
-		if err != nil {
-			return nil, err
-		}
-		partial2, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(partnerSharedDir, request.QueryID, request.Level-1))
-		if err != nil {
-			return nil, err
+			return "", err
 		}
 
 		results, err = mergePartialHistogram(partial1, partial2)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 	}
 
-	curSumParams, curPrefixes, err := getCurrentLevelParams(preSumParams, prePrefixes, results, config)
+	expandParams, err := getCurrentLevelParams(request.QueryLevel, results, config)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	curSumParamsFile := getRequestSumParamsURI(sharedDir, request)
-	if err := cryptoio.SaveDPFParameters(ctx, curSumParamsFile, curSumParams); err != nil {
-		return nil, err
-	}
-	curPrefixesFile := getRequestPrefixesURI(sharedDir, request)
-	if err := cryptoio.SavePrefixes(ctx, curPrefixesFile, curPrefixes); err != nil {
-		return nil, err
+	expandParamsURI := getRequestExpandParamsURI(workDir, request)
+	if err := cryptoio.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
+		return "", err
 	}
 
-	request.SumParamsURI = curSumParamsFile
-	request.PrefixesURI = curPrefixesFile
-	return request, nil
+	return expandParamsURI, nil
 }
 
 func validateExpansionConfig(config *ExpansionConfig) error {
@@ -383,18 +386,22 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
-func getCurrentLevelParams(sumParams *cryptopb.IncrementalDpfParameters, prefixes *cryptopb.HierarchicalPrefixes, curResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*cryptopb.IncrementalDpfParameters, *cryptopb.HierarchicalPrefixes, error) {
-	if curResults == nil {
-		return &cryptopb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{{
-			LogDomainSize:  config.PrefixLengths[0],
-			ElementBitsize: elementBitSize,
-		}}}, &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{{}}}, nil
+func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*cryptopb.ExpandParameters, error) {
+	expandParams := &cryptopb.ExpandParameters{
+		// The DPF levels correspond to the query prefix lengths.
+		Levels: []int32{config.PrefixLengths[queryLevel] - 1},
+	}
+	if previousResults == nil {
+		expandParams.PreviousLevel = -1
+		expandParams.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{{}}}
+		return expandParams, nil
 	}
 
-	level := len(sumParams.Params)
-	extendPrefixDomains(sumParams, config.PrefixLengths[level])
-	prefixes.Prefixes = append(prefixes.Prefixes, &cryptopb.DomainPrefixes{Prefix: getNextNonemptyPrefixes(curResults, config.ExpansionThresholdPerPrefix[level-1])})
-	return sumParams, prefixes, nil
+	expandParams.PreviousLevel = config.PrefixLengths[queryLevel-1] - 1
+	expandParams.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{
+		{Prefix: getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1])},
+	}}
+	return expandParams, nil
 }
 
 func mergePartialHistogram(partial1, partial2 map[uint64]*cryptopb.PartialAggregationDpf) ([]dpfaggregator.CompleteHistogram, error) {
@@ -417,10 +424,6 @@ func mergePartialHistogram(partial1, partial2 map[uint64]*cryptopb.PartialAggreg
 	return result, nil
 }
 
-func getRequestPrefixesURI(sharedDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultPrefixesFile, request.Level))
-}
-
-func getRequestSumParamsURI(sharedDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultSumParamsFile, request.Level))
+func getRequestExpandParamsURI(workDir string, request *AggregateRequest) string {
+	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultExpandParamsFile, request.QueryLevel))
 }

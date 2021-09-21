@@ -17,15 +17,15 @@
 //
 // 1. Directly on local
 // /path/to/dpf_aggregate_partial_report \
-// --partial_report_uri=/path/to/partial_report_file.txt \
-// --partial_histogram_uri=/path/to/partial_histogram_file.txt \
+// --partial_report_file=/path/to/partial_report_file.txt \
+// --partial_histogram_file=/path/to/partial_histogram_file.txt \
 // --private_key_dir=/path/to/private_key_dir \
 // --runner=direct
 //
 // 2. Dataflow on cloud
 // /path/to/dpf_aggregate_partial_report \
-// --partial_report_uri=gs://<helper bucket>/partial_report_file.txt \
-// --partial_histogram_uri=gs://<helper bucket>/partial_histogram_file.txt \
+// --partial_report_file=gs://<helper bucket>/partial_report_file.txt \
+// --partial_histogram_file=gs://<helper bucket>/partial_histogram_file.txt \
 // --private_key_dir=/path/to/private_key_dir \
 // --runner=dataflow \
 // --project=<GCP project> \
@@ -44,15 +44,17 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+
+	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 var (
-	partialReportURI    = flag.String("partial_report_uri", "", "Input partial reports.")
-	sumParametersURI    = flag.String("sum_parameters_uri", "", "Input file that stores the DPF parameters for sum.")
-	prefixesURI         = flag.String("prefixes_uri", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
-	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
-	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
+	partialReportURI     = flag.String("partial_report_uri", "", "Input partial reports. It may contain the original encrypted partial reports or evaluation context.")
+	expandParametersURI  = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
+	partialHistogramURI  = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
+	evaluationContextURI = flag.String("evaluation_context_uri", "", "Output evaluation context that records the intermediate query state of the key expansion.")
+	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	privateKeyParamsURI  = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -63,6 +65,10 @@ var (
 	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
+
+	// The following flags will be retired and are kept for now to make the pipeline compatible with the current server implementation.
+	sumParametersURI = flag.String("sum_parameters_uri", "", "Input file that stores the DPF parameters for sum.")
+	prefixesURI      = flag.String("prefixes_uri", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 )
 
 func main() {
@@ -74,13 +80,35 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	sumParams, err := cryptoio.ReadDPFParameters(ctx, *sumParametersURI)
+
+	var expandParams *pb.ExpandParameters
+	if *expandParametersURI != "" {
+		expandParams, err = cryptoio.ReadExpandParameters(ctx, *expandParametersURI)
+		if err != nil {
+			log.Exit(ctx, err)
+		}
+	} else {
+		sumParams, err := cryptoio.ReadDPFParameters(ctx, *sumParametersURI)
+		if err != nil {
+			log.Exit(ctx, err)
+		}
+		prefixes, err := cryptoio.ReadPrefixes(ctx, *prefixesURI)
+		if err != nil {
+			log.Exit(ctx, err)
+		}
+		expandParams, err = dpfaggregator.ConvertOldParamsToExpandParameter(sumParams, prefixes)
+		if err != nil {
+			log.Exit(ctx, err)
+		}
+	}
+
+	// For the current design, we define hierarchies for all possible prefix lengths of the bucket ID.
+	params, err := dpfaggregator.GetDefaultDPFParameters(int32(*keyBitSize))
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	prefixes, err := cryptoio.ReadPrefixes(ctx, *prefixesURI)
-	if err != nil {
-		log.Exit(ctx, err)
+	expandParams.SumParameters = &pb.IncrementalDpfParameters{
+		Params: params,
 	}
 
 	pipeline := beam.NewPipeline()
@@ -88,17 +116,19 @@ func main() {
 	if err := dpfaggregator.AggregatePartialReport(
 		scope,
 		&dpfaggregator.AggregatePartialReportParams{
-			PartialReportURI:    *partialReportURI,
-			PartialHistogramURI: *partialHistogramURI,
-			SumParameters:       sumParams,
-			Prefixes:            prefixes,
-			HelperPrivateKeys:   helperPrivKeys,
-			DirectCombine:       *directCombine,
-			SegmentLength:       *segmentLength,
-			Shards:              *fileShards,
-			KeyBitSize:          int32(*keyBitSize),
-			Epsilon:             *epsilon,
-			L1Sensitivity:       *l1Sensitivity,
+			PartialReportURI:     *partialReportURI,
+			PartialHistogramURI:  *partialHistogramURI,
+			EvaluationContextURI: *evaluationContextURI,
+			HelperPrivateKeys:    helperPrivKeys,
+			ExpandParams:         expandParams,
+			CombineParams: &dpfaggregator.CombineParams{
+				DirectCombine: *directCombine,
+				SegmentLength: *segmentLength,
+				Epsilon:       *epsilon,
+				L1Sensitivity: *l1Sensitivity,
+			},
+			Shards:               *fileShards,
+			UseEvaluationContext: *expandParametersURI != "",
 		}); err != nil {
 		log.Exit(ctx, err)
 	}

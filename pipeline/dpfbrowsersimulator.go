@@ -162,7 +162,7 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 
 // GenerateEncryptedReports splits a conversion record into DPF keys, and encrypts the partial reports.
 func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
-	allParams, err := dpfaggregator.GenerateAllLevelParams(keyBitSize)
+	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		return nil, nil, err
 	}

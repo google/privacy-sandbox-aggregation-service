@@ -220,7 +220,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	for i := range valueSum {
 		valueSum[i] = c.Value
 	}
-	ctxParams, err := GenerateAllLevelParams(fn.KeyBitSize)
+	ctxParams, err := GetDefaultDPFParameters(fn.KeyBitSize)
 	if err != nil {
 		return err
 	}
@@ -255,21 +255,36 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	pipeline, scope := beam.NewPipelineWithRoot()
 	conversions := beam.CreateList(scope, reports)
 
-	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
-		{LogDomainSize: 8, ElementBitsize: 1 << 6},
-	}}
-	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
-	params := &AggregatePartialReportParams{
-		SumParameters: dpfParams,
-		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
-		KeyBitSize:    keyBitSize,
-		DirectCombine: true,
-	}
-	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
+	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult2, err := ExpandAndCombineHistogram(scope, partialReport2, params)
+
+	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
+		{LogDomainSize: 8, ElementBitsize: 1 << 6},
+	}}
+	prefixes := &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}}
+
+	expandParams, err := ConvertOldParamsToExpandParameter(dpfParams, prefixes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expandParams.SumParameters = &pb.IncrementalDpfParameters{
+		Params: ctxParams,
+	}
+	combineParams := &CombineParams{
+		DirectCombine: true,
+	}
+
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
+	evalCtx1 := CreateEvaluationContext(scope, partialReport1, &pb.IncrementalDpfParameters{Params: ctxParams})
+	evalCtx2 := CreateEvaluationContext(scope, partialReport2, &pb.IncrementalDpfParameters{Params: ctxParams})
+
+	partialResult1, _, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, combineParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialResult2, _, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +299,7 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 }
 
-func TestHierarchicalAggregationAndMerge(t *testing.T) {
+func TestHierarchicalAggregationAndMergeCompatible(t *testing.T) {
 	want := []CompleteHistogram{
 		{Index: 16, Sum: 10},
 	}
@@ -294,34 +309,67 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
 		}
 	}
+	combineParams := &CombineParams{
+		DirectCombine: true,
+	}
+	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	conversions := beam.CreateList(scope, reports)
 
-	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
-		{LogDomainSize: 4, ElementBitsize: 1 << 6},
-		{LogDomainSize: 8, ElementBitsize: 1 << 6},
-	}}
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
-	params := &AggregatePartialReportParams{
-		SumParameters: dpfParams,
-		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}, {Prefix: []uint64{1}}}},
-		KeyBitSize:    keyBitSize,
-		DirectCombine: true,
+
+	// For the first level.
+	evalCtx01 := CreateEvaluationContext(scope, partialReport1, &pb.IncrementalDpfParameters{Params: ctxParams})
+	evalCtx02 := CreateEvaluationContext(scope, partialReport2, &pb.IncrementalDpfParameters{Params: ctxParams})
+	expandParams0 := &pb.ExpandParameters{
+		SumParameters: &pb.IncrementalDpfParameters{Params: ctxParams},
+		Prefixes: &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
+			{},
+		}},
+		Levels:        []int32{3},
+		PreviousLevel: -1,
 	}
-	partialResult1, err := ExpandAndCombineHistogram(scope, partialReport1, params)
+	partialResult01, evalCtx11, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult2, err := ExpandAndCombineHistogram(scope, partialReport2, params)
+	partialResult02, evalCtx12, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	joined := beam.CoGroupByKey(scope, partialResult1, partialResult2)
-	got := beam.ParDo(scope, &mergeHistogramFn{}, joined)
+	joined0 := beam.CoGroupByKey(scope, partialResult01, partialResult02)
+	got0 := beam.ParDo(scope, &mergeHistogramFn{}, joined0)
+	passert.Equals(scope, got0, beam.CreateList(scope, []CompleteHistogram{
+		{Index: 1, Sum: 10},
+	}))
 
-	passert.Equals(scope, got, beam.CreateList(scope, want))
+	// For the second level.
+	expandParams1 := &pb.ExpandParameters{
+		SumParameters: &pb.IncrementalDpfParameters{Params: ctxParams},
+		Prefixes: &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
+			{Prefix: []uint64{1}},
+		}},
+		Levels:        []int32{7},
+		PreviousLevel: 3,
+	}
+	expandParams1.SumParameters = &pb.IncrementalDpfParameters{Params: ctxParams}
+	partialResult11, _, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, combineParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialResult12, _, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, combineParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined1 := beam.CoGroupByKey(scope, partialResult11, partialResult12)
+	got1 := beam.ParDo(scope, &mergeHistogramFn{}, joined1)
+	passert.Equals(scope, got1, beam.CreateList(scope, want))
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)

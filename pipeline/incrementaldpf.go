@@ -219,30 +219,33 @@ func EvaluateUntil64(hierarchyLevel int, prefixes []uint64, evalCtx *dpfpb.Evalu
 }
 
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
-//
-// 'prefixLevel' is the level of hierarchy that the prefixes[prefixLevel+1] are applied to filter results;
-// 'expandLevel' is the next level that the filtered results are further expanded.
-func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, prefixLevel, expandLevel int) ([]uint64, error) {
-	if err := CheckExpansionParameters(params, prefixes); err != nil {
+// If previousLevel = 1, the DPF key has not been evaluated yet:
+// http://github.com/google/distributed_point_functions/dpf/distributed_point_function.cc?l=730&rcl=396584858
+func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, levels []int32, previousLevel int32) ([]uint64, error) {
+	if err := CheckExpansionParameters(params, prefixes, levels, previousLevel); err != nil {
 		return nil, err
 	}
 
-	paramsLen := len(params.Params)
 	// For direct expansion, return empty slice to avoid generating extra data.
 	// Because in this case, the bucket ID equals the vector index.
-	if paramsLen == 1 {
+	if len(levels) == 1 && previousLevel == -1 {
 		return nil, nil
 	}
 
-	if prefixLevel < 0 || prefixLevel > expandLevel || expandLevel >= paramsLen {
-		return nil, fmt.Errorf("expect 0 <= prefixLevel <= expandLevel < %d, got prefixLevel=%d, expandLevel=%d", paramsLen, prefixLevel, expandLevel)
+	var prefixBitSize int32
+	if len(levels) > 1 {
+		prefixBitSize = params.Params[levels[len(levels)-2]].GetLogDomainSize()
+	} else {
+		prefixBitSize = params.Params[previousLevel].GetLogDomainSize()
 	}
+	finalBitSize := params.Params[levels[len(levels)-1]].GetLogDomainSize()
+	finalPrefixes := prefixes.Prefixes[len(prefixes.Prefixes)-1]
 
-	expansionBits := params.Params[expandLevel].GetLogDomainSize() - params.Params[prefixLevel].GetLogDomainSize()
+	expansionBits := finalBitSize - prefixBitSize
 	expansionSize := uint64(1) << expansionBits
-	ids := make([]uint64, uint64(len(prefixes.Prefixes[prefixLevel+1].Prefix))*expansionSize)
+	ids := make([]uint64, uint64(len(finalPrefixes.Prefix))*expansionSize)
 	i := uint64(0)
-	for _, p := range prefixes.Prefixes[prefixLevel+1].Prefix {
+	for _, p := range finalPrefixes.Prefix {
 		prefix := p << uint64(expansionBits)
 		for j := uint64(0); j < expansionSize; j++ {
 			ids[i] = prefix | j
@@ -252,8 +255,62 @@ func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.Hierarc
 	return ids, nil
 }
 
+func validateLevels(levels []int32) error {
+	if len(levels) == 0 {
+		return errors.New("expect non-empty levels")
+	}
+	level := levels[0]
+	if level < 0 {
+		return fmt.Errorf("expect non-negative level, got %d", level)
+	}
+	for i := 1; i < len(levels); i++ {
+		if levels[i] <= level {
+			return fmt.Errorf("expect levels in ascending order, got %v", levels)
+		}
+		level = levels[i]
+	}
+	return nil
+}
+
 // CheckExpansionParameters checks if the DPF parameters and prefixes are valid for the hierarchical expansion.
-func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) error {
+func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, levels []int32, previousLevel int32) error {
+	paramsLen := len(params.Params)
+	if paramsLen == 0 {
+		return errors.New("empty dpf parameters")
+	}
+
+	if err := validateLevels(levels); err != nil {
+		return err
+	}
+	if previousLevel < -1 {
+		return fmt.Errorf("expect previousLevel >= -1, got %d", previousLevel)
+	}
+	if previousLevel >= levels[0] {
+		return fmt.Errorf("expect previousLevel < levels[0] = %d, got %d", levels[0], previousLevel)
+	}
+
+	prefixesLen := len(prefixes.Prefixes)
+	if prefixesLen != len(levels) {
+		return fmt.Errorf("expansion level size should equal prefixes size %d, got %d", prefixesLen, len(levels))
+	}
+	if paramsLen < prefixesLen {
+		return fmt.Errorf("expect prefixes size <= DPF parameter size %d, got %d", paramsLen, prefixesLen)
+	}
+
+	for i, p := range prefixes.Prefixes {
+		if i == 0 && previousLevel < 0 && len(p.Prefix) != 0 {
+			return fmt.Errorf("prefixes should be empty for the first level expansion, got %s", prefixes.String())
+		}
+
+		if !(i == 0 && previousLevel < 0) && len(p.Prefix) == 0 {
+			return fmt.Errorf("prefix cannot be empty except for the first level expansion, got %s with previous level %d", prefixes.String(), previousLevel)
+		}
+	}
+	return nil
+}
+
+// CheckOldExpansionParameters checks if the DPF parameters and prefixes defined in the old pipeline are valid for the hierarchical expansion.
+func CheckOldExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) error {
 	paramsLen := len(params.Params)
 	if paramsLen == 0 {
 		return errors.New("empty dpf parameters")

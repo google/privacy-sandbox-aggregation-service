@@ -16,6 +16,7 @@ package incrementaldpf
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -119,7 +120,7 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	gotMap := make(map[uint64]uint64)
-	ids, err := CalculateBucketID(&pb.IncrementalDpfParameters{Params: params}, prefixes, 0 /*prefixLevel*/, 1 /*expandLevel*/)
+	ids, err := CalculateBucketID(&pb.IncrementalDpfParameters{Params: params}, prefixes, []int32{0, 1}, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,9 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	gotMap := make(map[uint64]uint64)
-	ids, err := CalculateBucketID(params, prefixes, 0 /*prefixLevel*/, 2 /*expandLevel*/)
+	ids, err := CalculateBucketID(params, &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
+		prefixes.Prefixes[1],
+	}}, []int32{2}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,13 +233,11 @@ func TestCalculateBucketID(t *testing.T) {
 			{LogDomainSize: 4, ElementBitsize: 64},
 		},
 	}
-	prefixes := &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
+
+	got, err := CalculateBucketID(params, &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
 		{},
 		{Prefix: []uint64{1, 3}},
-		{Prefix: []uint64{2, 3, 6}},
-	}}
-
-	got, err := CalculateBucketID(params, prefixes, 0 /*prefixLevel*/, 1 /*expandLevel*/)
+	}}, []int32{0, 1}, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,11 +245,24 @@ func TestCalculateBucketID(t *testing.T) {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}
 
-	got, err = CalculateBucketID(params, prefixes, 1 /*prefixLevel*/, 2 /*expandLevel*/)
+	got, err = CalculateBucketID(params, &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
+		{Prefix: []uint64{1, 3}},
+		{Prefix: []uint64{2, 3, 6}},
+	}}, []int32{1, 2}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if diff := cmp.Diff([]uint64{4, 5, 6, 7, 12, 13}, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+}
+
+func TestValidateLevels(t *testing.T) {
+	if err := validateLevels([]int32{1, 2, 3}); err != nil {
+		t.Fatal(err)
+	}
+	levels := []int32{1, 3, 2}
+	if err := validateLevels(levels); !strings.Contains(err.Error(), "expect levels in ascending order") {
+		t.Fatalf("failure in checking ascending levels in %v", levels)
 	}
 }

@@ -202,6 +202,25 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	if diff := cmp.Diff(wantParams, gotParams, protocmp.Transform()); diff != "" {
 		t.Errorf("DPF parameters read/write mismatch (-want +got):\n%s", diff)
 	}
+
+	wantExpandParams := &pb.ExpandParameters{
+		SumParameters: wantParams,
+		Levels:        []int32{1, 2, 3},
+		Prefixes:      wantPrefix,
+		PreviousLevel: -1,
+	}
+	expandPath := path.Join(baseDir, "expand.txt")
+
+	if err := SaveExpandParameters(ctx, wantExpandParams, expandPath); err != nil {
+		t.Fatal(err)
+	}
+	gotExpandParams, err := ReadExpandParameters(ctx, expandPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(wantExpandParams, gotExpandParams, protocmp.Transform()); diff != "" {
+		t.Errorf("Expand parameters read/write mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestSaveReadPublicKeyVersions(t *testing.T) {

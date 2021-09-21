@@ -546,6 +546,7 @@ go_binary(
         "-static",
     ],
     deps = [
+        ":crypto_go_proto",
         ":cryptoio",
         ":dpfaggregator",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",

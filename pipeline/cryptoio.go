@@ -414,3 +414,25 @@ func GenerateHybridKeyPairs(ctx context.Context, keyCount int, notBefore, notAft
 	}
 	return privKeys, pubInfo, nil
 }
+
+// SaveExpandParameters save the ExpandParams into a file.
+func SaveExpandParameters(ctx context.Context, params *pb.ExpandParameters, uri string) error {
+	b, err := proto.Marshal(params)
+	if err != nil {
+		return err
+	}
+	return ioutils.WriteBytes(ctx, b, uri)
+}
+
+// ReadExpandParameters reads the ExpandParams from a file.
+func ReadExpandParameters(ctx context.Context, uri string) (*pb.ExpandParameters, error) {
+	b, err := ioutils.ReadBytes(ctx, uri)
+	if err != nil {
+		return nil, err
+	}
+	params := &pb.ExpandParameters{}
+	if err := proto.Unmarshal(b, params); err != nil {
+		return nil, err
+	}
+	return params, nil
+}

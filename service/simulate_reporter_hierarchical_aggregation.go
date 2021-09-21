@@ -35,12 +35,12 @@ var (
 	insecure               = flag.Bool("insecure", false, "Insecure helper connections - default false")
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
-	partialReportFile1        = flag.String("partial_report_file1", "", "Input partial report for helper 1.")
-	partialReportFile2        = flag.String("partial_report_file2", "", "Input partial report for helper 2.")
-	hierarchicalHistogramFile = flag.String("hierarchical_histogram_file", "", "Output file for the hierarchical aggregation results.")
-	expansionConfigFile       = flag.String("expansion_config_file", "", "Input file for the expansion configurations that defines the query hierarchy.")
-	paramsDir                 = flag.String("params_dir", "", "Input directory that stores the parameter files.")
-	partialAggregationDir     = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
+	partialReportURI1        = flag.String("partial_report_uri1", "", "Input partial report for helper 1.")
+	partialReportURI2        = flag.String("partial_report_uri2", "", "Input partial report for helper 2.")
+	hierarchicalHistogramURI = flag.String("hierarchical_histogram_uri", "", "Output file for the hierarchical aggregation results.")
+	expansionConfigURI       = flag.String("expansion_config_uri", "", "Input file for the expansion configurations that defines the query hierarchy.")
+	paramsDir                = flag.String("params_dir", "", "Input directory that stores the parameter files.")
+	partialAggregationDir    = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
 
 	epsilon = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
 )
@@ -49,7 +49,7 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	expansionConfig, err := query.ReadExpansionConfigFile(ctx, *expansionConfigFile)
+	expansionConfig, err := query.ReadExpansionConfigFile(ctx, *expansionConfigURI)
 	if err != nil {
 		log.Exit(err)
 	}
@@ -83,8 +83,8 @@ func main() {
 	prefixQuery := &query.PrefixHistogramQuery{
 		Prefixes:               &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
 		SumParams:              &pb.IncrementalDpfParameters{},
-		PartialReportFile1:     *partialReportFile1,
-		PartialReportFile2:     *partialReportFile2,
+		PartialReportURI1:      *partialReportURI1,
+		PartialReportURI2:      *partialReportURI2,
 		PartialAggregationDir:  *partialAggregationDir,
 		ParamsDir:              *paramsDir,
 		Helper1:                conn1,
@@ -96,7 +96,7 @@ func main() {
 	if err != nil {
 		log.Exit(err)
 	}
-	if err := query.WriteHierarchicalResultsFile(ctx, results, *hierarchicalHistogramFile); err != nil {
+	if err := query.WriteHierarchicalResultsFile(ctx, results, *hierarchicalHistogramURI); err != nil {
 		log.Exit(err)
 	}
 }

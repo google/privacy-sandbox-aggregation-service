@@ -109,8 +109,8 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 }
 
 // ReadPartialReport reads each line from a file, and parses it as a partial report that contains a encrypted DPF key and the context info.
-func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
-	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
+func ReadPartialReport(scope beam.Scope, partialReportURI string) beam.PCollection {
+	allFiles := ioutils.AddStrInPath(partialReportURI, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
 }
@@ -380,9 +380,9 @@ func addNoise(scope beam.Scope, rawResult beam.PCollection, epsilon float64, l1S
 // AggregatePartialReportParams contains necessary parameters for function AggregatePartialReport().
 type AggregatePartialReportParams struct {
 	// Input partial report file path, each line contains an encrypted PartialReportDpf.
-	PartialReportFile string
+	PartialReportURI string
 	// Output partial aggregation file path, each line contains a bucket index and a wire-formatted PartialAggregationDpf.
-	PartialHistogramFile string
+	PartialHistogramURI string
 	// Parameters for the DPF key expansion, which need to be consistent with the ones that are used to generate the partial report on the browser.
 	SumParameters *pb.IncrementalDpfParameters
 	// Prefixes for the DPF key expansion in each of the hierarchical domains.
@@ -442,7 +442,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	encrypted := ReadPartialReport(scope, params.PartialReportFile)
+	encrypted := ReadPartialReport(scope, params.PartialReportURI)
 	resharded := beam.Reshuffle(scope, encrypted)
 
 	partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
@@ -451,7 +451,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 		return err
 	}
 
-	writeHistogram(scope, partialHistogram, params.PartialHistogramFile, params.Shards)
+	writeHistogram(scope, partialHistogram, params.PartialHistogramURI, params.Shards)
 	return nil
 }
 
@@ -523,9 +523,9 @@ func (fn *parsePartialHistogramFn) ProcessElement(ctx context.Context, line stri
 	return nil
 }
 
-func readPartialHistogram(s beam.Scope, partialHistogramFile string) beam.PCollection {
+func readPartialHistogram(s beam.Scope, partialHistogramURI string) beam.PCollection {
 	s = s.Scope("ReadPartialHistogram")
-	allFiles := ioutils.AddStrInPath(partialHistogramFile, "*")
+	allFiles := ioutils.AddStrInPath(partialHistogramURI, "*")
 	lines := textio.ReadSdf(s, allFiles)
 	return beam.ParDo(s, &parsePartialHistogramFn{}, lines)
 }
@@ -594,13 +594,13 @@ func writeCompleteHistogram(s beam.Scope, indexResult beam.PCollection, fileName
 }
 
 // MergePartialHistogram reads the partial aggregated histograms and merges them to get the complete histogram.
-func MergePartialHistogram(scope beam.Scope, partialHistFile1, partialHistFile2, completeHistFile string) {
+func MergePartialHistogram(scope beam.Scope, partialHistURI1, partialHistURI2, completeHistURI string) {
 	scope = scope.Scope("MergePartialHistogram")
 
-	partialHist1 := readPartialHistogram(scope, partialHistFile1)
-	partialHist2 := readPartialHistogram(scope, partialHistFile2)
+	partialHist1 := readPartialHistogram(scope, partialHistURI1)
+	partialHist2 := readPartialHistogram(scope, partialHistURI2)
 	completeHistogram := MergeHistogram(scope, partialHist1, partialHist2)
-	writeCompleteHistogram(scope, completeHistogram, completeHistFile)
+	writeCompleteHistogram(scope, completeHistogram, completeHistURI)
 }
 
 // ReadPartialHistogram reads the partial aggregation result without using a Beam pipeline.

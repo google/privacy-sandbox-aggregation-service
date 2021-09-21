@@ -77,11 +77,11 @@ message AggregatePartialReportRequest {
 message AggregatePartialReportResponse {}
 
 message AggregateDpfPartialReportRequest{
-  string partial_report_file = 1;
-  string partial_histogram_file = 2;
-  string prefixes_file = 3;
-  string sum_dpf_parameters_file = 4;
-  string count_dpf_parameters_file = 5;
+  string partial_report_uri = 1;
+  string partial_histogram_uri = 2;
+  string prefixes_uri = 3;
+  string sum_dpf_parameters_uri = 4;
+  string count_dpf_parameters_uri = 5;
   double epsilon = 6;
 }
 

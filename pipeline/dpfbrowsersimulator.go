@@ -242,24 +242,24 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
-	ConversionFile, PartialReportFile1, PartialReportFile2 string
-	PublicKeys1, PublicKeys2                               []cryptoio.PublicKeyInfo
-	KeyBitSize                                             int32
-	Shards                                                 int64
+	ConversionURI, PartialReportURI1, PartialReportURI2 string
+	PublicKeys1, PublicKeys2                            []cryptoio.PublicKeyInfo
+	KeyBitSize                                          int32
+	Shards                                              int64
 }
 
 // GeneratePartialReport splits the raw reports into two shares and encrypts them with public keys from corresponding helpers.
 func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams) {
 	scope = scope.Scope("GeneratePartialReports")
 
-	allFiles := ioutils.AddStrInPath(params.ConversionFile, "*")
+	allFiles := ioutils.AddStrInPath(params.ConversionURI, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	rawConversions := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: params.KeyBitSize}, lines)
 	resharded := beam.Reshuffle(scope, rawConversions)
 
 	partialReport1, partialReport2 := splitRawConversion(scope, resharded, params)
-	writePartialReport(scope, partialReport1, params.PartialReportFile1, params.Shards)
-	writePartialReport(scope, partialReport2, params.PartialReportFile2, params.Shards)
+	writePartialReport(scope, partialReport1, params.PartialReportURI1, params.Shards)
+	writePartialReport(scope, partialReport2, params.PartialReportURI2, params.Shards)
 }
 
 // PrefixNode represents a node in the tree that defines the conversion key prefix hierarchy.

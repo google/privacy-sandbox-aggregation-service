@@ -182,10 +182,10 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	}
 
 	args := []string{
-		"--partial_report_file=" + request.PartialReportURI,
-		"--sum_parameters_file=" + request.SumParamsURI,
-		"--prefixes_file=" + request.PrefixesURI,
-		"--partial_histogram_file=" + outputResultURI,
+		"--partial_report_uri=" + request.PartialReportURI,
+		"--sum_parameters_uri=" + request.SumParamsURI,
+		"--prefixes_uri=" + request.PrefixesURI,
+		"--partial_histogram_uri=" + outputResultURI,
 		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.Level]),
 		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
 		"--runner=" + h.PipelineRunner,

@@ -29,10 +29,10 @@ import (
 )
 
 var (
-	sumParamsOutputFile     = flag.String("sum_params_output_file", "", "Output file for the DPF parameters for SUM.")
-	prefixesOutPutFile      = flag.String("prefixes_output_file", "", "Output file for the prefixes.")
-	rawConversionOutputFile = flag.String("raw_conversion_output_file", "", "Output file for the fake raw conversions.")
-	totalCount              = flag.Uint64("total_count", 1000000, "Total count of raw conversions.")
+	sumParamsOutputURI     = flag.String("sum_params_output_uri", "", "Output file for the DPF parameters for SUM.")
+	prefixesOutPutURI      = flag.String("prefixes_output_uri", "", "Output file for the prefixes.")
+	rawConversionOutputURI = flag.String("raw_conversion_output_URI", "", "Output file for the fake raw conversions.")
+	totalCount             = flag.Uint64("total_count", 1000000, "Total count of raw conversions.")
 
 	logN              = flag.Uint64("log_n", 20, "Bits of the aggregation domain size.")
 	logElementSizeSum = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
@@ -63,10 +63,10 @@ func main() {
 	prefixes, prefixDomainBits := dpfbrowsersimulator.CalculatePrefixes(root)
 	sumParams := dpfbrowsersimulator.CalculateParameters(prefixDomainBits, int32(*logN), 1<<*logElementSizeSum)
 	ctx := context.Background()
-	if err := cryptoio.SavePrefixes(ctx, *prefixesOutPutFile, prefixes); err != nil {
+	if err := cryptoio.SavePrefixes(ctx, *prefixesOutPutURI, prefixes); err != nil {
 		log.Exit(err)
 	}
-	if err := cryptoio.SaveDPFParameters(ctx, *sumParamsOutputFile, sumParams); err != nil {
+	if err := cryptoio.SaveDPFParameters(ctx, *sumParamsOutputURI, sumParams); err != nil {
 		log.Exit(err)
 	}
 
@@ -78,7 +78,7 @@ func main() {
 		}
 		conversions = append(conversions, dpfbrowsersimulator.RawConversion{Index: index, Value: 1})
 	}
-	if err := writeConversions(ctx, *rawConversionOutputFile, conversions); err != nil {
+	if err := writeConversions(ctx, *rawConversionOutputURI, conversions); err != nil {
 		log.Exit(err)
 	}
 }

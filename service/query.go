@@ -50,14 +50,14 @@ type ExpansionConfig struct {
 
 // PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
 type PrefixHistogramQuery struct {
-	Prefixes                               *cryptopb.HierarchicalPrefixes
-	SumParams                              *cryptopb.IncrementalDpfParameters
-	PartialReportFile1, PartialReportFile2 string
-	PartialAggregationDir                  string
-	ParamsDir                              string
-	Helper1, Helper2                       *grpc.ClientConn
-	ImpersonatedSvcAccount                 string
-	Epsilon                                float64
+	Prefixes                             *cryptopb.HierarchicalPrefixes
+	SumParams                            *cryptopb.IncrementalDpfParameters
+	PartialReportURI1, PartialReportURI2 string
+	PartialAggregationDir                string
+	ParamsDir                            string
+	Helper1, Helper2                     *grpc.ClientConn
+	ImpersonatedSvcAccount               string
+	Epsilon                              float64
 }
 
 // HierarchicalResult records the aggregation result at certain prefix length.
@@ -71,10 +71,10 @@ type HierarchicalResult struct {
 }
 
 type aggregateParams struct {
-	PrefixesFile                                 string
-	SumParamsFile                                string
-	PartialHistogramFile1, PartialHistogramFile2 string
-	Epsilon                                      float64
+	PrefixesURI                                string
+	SumParamsURI                               string
+	PartialHistogramURI1, PartialHistogramURI2 string
+	Epsilon                                    float64
 }
 
 func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params aggregateParams) error {
@@ -94,11 +94,11 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 		}
 
 		_, err := grpcpb.NewAggregatorClient(phq.Helper1).AggregateDpfPartialReport(newCtx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportFile:    phq.PartialReportFile1,
-			PartialHistogramFile: params.PartialHistogramFile1,
-			PrefixesFile:         params.PrefixesFile,
-			SumDpfParametersFile: params.SumParamsFile,
-			Epsilon:              params.Epsilon,
+			PartialReportUri:    phq.PartialReportURI1,
+			PartialHistogramUri: params.PartialHistogramURI1,
+			PrefixesUri:         params.PrefixesURI,
+			SumDpfParametersUri: params.SumParamsURI,
+			Epsilon:             params.Epsilon,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 1: %v", err)
@@ -120,11 +120,11 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 		}
 
 		_, err := grpcpb.NewAggregatorClient(phq.Helper2).AggregateDpfPartialReport(newCtx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportFile:    phq.PartialReportFile2,
-			PartialHistogramFile: params.PartialHistogramFile2,
-			PrefixesFile:         params.PrefixesFile,
-			SumDpfParametersFile: params.SumParamsFile,
-			Epsilon:              params.Epsilon,
+			PartialReportUri:    phq.PartialReportURI2,
+			PartialHistogramUri: params.PartialHistogramURI2,
+			PrefixesUri:         params.PrefixesURI,
+			SumDpfParametersUri: params.SumParamsURI,
+			Epsilon:             params.Epsilon,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 2: %v", err)
@@ -138,31 +138,31 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 // getPrefixHistogram calls the RPC methods on both helpers and merges the generated partial aggregation results.
 func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfaggregator.CompleteHistogram, error) {
 	tempID := uuid.New()
-	prefixFile := fmt.Sprintf("%s/prefixes%s.txt", phq.ParamsDir, tempID)
-	if err := cryptoio.SavePrefixes(ctx, prefixFile, phq.Prefixes); err != nil {
+	prefixURI := fmt.Sprintf("%s/prefixes%s.txt", phq.ParamsDir, tempID)
+	if err := cryptoio.SavePrefixes(ctx, prefixURI, phq.Prefixes); err != nil {
 		return nil, err
 	}
-	sumParamsFile := fmt.Sprintf("%s/sum_params%s.txt", phq.ParamsDir, tempID)
-	if err := cryptoio.SaveDPFParameters(ctx, sumParamsFile, phq.SumParams); err != nil {
+	sumParamsURI := fmt.Sprintf("%s/sum_params%s.txt", phq.ParamsDir, tempID)
+	if err := cryptoio.SaveDPFParameters(ctx, sumParamsURI, phq.SumParams); err != nil {
 		return nil, err
 	}
 
-	tempPartialResultFile1 := fmt.Sprintf("%s/%s_1.txt", phq.PartialAggregationDir, tempID)
-	tempPartialResultFile2 := fmt.Sprintf("%s/%s_2.txt", phq.PartialAggregationDir, tempID)
+	tempPartialResultURI1 := fmt.Sprintf("%s/%s_1.txt", phq.PartialAggregationDir, tempID)
+	tempPartialResultURI2 := fmt.Sprintf("%s/%s_2.txt", phq.PartialAggregationDir, tempID)
 
 	if err := phq.aggregateReports(ctx, aggregateParams{
-		PrefixesFile:          prefixFile,
-		SumParamsFile:         sumParamsFile,
-		PartialHistogramFile1: tempPartialResultFile1,
-		PartialHistogramFile2: tempPartialResultFile2,
+		PrefixesURI:          prefixURI,
+		SumParamsURI:         sumParamsURI,
+		PartialHistogramURI1: tempPartialResultURI1,
+		PartialHistogramURI2: tempPartialResultURI2,
 	}); err != nil {
 		return nil, err
 	}
-	partial1, err := dpfaggregator.ReadPartialHistogram(ctx, tempPartialResultFile1)
+	partial1, err := dpfaggregator.ReadPartialHistogram(ctx, tempPartialResultURI1)
 	if err != nil {
 		return nil, err
 	}
-	partial2, err := dpfaggregator.ReadPartialHistogram(ctx, tempPartialResultFile2)
+	partial2, err := dpfaggregator.ReadPartialHistogram(ctx, tempPartialResultURI2)
 	if err != nil {
 		return nil, err
 	}

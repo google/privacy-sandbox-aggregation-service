@@ -17,15 +17,15 @@
 //
 // 1. Directly on local
 // /path/to/dpf_aggregate_partial_report \
-// --partial_report_file=/path/to/partial_report_file.txt \
-// --partial_histogram_file=/path/to/partial_histogram_file.txt \
+// --partial_report_uri=/path/to/partial_report_file.txt \
+// --partial_histogram_uri=/path/to/partial_histogram_file.txt \
 // --private_key_dir=/path/to/private_key_dir \
 // --runner=direct
 //
 // 2. Dataflow on cloud
 // /path/to/dpf_aggregate_partial_report \
-// --partial_report_file=gs://<helper bucket>/partial_report_file.txt \
-// --partial_histogram_file=gs://<helper bucket>/partial_histogram_file.txt \
+// --partial_report_uri=gs://<helper bucket>/partial_report_file.txt \
+// --partial_histogram_uri=gs://<helper bucket>/partial_histogram_file.txt \
 // --private_key_dir=/path/to/private_key_dir \
 // --runner=dataflow \
 // --project=<GCP project> \
@@ -47,12 +47,12 @@ import (
 )
 
 var (
-	partialReportFile    = flag.String("partial_report_file", "", "Input partial reports.")
-	sumParametersFile    = flag.String("sum_parameters_file", "", "Input file that stores the DPF parameters for sum.")
-	prefixesFile         = flag.String("prefixes_file", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
-	partialHistogramFile = flag.String("partial_histogram_file", "", "Output partial aggregation.")
-	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	privateKeyParamsURI  = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
+	partialReportURI    = flag.String("partial_report_uri", "", "Input partial reports.")
+	sumParametersURI    = flag.String("sum_parameters_uri", "", "Input file that stores the DPF parameters for sum.")
+	prefixesURI         = flag.String("prefixes_uri", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
+	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
+	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -74,11 +74,11 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	sumParams, err := cryptoio.ReadDPFParameters(ctx, *sumParametersFile)
+	sumParams, err := cryptoio.ReadDPFParameters(ctx, *sumParametersURI)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	prefixes, err := cryptoio.ReadPrefixes(ctx, *prefixesFile)
+	prefixes, err := cryptoio.ReadPrefixes(ctx, *prefixesURI)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
@@ -88,17 +88,17 @@ func main() {
 	if err := dpfaggregator.AggregatePartialReport(
 		scope,
 		&dpfaggregator.AggregatePartialReportParams{
-			PartialReportFile:    *partialReportFile,
-			PartialHistogramFile: *partialHistogramFile,
-			SumParameters:        sumParams,
-			Prefixes:             prefixes,
-			HelperPrivateKeys:    helperPrivKeys,
-			DirectCombine:        *directCombine,
-			SegmentLength:        *segmentLength,
-			Shards:               *fileShards,
-			KeyBitSize:           int32(*keyBitSize),
-			Epsilon:              *epsilon,
-			L1Sensitivity:        *l1Sensitivity,
+			PartialReportURI:    *partialReportURI,
+			PartialHistogramURI: *partialHistogramURI,
+			SumParameters:       sumParams,
+			Prefixes:            prefixes,
+			HelperPrivateKeys:   helperPrivKeys,
+			DirectCombine:       *directCombine,
+			SegmentLength:       *segmentLength,
+			Shards:              *fileShards,
+			KeyBitSize:          int32(*keyBitSize),
+			Epsilon:             *epsilon,
+			L1Sensitivity:       *l1Sensitivity,
 		}); err != nil {
 		log.Exit(ctx, err)
 	}

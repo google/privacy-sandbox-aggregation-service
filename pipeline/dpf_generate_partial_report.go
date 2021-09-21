@@ -51,13 +51,13 @@ import (
 )
 
 var (
-	conversionFile     = flag.String("conversion_file", "", "Input raw conversion data.")
-	partialReportFile1 = flag.String("partial_report_file1", "", "Output partial report for helper 1.")
-	partialReportFile2 = flag.String("partial_report_file2", "", "Output partial report for helper 2.")
+	conversionURI     = flag.String("conversion_uri", "", "Input raw conversion data.")
+	partialReportURI1 = flag.String("partial_report_uri1", "", "Output partial report for helper 1.")
+	partialReportURI2 = flag.String("partial_report_uri2", "", "Output partial report for helper 2.")
 
-	publicKeysFile1 = flag.String("public_keys_file1", "", "Input file containing the public keys from helper 1.")
-	publicKeysFile2 = flag.String("public_keys_file2", "", "Input file containing the public keys from helper 2.")
-	keyBitSize      = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	publicKeysURI1 = flag.String("public_keys_uri1", "", "Input file containing the public keys from helper 1.")
+	publicKeysURI2 = flag.String("public_keys_uri2", "", "Input file containing the public keys from helper 2.")
+	keyBitSize     = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -68,11 +68,11 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysFile1)
+	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysURI1)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysFile2)
+	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysURI2)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
@@ -90,13 +90,13 @@ func main() {
 	scope := pipeline.Root()
 
 	dpfbrowsersimulator.GeneratePartialReport(scope, &dpfbrowsersimulator.GeneratePartialReportParams{
-		ConversionFile:     *conversionFile,
-		PartialReportFile1: *partialReportFile1,
-		PartialReportFile2: *partialReportFile2,
-		KeyBitSize:         int32(*keyBitSize),
-		PublicKeys1:        publicKeyInfo1,
-		PublicKeys2:        publicKeyInfo2,
-		Shards:             *fileShards,
+		ConversionURI:     *conversionURI,
+		PartialReportURI1: *partialReportURI1,
+		PartialReportURI2: *partialReportURI2,
+		KeyBitSize:        int32(*keyBitSize),
+		PublicKeys1:       publicKeyInfo1,
+		PublicKeys2:       publicKeyInfo2,
+		Shards:            *fileShards,
 	})
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)

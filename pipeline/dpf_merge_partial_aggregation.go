@@ -46,9 +46,9 @@ import (
 )
 
 var (
-	partialHistogramFile1 = flag.String("partial_histogram_file1", "", "Input partial histogram from helper 1.")
-	partialHistogramFile2 = flag.String("partial_histogram_file2", "", "Input partial histogram from helper 2.")
-	completeHistogramFile = flag.String("complete_histogram_file", "", "Output complete aggregation.")
+	partialHistogramURI1 = flag.String("partial_histogram_uri1", "", "Input partial histogram from helper 1.")
+	partialHistogramURI2 = flag.String("partial_histogram_uri2", "", "Input partial histogram from helper 2.")
+	completeHistogramURI = flag.String("complete_histogram_uri", "", "Output complete aggregation.")
 )
 
 func main() {
@@ -60,7 +60,7 @@ func main() {
 	scope := pipeline.Root()
 
 	ctx := context.Background()
-	dpfaggregator.MergePartialHistogram(scope, *partialHistogramFile1, *partialHistogramFile2, *completeHistogramFile)
+	dpfaggregator.MergePartialHistogram(scope, *partialHistogramURI1, *partialHistogramURI2, *completeHistogramURI)
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)
 	}

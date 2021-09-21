@@ -39,16 +39,16 @@ import (
 
 // TODO: Store some of the flag values in manifest files.
 var (
-	address               = flag.String("address", "", "Address of the server.")
-	helperPublicKeysFile1 = flag.String("helper_public_keys_file1", "", "A file that contains the public encryption key from helper1.")
-	helperPublicKeysFile2 = flag.String("helper_public_keys_file2", "", "A file that contains the public encryption key from helper2.")
-	keyBitSize            = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	conversionFile        = flag.String("conversion_file", "", "Input raw conversion data.")
-	conversionRaw         = flag.String("conversion_raw", "20,20", "Raw conversion.")
-	sendCount             = flag.Int("send_count", 1, "How many times to send each conversion.")
-	helperOrigin1         = flag.String("helper_origin1", "", "Origin of helper1.")
-	helperOrigin2         = flag.String("helper_origin2", "", "Origin of helper2.")
-	concurrency           = flag.Int("concurrency", 10, "Concurrent requests.")
+	address              = flag.String("address", "", "Address of the server.")
+	helperPublicKeysURI1 = flag.String("helper_public_keys_uri1", "", "A file that contains the public encryption key from helper1.")
+	helperPublicKeysURI2 = flag.String("helper_public_keys_uri2", "", "A file that contains the public encryption key from helper2.")
+	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	conversionURI        = flag.String("conversion_uri", "", "Input raw conversion data.")
+	conversionRaw        = flag.String("conversion_raw", "20,20", "Raw conversion.")
+	sendCount            = flag.Int("send_count", 1, "How many times to send each conversion.")
+	helperOrigin1        = flag.String("helper_origin1", "", "Origin of helper1.")
+	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2.")
+	concurrency          = flag.Int("concurrency", 10, "Concurrent requests.")
 
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
@@ -70,9 +70,9 @@ func main() {
 	log.Infof("Running browser simulator version: %v, build: %v\n", version, buildDate)
 
 	log.Infof("Requests sent to %v", *address)
-	log.Infof("Helper public key file locations. 1: %v, 2: %v", *helperPublicKeysFile1, *helperPublicKeysFile2)
+	log.Infof("Helper public key file locations. 1: %v, 2: %v", *helperPublicKeysURI1, *helperPublicKeysURI2)
 	log.Infof("Key Bit size %v", *keyBitSize)
-	log.Infof("Conversions file uri: %v", *conversionFile)
+	log.Infof("Conversions file uri: %v", *conversionURI)
 	log.Infof("Helper origins. 1: %v, 2: %v", *helperOrigin1, *helperOrigin2)
 
 	client := retryablehttp.NewClient().StandardClient()
@@ -88,11 +88,11 @@ func main() {
 	requestCh := make(chan *bytes.Buffer)
 	done := setupRequestWorkers(client, token, *concurrency, &conversionsSent, requestCh)
 
-	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysFile1)
+	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI1)
 	if err != nil {
 		log.Exit(err)
 	}
-	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysFile2)
+	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI2)
 	if err != nil {
 		log.Exit(err)
 	}
@@ -112,9 +112,9 @@ func main() {
 	}
 
 	var conversions []dpfbrowsersimulator.RawConversion
-	if *conversionFile != "" {
+	if *conversionURI != "" {
 		var err error
-		conversions, err = dpfbrowsersimulator.ReadRawConversions(ctx, *conversionFile, int32(*keyBitSize))
+		conversions, err = dpfbrowsersimulator.ReadRawConversions(ctx, *conversionURI, int32(*keyBitSize))
 		if err != nil {
 			log.Exit(err)
 		}

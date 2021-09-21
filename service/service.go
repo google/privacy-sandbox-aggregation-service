@@ -122,10 +122,10 @@ func (s *server) AggregatePartialReport(ctx context.Context, in *pb.AggregatePar
 
 func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.AggregateDpfPartialReportRequest) (*pb.AggregateDpfPartialReportResponse, error) {
 	args := []string{
-		"--partial_report_file=" + in.PartialReportFile,
-		"--sum_parameters_file=" + in.SumDpfParametersFile,
-		"--prefixes_file=" + in.PrefixesFile,
-		"--partial_histogram_file=" + in.PartialHistogramFile,
+		"--partial_report_uri=" + in.PartialReportUri,
+		"--sum_parameters_uri=" + in.SumDpfParametersUri,
+		"--prefixes_uri=" + in.PrefixesUri,
+		"--partial_histogram_uri=" + in.PartialHistogramUri,
 		"--epsilon=" + fmt.Sprintf("%f", in.Epsilon),
 		"--private_key_params_uri=" + s.ServerCfg.PrivateKeyParamsURI,
 		"--runner=" + s.PipelineRunner,

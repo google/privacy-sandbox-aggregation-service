@@ -52,14 +52,12 @@ type SharedInfoHandler struct {
 }
 
 func (h *SharedInfoHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	b, err := json.Marshal(h.SharedInfo)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Error(err)
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprint(w, b)
+	err := json.NewEncoder(w).Encode(h.SharedInfo)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // QueryHandler handles the request in the pubsub messages.

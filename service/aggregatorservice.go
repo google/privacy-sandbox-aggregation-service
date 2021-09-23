@@ -23,10 +23,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"strings"
 
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/storage"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
 )
@@ -139,6 +141,10 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 	})
 }
 
+func getFinalPartialResultURI(resultDir, queryID, origin string) string {
+	return ioutils.JoinPath(resultDir, fmt.Sprintf("%s_%s", queryID, strings.ReplaceAll(origin, ".", "_")))
+}
+
 func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, request *query.AggregateRequest) error {
 	config, err := query.ReadExpansionConfigFile(ctx, request.ExpandConfigURI)
 	if err != nil {
@@ -161,7 +167,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 		}
 		if !exist {
 			// When the partial result from the partner helper is not ready, nack the message with an error.
-			return fmt.Errorf("result from %s for level %s is not ready", request.PartnerSharedInfo.Origin, request.QueryID)
+			return fmt.Errorf("result from %s for level %d of query %s is not ready", request.PartnerSharedInfo.Origin, request.QueryLevel-1, request.QueryID)
 		}
 
 		// If it is not the first-level aggregation, the pipeline should read the evaluation context instead of the original encrypted partial reports.
@@ -180,7 +186,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	var outputResultURI string
 	// The final-level results are not supposed to be shared with the partner helpers.
 	if request.QueryLevel == finalLevel {
-		outputResultURI = query.GetRequestPartialResultURI(request.ResultDir, request.QueryID, request.QueryLevel)
+		outputResultURI = getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
 	} else {
 		outputResultURI = query.GetRequestPartialResultURI(h.SharedDir, request.QueryID, request.QueryLevel)
 	}

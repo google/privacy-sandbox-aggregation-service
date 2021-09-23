@@ -309,6 +309,7 @@ go_library(
     deps = [
         ":query",
         ":utils",
+        "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",

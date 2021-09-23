@@ -113,6 +113,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 
 // ReadPartialReport reads each line from a file, and parses it as a partial report that contains a encrypted DPF key and the context info.
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
+	scope = scope.Scope("ReadEncryptedPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
@@ -541,15 +542,15 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	encrypted := ReadPartialReport(scope, params.PartialReportURI)
-	resharded := beam.Reshuffle(scope, encrypted)
-
 	var evalCtx beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 || !params.UseEvaluationContext {
+		encrypted := ReadPartialReport(scope, params.PartialReportURI)
+		resharded := beam.Reshuffle(scope, encrypted)
 		partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
 		evalCtx = CreateEvaluationContext(scope, partialReport, params.ExpandParams.SumParameters)
 	} else {
-		evalCtx = ReadEvaluationContext(scope, params.PartialReportURI)
+		evalCtxOrig := ReadEvaluationContext(scope, params.PartialReportURI)
+		evalCtx = beam.Reshuffle(scope, evalCtxOrig)
 	}
 	partialHistogram, evalctx, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.CombineParams)
 	if err != nil {
@@ -557,7 +558,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 	}
 
 	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(params.ExpandParams.SumParameters.Params)-1)
-	if isFinalLevel && params.UseEvaluationContext {
+	if !isFinalLevel && params.UseEvaluationContext {
 		writeEvaluationContext(scope, evalctx, params.EvaluationContextURI, params.Shards)
 	}
 

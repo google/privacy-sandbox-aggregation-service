@@ -189,9 +189,9 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	outputEvalCtxURI := query.GetRequestEvaluationContextURI(h.ServerCfg.WorkspaceURI, request.QueryID, request.QueryLevel)
 
 	args := []string{
-		"--partial_report_file=" + partialReportURI,
+		"--partial_report_uri=" + partialReportURI,
 		"--expand_parameters_uri=" + expandParamsURI,
-		"--partial_histogram_file=" + outputResultURI,
+		"--partial_histogram_uri=" + outputResultURI,
 		"--evaluation_context_uri=" + outputEvalCtxURI,
 		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.QueryLevel]),
 		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,

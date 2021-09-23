@@ -38,7 +38,7 @@ func TestReadInputConversions(t *testing.T) {
 	var conversions []RawConversion
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
-			conversions = append(conversions, RawConversion{Index: uint64(i), Value: uint64(i)})
+			conversions = append(conversions, RawConversion{Index: uint64(i) << 27, Value: uint64(i)})
 		}
 	}
 

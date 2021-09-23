@@ -44,7 +44,7 @@ var (
 	helperPublicKeysURI2 = flag.String("helper_public_keys_uri2", "", "A file that contains the public encryption key from helper2.")
 	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 	conversionURI        = flag.String("conversion_uri", "", "Input raw conversion data.")
-	conversionRaw        = flag.String("conversion_raw", "20,20", "Raw conversion.")
+	conversionRaw        = flag.String("conversion_raw", "2684354560,20", "Raw conversion.")
 	sendCount            = flag.Int("send_count", 1, "How many times to send each conversion.")
 	helperOrigin1        = flag.String("helper_origin1", "", "Origin of helper1.")
 	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2.")

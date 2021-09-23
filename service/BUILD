@@ -279,6 +279,7 @@ go_binary(
         ":query",
         ":utils",
         "@com_github_golang_glog//:go_default_library",
+        "@com_github_hashicorp_go_retryablehttp//:go_default_library",
         "@com_github_pborman_uuid//:uuid",
         "@com_google_cloud_go_pubsub//:go_default_library",
     ],
@@ -308,7 +309,6 @@ go_library(
     deps = [
         ":query",
         ":utils",
-        "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",

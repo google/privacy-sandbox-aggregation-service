@@ -20,13 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os/exec"
 
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/storage"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
 )
@@ -241,13 +241,34 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 }
 
 // ReadHelperSharedInfo reads the helper shared info from a URL.
-func ReadHelperSharedInfo(ctx context.Context, url string) (*query.HelperSharedInfo, error) {
-	b, err := ioutils.ReadBytes(ctx, url)
+func ReadHelperSharedInfo(client *http.Client, url, token string) (*query.HelperSharedInfo, error) {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	if token != "" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Status != "200 OK" {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Infof("%v: %s", resp.Status, string(body))
+		return nil, fmt.Errorf("Error reading shared info from %s: %s", url, resp.Status)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	info := &query.HelperSharedInfo{}
-	if err := json.Unmarshal(b, info); err != nil {
+	if err := json.Unmarshal([]byte(body), info); err != nil {
 		return nil, err
 	}
 	return info, nil

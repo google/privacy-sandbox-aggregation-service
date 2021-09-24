@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	address = flag.String("address", "", "Address of the server.")
+	address = flag.String("address", ":8080", "Address of the server.")
 
 	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
 	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
@@ -39,11 +39,10 @@ var (
 	// The PubSub subscription should enable the retry policy with a exponential backoff delay.
 	// Recommended retry policy: min_retry_delay=60s, max_retry_delay=600s.
 	// The subscription should also have a dead-letter topic where messages will be forwarded after 10 failed delivery attemps.
-	pubsubSubscription   = flag.String("pubsub_subscription", "", "The PubSub subscription where to pull the request message. The value should be a fully qualified subscription URI.")
-	pubsubTopic          = flag.String("pubsub_topic", "", "PubSub topic to send aggregation requests to. The value may be a fully qualified topic URI.")
-	origin               = flag.String("origin", "", "Origin of the helper.")
-	sharedDir            = flag.String("shared_dir", "", "Shared directory for the intermediate results, where other helper can read them.")
-	partnerSharedInfoURI = flag.String("partner_shared_info_uri", "", "URI of partner helper shared information.")
+	pubsubSubscription = flag.String("pubsub_subscription", "", "The PubSub subscription where to pull the request message. The value should be a fully qualified subscription URI.")
+	pubsubTopic        = flag.String("pubsub_topic", "", "PubSub topic to send aggregation requests to. The value may be a fully qualified topic URI.")
+	origin             = flag.String("origin", "", "Origin of the helper.")
+	sharedDir          = flag.String("shared_dir", "", "Shared directory for the intermediate results, where other helper can read them.")
 
 	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
 	dataflowProject         = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")

@@ -43,6 +43,7 @@ import (
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
+	"google3/third_party/golang/go_exp/rand/rand"
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
@@ -98,7 +99,7 @@ func (fn *parseEncryptedPartialReportFn) Setup() {
 	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "partial-report-count")
 }
 
-func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedPartialReportDpf)) error {
+func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(int64, *pb.EncryptedPartialReportDpf)) error {
 	bsc, err := base64.StdEncoding.DecodeString(line)
 	if err != nil {
 		return err
@@ -108,7 +109,9 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 	if err := proto.Unmarshal(bsc, encrypted); err != nil {
 		return err
 	}
-	emit(encrypted)
+
+	shuffleKey := rand.Int63n(1000)
+	emit(shuffleKey, encrypted)
 	return nil
 }
 
@@ -207,7 +210,7 @@ func (fn *parseEvaluationContextFn) Setup() {
 	fn.evalCtxCounter = beam.NewCounter("aggregation", "read-evaluation-context-count")
 }
 
-func (fn *parseEvaluationContextFn) ProcessElement(ctx context.Context, line string, emit func(*dpfpb.EvaluationContext)) error {
+func (fn *parseEvaluationContextFn) ProcessElement(ctx context.Context, line string, emit func(int64, *dpfpb.EvaluationContext)) error {
 	bsc, err := base64.StdEncoding.DecodeString(line)
 	if err != nil {
 		return err
@@ -217,7 +220,9 @@ func (fn *parseEvaluationContextFn) ProcessElement(ctx context.Context, line str
 	if err := proto.Unmarshal(bsc, evalCtx); err != nil {
 		return err
 	}
-	emit(evalCtx)
+
+	shuffleKey := rand.Int63n(1000)
+	emit(shuffleKey, evalCtx)
 
 	fn.evalCtxCounter.Inc(ctx, 1)
 	return nil
@@ -545,13 +550,13 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	var evalCtx beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 || !params.UseEvaluationContext {
-		encrypted := ReadPartialReport(scope, params.PartialReportURI)
-		resharded := beam.Reshuffle(scope, encrypted)
-		partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
+		keyEncrypted := ReadPartialReport(scope, params.PartialReportURI)
+		encrypted := beam.DropKey(scope, keyEncrypted)
+		partialReport := DecryptPartialReport(scope, encrypted, params.HelperPrivateKeys)
 		evalCtx = CreateEvaluationContext(scope, partialReport, params.ExpandParams.SumParameters)
 	} else {
-		evalCtxOrig := ReadEvaluationContext(scope, params.PartialReportURI)
-		evalCtx = beam.Reshuffle(scope, evalCtxOrig)
+		keyEvalCtx := ReadEvaluationContext(scope, params.PartialReportURI)
+		evalCtx = beam.DropKey(scope, keyEvalCtx)
 	}
 	partialHistogram, evalctx, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.CombineParams)
 	if err != nil {

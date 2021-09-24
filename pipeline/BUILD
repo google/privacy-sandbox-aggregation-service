@@ -471,6 +471,7 @@ go_library(
         ":incrementaldpf",
         ":ioutils",
         ":standardencrypt",
+        "//third_party/golang/go_exp/rand",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",

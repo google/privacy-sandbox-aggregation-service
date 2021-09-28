@@ -263,9 +263,8 @@ type expandedVec struct {
 
 // expandDpfKeyFn expands the DPF keys in a PartialReportDpf into a vector that represent the contribution to the SUM histogram.
 type expandDpfKeyFn struct {
-	Levels     []int32
-	Prefixes   *pb.HierarchicalPrefixes
-	vecCounter beam.Counter
+	ExpandParams *pb.ExpandParameters
+	vecCounter   beam.Counter
 }
 
 func (fn *expandDpfKeyFn) Setup() {
@@ -273,16 +272,18 @@ func (fn *expandDpfKeyFn) Setup() {
 }
 
 func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec), emitCtx func(*dpfpb.EvaluationContext)) error {
-	if int32(fn.Levels[0]) <= evalCtx.PreviousHierarchyLevel {
-		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.Levels[0])
+	if int32(fn.ExpandParams.Levels[0]) <= evalCtx.PreviousHierarchyLevel {
+		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Levels[0])
 	}
 
 	var (
 		vecSum []uint64
 		err    error
 	)
-	for i, level := range fn.Levels {
-		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), fn.Prefixes.Prefixes[i].Prefix, evalCtx)
+
+	evalCtx.Parameters = fn.ExpandParams.SumParameters.Params
+	for i, level := range fn.ExpandParams.Levels {
+		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), fn.ExpandParams.Prefixes.Prefixes[i].Prefix, evalCtx)
 		if err != nil {
 			return err
 		}
@@ -290,7 +291,11 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 
 	emitVec(&expandedVec{SumVec: vecSum})
 	// The evaluation context needs to be saved as the expansion state except for the last-level hierarchy.
-	if fn.Levels[len(fn.Levels)-1] < int32(len(evalCtx.Parameters)-1) {
+	if fn.ExpandParams.Levels[len(fn.ExpandParams.Levels)-1] < int32(len(evalCtx.Parameters)-1) {
+		// Ignore the default DPF parameters when saving the evaluation context.
+		evalCtx.Parameters = nil
+		// Ignore the partial evaluations that is not needed for the future expansions.
+		evalCtx.PartialEvaluations = nil
 		emitCtx(evalCtx)
 	}
 
@@ -489,8 +494,7 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 	}
 
 	expanded, evalctx := beam.ParDo2(scope, &expandDpfKeyFn{
-		Levels:   expandParams.Levels,
-		Prefixes: expandParams.Prefixes,
+		ExpandParams: expandParams,
 	}, evaluationContext)
 
 	vectorLength := uint64(len(bucketIDs))

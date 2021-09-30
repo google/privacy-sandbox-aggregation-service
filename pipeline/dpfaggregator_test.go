@@ -537,3 +537,58 @@ func TestWriteReadCompleteHistogramWithPipeline(t *testing.T) {
 		t.Fatalf("pipeline failed: %s", err)
 	}
 }
+
+func TestMergePartialHistogram(t *testing.T) {
+	partial1 := map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 1},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+		2: &pb.PartialAggregationDpf{PartialSum: 1},
+		3: &pb.PartialAggregationDpf{PartialSum: 1},
+	}
+	partial2 := map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 0},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+		2: &pb.PartialAggregationDpf{PartialSum: 2},
+		3: &pb.PartialAggregationDpf{PartialSum: 3},
+	}
+
+	got, err := MergePartialResult(partial1, partial2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []CompleteHistogram{
+		{Index: 0, Sum: 1},
+		{Index: 1, Sum: 2},
+		{Index: 2, Sum: 3},
+		{Index: 3, Sum: 4},
+	}
+	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b CompleteHistogram) bool { return a.Index < b.Index })); diff != "" {
+		t.Errorf("results mismatch (-want +got):\n%s", diff)
+	}
+
+	errStr := "partial results have different lengths: 1 and 2"
+	if _, err := MergePartialResult(map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 1},
+	}, map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 1},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+	}); err == nil {
+		t.Fatalf("expect error %q", errStr)
+	} else if err.Error() != errStr {
+		t.Fatalf("expect error message %q, got %q", errStr, err.Error())
+	}
+
+	errStr = "index 2 appears in partial1, missing in partial2"
+	if _, err := MergePartialResult(map[uint64]*pb.PartialAggregationDpf{
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+		2: &pb.PartialAggregationDpf{PartialSum: 1},
+	}, map[uint64]*pb.PartialAggregationDpf{
+		0: &pb.PartialAggregationDpf{PartialSum: 1},
+		1: &pb.PartialAggregationDpf{PartialSum: 1},
+	}); err == nil {
+		t.Fatalf("expect error %q", errStr)
+	} else if err.Error() != errStr {
+		t.Fatalf("expect error message %q, got %q", errStr, err.Error())
+	}
+}

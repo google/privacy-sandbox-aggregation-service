@@ -174,7 +174,7 @@ func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfa
 		return nil, err
 	}
 
-	return mergePartialHistogram(partial1, partial2)
+	return dpfaggregator.MergePartialResult(partial1, partial2)
 }
 
 // HierarchicalAggregation queries the hierarchical aggregation results.
@@ -305,7 +305,7 @@ func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, req
 			return "", err
 		}
 
-		results, err = mergePartialHistogram(partial1, partial2)
+		results, err = dpfaggregator.MergePartialResult(partial1, partial2)
 		if err != nil {
 			return "", err
 		}
@@ -402,26 +402,6 @@ func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.Com
 		{Prefix: getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1])},
 	}}
 	return expandParams, nil
-}
-
-func mergePartialHistogram(partial1, partial2 map[uint64]*cryptopb.PartialAggregationDpf) ([]dpfaggregator.CompleteHistogram, error) {
-	for idx := range partial2 {
-		if _, ok := partial1[idx]; !ok {
-			return nil, fmt.Errorf("index %d appears in partial2, missing in partial1", idx)
-		}
-	}
-
-	var result []dpfaggregator.CompleteHistogram
-	for idx := range partial1 {
-		if _, ok := partial2[idx]; !ok {
-			return nil, fmt.Errorf("index %d appears in partial1, missing in partial2", idx)
-		}
-		result = append(result, dpfaggregator.CompleteHistogram{
-			Index: idx,
-			Sum:   partial1[idx].PartialSum + partial2[idx].PartialSum,
-		})
-	}
-	return result, nil
 }
 
 func getRequestExpandParamsURI(workDir string, request *AggregateRequest) string {

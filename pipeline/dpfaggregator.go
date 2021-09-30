@@ -762,3 +762,22 @@ func ConvertOldParamsToExpandParameter(params *pb.IncrementalDpfParameters, pref
 
 	return expandParams, nil
 }
+
+// MergePartialResult merges the partial histograms without using a beam pipeline.
+func MergePartialResult(partial1, partial2 map[uint64]*pb.PartialAggregationDpf) ([]CompleteHistogram, error) {
+	if len(partial1) != len(partial2) {
+		return nil, fmt.Errorf("partial results have different lengths: %d and %d", len(partial1), len(partial2))
+	}
+
+	var result []CompleteHistogram
+	for idx := range partial1 {
+		if _, ok := partial2[idx]; !ok {
+			return nil, fmt.Errorf("index %d appears in partial1, missing in partial2", idx)
+		}
+		result = append(result, CompleteHistogram{
+			Index: idx,
+			Sum:   partial1[idx].PartialSum + partial2[idx].PartialSum,
+		})
+	}
+	return result, nil
+}

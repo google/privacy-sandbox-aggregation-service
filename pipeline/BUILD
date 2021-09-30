@@ -619,3 +619,22 @@ go_test(
         "@org_gonum_v1_gonum//floats:go_default_library",
     ],
 )
+
+go_test(
+    name = "dpf_pipeline_integration_test",
+    size = "small",
+    srcs = ["dpf_pipeline_integration_test.go"],
+    data = [
+        "dpf_test_conversion_data.csv",
+        "//pipeline:create_hybrid_key_pair",
+        "//pipeline:dpf_aggregate_partial_report",
+        "//pipeline:dpf_generate_partial_report",
+    ],
+    deps = [
+        ":crypto_go_proto",
+        ":cryptoio",
+        ":dpfaggregator",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
+    ],
+)

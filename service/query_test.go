@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
@@ -79,36 +78,6 @@ func TestHierarchicalResultsReadWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	if diff := cmp.Diff(wantResults, got); diff != "" {
-		t.Errorf("results mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestMergePartialHistogram(t *testing.T) {
-	partial1 := map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 1},
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
-		2: &pb.PartialAggregationDpf{PartialSum: 1},
-		3: &pb.PartialAggregationDpf{PartialSum: 1},
-	}
-	partial2 := map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 0},
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
-		2: &pb.PartialAggregationDpf{PartialSum: 2},
-		3: &pb.PartialAggregationDpf{PartialSum: 3},
-	}
-
-	got, err := mergePartialHistogram(partial1, partial2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []dpfaggregator.CompleteHistogram{
-		{Index: 0, Sum: 1},
-		{Index: 1, Sum: 2},
-		{Index: 2, Sum: 3},
-		{Index: 3, Sum: 4},
-	}
-	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Index < b.Index })); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 }

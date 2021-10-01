@@ -65,10 +65,6 @@ var (
 	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
-
-	// The following flags will be retired and are kept for now to make the pipeline compatible with the current server implementation.
-	sumParametersURI = flag.String("sum_parameters_uri", "", "Input file that stores the DPF parameters for sum.")
-	prefixesURI      = flag.String("prefixes_uri", "", "Input file that stores the prefixes for hierarchical DPF expansion.")
 )
 
 func main() {
@@ -76,27 +72,16 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
+	expandParams, err := cryptoio.ReadExpandParameters(ctx, *expandParametersURI)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
 
-	var expandParams *pb.ExpandParameters
-	if *expandParametersURI != "" {
-		expandParams, err = cryptoio.ReadExpandParameters(ctx, *expandParametersURI)
-		if err != nil {
-			log.Exit(ctx, err)
-		}
-	} else {
-		sumParams, err := cryptoio.ReadDPFParameters(ctx, *sumParametersURI)
-		if err != nil {
-			log.Exit(ctx, err)
-		}
-		prefixes, err := cryptoio.ReadPrefixes(ctx, *prefixesURI)
-		if err != nil {
-			log.Exit(ctx, err)
-		}
-		expandParams, err = dpfaggregator.ConvertOldParamsToExpandParameter(sumParams, prefixes)
+	var helperPrivKeys map[string]*pb.StandardPrivateKey
+	// Private keys are only needed when aggregating the partial reports for the first time.
+	// Otherwise partialReportURI should point to the decrypted reports.
+	if expandParams.PreviousLevel == -1 {
+		helperPrivKeys, err = cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
 		if err != nil {
 			log.Exit(ctx, err)
 		}

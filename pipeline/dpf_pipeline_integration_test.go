@@ -161,7 +161,6 @@ func TestPipeline(t *testing.T) {
 		"--partial_report_uri="+decryptedReportURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
-		"--private_key_params_uri="+privateKeyURI,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +170,6 @@ func TestPipeline(t *testing.T) {
 		"--partial_report_uri="+decryptedReportURI2,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,
-		"--private_key_params_uri="+privateKeyURI,
 	); err != nil {
 		t.Fatal(err)
 	}

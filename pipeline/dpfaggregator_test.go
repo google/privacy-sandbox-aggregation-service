@@ -260,14 +260,10 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dpfParams := &pb.IncrementalDpfParameters{Params: []*dpfpb.DpfParameters{
-		{LogDomainSize: 8, ElementBitsize: 1 << 6},
-	}}
-	prefixes := &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}}
-
-	expandParams, err := ConvertOldParamsToExpandParameter(dpfParams, prefixes)
-	if err != nil {
-		t.Fatal(err)
+	expandParams := &pb.ExpandParameters{
+		Levels:        []int32{7},
+		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
+		PreviousLevel: -1,
 	}
 	expandParams.SumParameters = &pb.IncrementalDpfParameters{
 		Params: ctxParams,
@@ -299,7 +295,7 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 }
 
-func TestHierarchicalAggregationAndMergeCompatible(t *testing.T) {
+func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
 		{Index: 16, Sum: 10},
 	}

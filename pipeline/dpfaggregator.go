@@ -738,24 +738,6 @@ func WriteCompleteHistogram(ctx context.Context, filename string, results map[ui
 	return ioutils.WriteLines(ctx, lines, filename)
 }
 
-// ConvertOldParamsToExpandParameter converts the parameters used in the server code the one that is used in the new pipeline.
-//
-// This function makes the current pipeline compatible with the server implementation, which will be refactored soon.
-func ConvertOldParamsToExpandParameter(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) (*pb.ExpandParameters, error) {
-	if err := incrementaldpf.CheckOldExpansionParameters(params, prefixes); err != nil {
-		return nil, err
-	}
-
-	expandParams := &pb.ExpandParameters{}
-	for _, param := range params.Params {
-		expandParams.Levels = append(expandParams.Levels, param.LogDomainSize-1)
-	}
-	expandParams.Prefixes = prefixes
-	expandParams.PreviousLevel = -1
-
-	return expandParams, nil
-}
-
 // MergePartialResult merges the partial histograms without using a beam pipeline.
 func MergePartialResult(partial1, partial2 map[uint64]*pb.PartialAggregationDpf) ([]CompleteHistogram, error) {
 	if len(partial1) != len(partial2) {

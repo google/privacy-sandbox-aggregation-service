@@ -130,79 +130,7 @@ func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestD
 }
 
 func TestAggregationPipelineDPF(t *testing.T) {
-	testAggregationPipelineDPFCompatible(t)
 	testAggregationPipelineDPF(t)
-}
-
-func testAggregationPipelineDPFCompatible(t testing.TB) {
-	ctx := context.Background()
-	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	privKeys2, pubKeysInfo2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	const keyBitSize = 20
-	testData, err := createConversionsDpf(keyBitSize, 6, 6)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctxParams := &pb.IncrementalDpfParameters{Params: allParams}
-	combineParams := &dpfaggregator.CombineParams{
-		DirectCombine: true,
-	}
-
-	params := &pb.IncrementalDpfParameters{}
-	prefixes := &pb.HierarchicalPrefixes{}
-	for i := range testData.Prefixes.Prefixes {
-		params.Params = append(params.Params, testData.SumParams.Params[i])
-		prefixes.Prefixes = append(prefixes.Prefixes, testData.Prefixes.Prefixes[i])
-
-		pipeline, scope := beam.NewPipelineWithRoot()
-		conversions := beam.CreateList(scope, testData.Conversions)
-		want := beam.CreateList(scope, testData.WantResults[i])
-		ePr1, ePr2 := splitRawConversion(scope, conversions, &GeneratePartialReportParams{
-			PublicKeys1: pubKeysInfo1,
-			PublicKeys2: pubKeysInfo2,
-			KeyBitSize:  keyBitSize,
-		})
-
-		pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKeys1)
-		pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKeys2)
-
-		expandParams, err := dpfaggregator.ConvertOldParamsToExpandParameter(params, prefixes)
-		if err != nil {
-			t.Fatal(err)
-		}
-		expandParams.SumParameters = ctxParams
-		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams)
-		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams)
-
-		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, combineParams)
-		if err != nil {
-			t.Fatal(err)
-		}
-		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, combineParams)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		got := dpfaggregator.MergeHistogram(scope, ph1, ph2)
-
-		passert.Equals(scope, got, want)
-
-		if err := ptest.Run(pipeline); err != nil {
-			t.Fatalf("pipeline failed: %s", err)
-		}
-	}
 }
 
 func testAggregationPipelineDPF(t testing.TB) {

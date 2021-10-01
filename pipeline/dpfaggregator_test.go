@@ -403,7 +403,7 @@ func TestReadPartialHistogram(t *testing.T) {
 		return a.ID, a.Agg
 	}, records)
 	partialFile := path.Join(fileDir, "partial_agg.txt")
-	writeHistogram(scope, partial, partialFile, 1)
+	writeHistogram(scope, partial, partialFile)
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
 	}
@@ -487,7 +487,7 @@ func TestWriteReadPartialHistogram(t *testing.T) {
 		return p.ID, p.PartialAggregation
 	}, wantList)
 	filename := path.Join(tmpDir, "partial.txt")
-	writeHistogram(scope, table, filename, 1)
+	writeHistogram(scope, table, filename)
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)

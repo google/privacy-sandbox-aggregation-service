@@ -567,7 +567,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 		writeEvaluationContext(scope, evalctx, params.EvaluationContextURI, params.Shards)
 	}
 
-	writeHistogram(scope, partialHistogram, params.PartialHistogramURI, params.Shards)
+	writeHistogram(scope, partialHistogram, params.PartialHistogramURI)
 	return nil
 }
 
@@ -590,10 +590,10 @@ func (fn *formatHistogramFn) ProcessElement(ctx context.Context, index uint64, r
 	return nil
 }
 
-func writeHistogram(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
+func writeHistogram(s beam.Scope, col beam.PCollection, outputName string) {
 	s = s.Scope("WriteHistogram")
 	formatted := beam.ParDo(s, &formatHistogramFn{}, col)
-	ioutils.WriteNShardedFiles(s, outputName, shards, formatted)
+	textio.Write(s, outputName, formatted)
 }
 
 // parsePartialHistogramFn parses each line from the partial aggregation file, and gets a pair of bucket ID and PartialAggregationDpf.

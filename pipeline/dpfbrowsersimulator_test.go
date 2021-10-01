@@ -177,20 +177,20 @@ func testAggregationPipelineDPFCompatible(t testing.TB) {
 
 		pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKeys1)
 		pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKeys2)
-		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, ctxParams)
-		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, ctxParams)
 
 		expandParams, err := dpfaggregator.ConvertOldParamsToExpandParameter(params, prefixes)
 		if err != nil {
 			t.Fatal(err)
 		}
 		expandParams.SumParameters = ctxParams
+		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams)
+		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams)
 
-		ph1, _, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, combineParams)
+		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ph2, _, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, combineParams)
+		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -245,8 +245,6 @@ func testAggregationPipelineDPF(t testing.TB) {
 
 	pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKeys1)
 	pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKeys2)
-	ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, ctxParams)
-	ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, ctxParams)
 
 	previousLevel := int32(-1)
 	for i := range testData.Prefixes.Prefixes {
@@ -258,15 +256,17 @@ func testAggregationPipelineDPF(t testing.TB) {
 			Levels:        []int32{testData.SumParams.Params[i].LogDomainSize - 1},
 			PreviousLevel: previousLevel,
 		}
+		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams)
+		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams)
 
 		params.Params = append(params.Params, testData.SumParams.Params[i])
 		prefixes.Prefixes = append(prefixes.Prefixes, testData.Prefixes.Prefixes[i])
 
-		ph1, _, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, combineParams)
+		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ph2, _, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, combineParams)
+		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,7 +314,7 @@ func TestWriteReadPartialReports(t *testing.T) {
 		t.Fatalf("pipeline failed: %s", err)
 	}
 
-	gotList := dpfaggregator.ReadPartialReport(scope, filename)
+	gotList := dpfaggregator.ReadEncryptedPartialReport(scope, filename)
 	passert.Equals(scope, gotList, wantList)
 
 	if err := ptest.Run(pipeline); err != nil {

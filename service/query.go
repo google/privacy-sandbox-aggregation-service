@@ -248,9 +248,9 @@ func ReadExpansionConfigFile(ctx context.Context, filename string) (*ExpansionCo
 
 // Default basic file names.
 const (
-	DefaultExpandParamsFile      = "EXPANDPARAMS"
-	DefaultPartialResultFile     = "PARTIALRESULT"
-	DefaultEvaluationContextFile = "EVALUATIONCONTEXT"
+	DefaultExpandParamsFile    = "EXPANDPARAMS"
+	DefaultPartialResultFile   = "PARTIALRESULT"
+	DefaultDecryptedReportFile = "DECRYPTEDREPORT"
 )
 
 // HelperSharedInfo stores information that is shared by other helpers.
@@ -278,9 +278,9 @@ func GetRequestPartialResultURI(sharedDir, queryID string, level int32) string {
 	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, level))
 }
 
-// GetRequestEvaluationContextURI returns the URI of the expected evaluation context file.
-func GetRequestEvaluationContextURI(workDir, queryID string, level int32) string {
-	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultEvaluationContextFile, level))
+// GetRequestDecryptedReportURI returns the URI of the decrypted report file.
+func GetRequestDecryptedReportURI(workDir, queryID string) string {
+	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s", queryID, DefaultDecryptedReportFile))
 }
 
 // GetRequestExpandParamsURI calculates the expand parameters, saves it into a file and returns the URI.

@@ -70,11 +70,11 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*expandDpfKeyFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*decryptPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*formatCompleteHistogramFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*formatEvaluationContextFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*formatPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*formatHistogramFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*mergeHistogramFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseEncryptedPartialReportFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*parseEvaluationContextFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*parsePartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parsePartialHistogramFn)(nil)).Elem())
 
 	beam.RegisterType(reflect.TypeOf((*expandedVec)(nil)))
@@ -95,7 +95,7 @@ type parseEncryptedPartialReportFn struct {
 }
 
 func (fn *parseEncryptedPartialReportFn) Setup() {
-	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "partial-report-count")
+	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "encrypted-partial-report-count")
 }
 
 func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedPartialReportDpf)) error {
@@ -112,8 +112,8 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 	return nil
 }
 
-// ReadPartialReport reads each line from a file, and parses it as a partial report that contains a encrypted DPF key and the context info.
-func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
+// ReadEncryptedPartialReport reads each line from a file, and parses it as a partial report that contains a encrypted DPF key and the context info.
+func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
@@ -171,8 +171,9 @@ func GetDefaultDPFParameters(keyBitSize int32) ([]*dpfpb.DpfParameters, error) {
 }
 
 type createEvalCtxFn struct {
-	DPFParams  *pb.IncrementalDpfParameters
-	ctxCounter beam.Counter
+	PreviousLevel int32
+	DPFParams     *pb.IncrementalDpfParameters
+	ctxCounter    beam.Counter
 }
 
 func (fn *createEvalCtxFn) Setup() {
@@ -180,10 +181,11 @@ func (fn *createEvalCtxFn) Setup() {
 }
 
 func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(*dpfpb.EvaluationContext)) error {
-	sumCtx, err := incrementaldpf.CreateEvaluationContext(fn.DPFParams.Params, partialReport.GetSumKey())
-	if err != nil {
-		return err
-	}
+	sumCtx := &dpfpb.EvaluationContext{}
+	sumCtx.Key = partialReport.SumKey
+	sumCtx.Parameters = fn.DPFParams.Params
+	sumCtx.PreviousHierarchyLevel = fn.PreviousLevel
+
 	emit(sumCtx)
 	fn.ctxCounter.Inc(ctx, 1)
 
@@ -191,69 +193,70 @@ func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb
 }
 
 // CreateEvaluationContext creates the DPF evaluation context from the decrypted keys.
-func CreateEvaluationContext(s beam.Scope, decryptedReport beam.PCollection, dpfParams *pb.IncrementalDpfParameters) beam.PCollection {
+func CreateEvaluationContext(s beam.Scope, decryptedReport beam.PCollection, expandParams *pb.ExpandParameters) beam.PCollection {
 	s = s.Scope("CreateEvaluationContext")
 	return beam.ParDo(s, &createEvalCtxFn{
-		DPFParams: dpfParams,
+		DPFParams:     expandParams.SumParameters,
+		PreviousLevel: expandParams.PreviousLevel,
 	}, decryptedReport)
 }
 
-// parseEvaluationContextFn parses each line of the input file and gets a DPF evaluation context.
-type parseEvaluationContextFn struct {
-	evalCtxCounter beam.Counter
+// parsePartialReport parses each line of the input file and gets a DPF evaluation context.
+type parsePartialReportFn struct {
+	partialReportCounter beam.Counter
 }
 
-func (fn *parseEvaluationContextFn) Setup() {
-	fn.evalCtxCounter = beam.NewCounter("aggregation", "read-evaluation-context-count")
+func (fn *parsePartialReportFn) Setup() {
+	fn.partialReportCounter = beam.NewCounter("aggregation", "read-partial-report-count")
 }
 
-func (fn *parseEvaluationContextFn) ProcessElement(ctx context.Context, line string, emit func(*dpfpb.EvaluationContext)) error {
-	bsc, err := base64.StdEncoding.DecodeString(line)
+func (fn *parsePartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.PartialReportDpf)) error {
+	b, err := base64.StdEncoding.DecodeString(line)
 	if err != nil {
 		return err
 	}
 
-	evalCtx := &dpfpb.EvaluationContext{}
-	if err := proto.Unmarshal(bsc, evalCtx); err != nil {
+	partialReport := &pb.PartialReportDpf{}
+	if err := proto.Unmarshal(b, partialReport); err != nil {
 		return err
 	}
-	emit(evalCtx)
+	emit(partialReport)
 
-	fn.evalCtxCounter.Inc(ctx, 1)
+	fn.partialReportCounter.Inc(ctx, 1)
 	return nil
 }
 
-// ReadEvaluationContext reads each line from a file, and parses it as a DPF evaluation context.
-func ReadEvaluationContext(scope beam.Scope, evalContextFile string) beam.PCollection {
-	scope = scope.Scope("ReadEvaluationContext")
-	allFiles := ioutils.AddStrInPath(evalContextFile, "*")
+// ReadPartialReport reads each line from a file, and parses it as a PartialReport.
+func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
+	scope = scope.Scope("ReadPartialReport")
+	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
-	return beam.ParDo(scope, &parseEvaluationContextFn{}, lines)
+	return beam.ParDo(scope, &parsePartialReportFn{}, lines)
 }
 
-type formatEvaluationContextFn struct {
-	evalCtxCounter beam.Counter
+type formatPartialReportFn struct {
+	partialReportCounter beam.Counter
 }
 
-func (fn *formatEvaluationContextFn) Setup() {
-	fn.evalCtxCounter = beam.NewCounter("aggregation", "write-evaluation-context-count")
+func (fn *formatPartialReportFn) Setup() {
+	fn.partialReportCounter = beam.NewCounter("aggregation", "write-partial-report-count")
 }
 
-func (fn *formatEvaluationContextFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emit func(string)) error {
-	b, err := proto.Marshal(evalCtx)
+func (fn *formatPartialReportFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(string)) error {
+	b, err := proto.Marshal(partialReport)
 	if err != nil {
 		return err
 	}
 	emit(base64.StdEncoding.EncodeToString(b))
 
-	fn.evalCtxCounter.Inc(ctx, 1)
+	fn.partialReportCounter.Inc(ctx, 1)
 	return nil
 }
 
-// writeEvaluationContext writes the DPF evaluation contexts into a file.
-func writeEvaluationContext(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
-	s = s.Scope("WriteEvaluationContext")
-	formatted := beam.ParDo(s, &formatEvaluationContextFn{}, col)
+// writePartialReport writes the decrypted partial reports into a file.
+func writePartialReport(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
+	s = s.Scope("WritePartialReport")
+	formatted := beam.ParDo(s, &formatPartialReportFn{}, col)
 	ioutils.WriteNShardedFiles(s, outputName, shards, formatted)
 }
 
@@ -271,7 +274,7 @@ func (fn *expandDpfKeyFn) Setup() {
 	fn.vecCounter = beam.NewCounter("aggregation", "expandDpfFn-vec-count")
 }
 
-func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec), emitCtx func(*dpfpb.EvaluationContext)) error {
+func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec)) error {
 	if int32(fn.ExpandParams.Levels[0]) <= evalCtx.PreviousHierarchyLevel {
 		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Levels[0])
 	}
@@ -281,7 +284,6 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 		err    error
 	)
 
-	evalCtx.Parameters = fn.ExpandParams.SumParameters.Params
 	for i, level := range fn.ExpandParams.Levels {
 		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), fn.ExpandParams.Prefixes.Prefixes[i].Prefix, evalCtx)
 		if err != nil {
@@ -290,14 +292,6 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 	}
 
 	emitVec(&expandedVec{SumVec: vecSum})
-	// The evaluation context needs to be saved as the expansion state except for the last-level hierarchy.
-	if fn.ExpandParams.Levels[len(fn.ExpandParams.Levels)-1] < int32(len(evalCtx.Parameters)-1) {
-		// Ignore the default DPF parameters when saving the evaluation context.
-		evalCtx.Parameters = nil
-		// Ignore the partial evaluations that is not needed for the future expansions.
-		evalCtx.PartialEvaluations = nil
-		emitCtx(evalCtx)
-	}
 
 	fn.vecCounter.Inc(ctx, 1)
 	return nil
@@ -487,13 +481,13 @@ type CombineParams struct {
 }
 
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
-func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *pb.ExpandParameters, combineParams *CombineParams) (beam.PCollection, beam.PCollection, error) {
+func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *pb.ExpandParameters, combineParams *CombineParams) (beam.PCollection, error) {
 	bucketIDs, err := incrementaldpf.CalculateBucketID(expandParams.SumParameters, expandParams.Prefixes, expandParams.Levels, expandParams.PreviousLevel)
 	if err != nil {
-		return beam.PCollection{}, beam.PCollection{}, err
+		return beam.PCollection{}, err
 	}
 
-	expanded, evalctx := beam.ParDo2(scope, &expandDpfKeyFn{
+	expanded := beam.ParDo(scope, &expandDpfKeyFn{
 		ExpandParams: expandParams,
 	}, evaluationContext)
 
@@ -511,9 +505,9 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 	}
 
 	if combineParams.Epsilon > 0 {
-		return addNoise(scope, rawResult, combineParams.Epsilon, combineParams.L1Sensitivity), evalctx, nil
+		return addNoise(scope, rawResult, combineParams.Epsilon, combineParams.L1Sensitivity), nil
 	}
-	return rawResult, evalctx, nil
+	return rawResult, nil
 }
 
 // AggregatePartialReportParams contains necessary parameters for function AggregatePartialReport().
@@ -522,8 +516,8 @@ type AggregatePartialReportParams struct {
 	PartialReportURI string
 	// Output partial aggregation file path, each line contains a bucket index and a wire-formatted PartialAggregationDpf.
 	PartialHistogramURI string
-	// Output the evaluation context to save the current state of key expansion.
-	EvaluationContextURI string
+	// Output the decrypted partial report to track the expansion state.
+	DecryptedReportURI string
 	// Number of shards when writing the output file.
 	Shards int64
 	// The private keys for the standard encryption from the helper server.
@@ -547,24 +541,23 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	var evalCtx beam.PCollection
+	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(params.ExpandParams.SumParameters.Params)-1)
+	var decryptedReport beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 || !params.UseEvaluationContext {
-		encrypted := ReadPartialReport(scope, params.PartialReportURI)
+		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
 		resharded := beam.Reshuffle(scope, encrypted)
-		partialReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
-		evalCtx = CreateEvaluationContext(scope, partialReport, params.ExpandParams.SumParameters)
+		decryptedReport = DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
+		if !isFinalLevel && params.UseEvaluationContext && params.DecryptedReportURI != "" {
+			writePartialReport(scope, decryptedReport, params.DecryptedReportURI, params.Shards)
+		}
 	} else {
-		evalCtxOrig := ReadEvaluationContext(scope, params.PartialReportURI)
-		evalCtx = beam.Reshuffle(scope, evalCtxOrig)
+		decryptedOrig := ReadPartialReport(scope, params.PartialReportURI)
+		decryptedReport = beam.Reshuffle(scope, decryptedOrig)
 	}
-	partialHistogram, evalctx, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.CombineParams)
+	evalCtx := CreateEvaluationContext(scope, decryptedReport, params.ExpandParams)
+	partialHistogram, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.CombineParams)
 	if err != nil {
 		return err
-	}
-
-	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(params.ExpandParams.SumParameters.Params)-1)
-	if !isFinalLevel && params.UseEvaluationContext {
-		writeEvaluationContext(scope, evalctx, params.EvaluationContextURI, params.Shards)
 	}
 
 	writeHistogram(scope, partialHistogram, params.PartialHistogramURI)

@@ -277,14 +277,14 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
-	evalCtx1 := CreateEvaluationContext(scope, partialReport1, &pb.IncrementalDpfParameters{Params: ctxParams})
-	evalCtx2 := CreateEvaluationContext(scope, partialReport2, &pb.IncrementalDpfParameters{Params: ctxParams})
+	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams)
+	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams)
 
-	partialResult1, _, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, combineParams)
+	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult2, _, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, combineParams)
+	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,8 +323,6 @@ func TestHierarchicalAggregationAndMergeCompatible(t *testing.T) {
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
 
 	// For the first level.
-	evalCtx01 := CreateEvaluationContext(scope, partialReport1, &pb.IncrementalDpfParameters{Params: ctxParams})
-	evalCtx02 := CreateEvaluationContext(scope, partialReport2, &pb.IncrementalDpfParameters{Params: ctxParams})
 	expandParams0 := &pb.ExpandParameters{
 		SumParameters: &pb.IncrementalDpfParameters{Params: ctxParams},
 		Prefixes: &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
@@ -333,11 +331,13 @@ func TestHierarchicalAggregationAndMergeCompatible(t *testing.T) {
 		Levels:        []int32{3},
 		PreviousLevel: -1,
 	}
-	partialResult01, evalCtx11, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, combineParams)
+	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0)
+	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0)
+	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult02, evalCtx12, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, combineParams)
+	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,11 +358,13 @@ func TestHierarchicalAggregationAndMergeCompatible(t *testing.T) {
 		PreviousLevel: 3,
 	}
 	expandParams1.SumParameters = &pb.IncrementalDpfParameters{Params: ctxParams}
-	partialResult11, _, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, combineParams)
+	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1)
+	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1)
+	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult12, _, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, combineParams)
+	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}

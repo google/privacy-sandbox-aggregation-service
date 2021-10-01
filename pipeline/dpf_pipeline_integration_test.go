@@ -90,12 +90,12 @@ func TestPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	partialHistogramURI01 := path.Join(partialResultDir1, "partial_histogram0")
-	evaluationContextURI01 := path.Join(workspaceDir1, "evaluation_context0")
+	decryptedReportURI1 := path.Join(workspaceDir1, "decrypted_report")
 	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
 		"--partial_report_uri="+partialReportURI1,
 		"--expand_parameters_uri="+expandParamsURI0,
 		"--partial_histogram_uri="+partialHistogramURI01,
-		"--evaluation_context_uri="+evaluationContextURI01,
+		"--decrypted_report_uri="+decryptedReportURI1,
 		"--private_key_params_uri="+privateKeyURI,
 	); err != nil {
 		t.Fatal(err)
@@ -110,12 +110,12 @@ func TestPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	partialHistogramURI02 := path.Join(partialResultDir2, "partial_histogram0")
-	evaluationContextURI02 := path.Join(workspaceDir2, "evaluation_context0")
+	decryptedReportURI2 := path.Join(workspaceDir2, "decrypted_report")
 	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
 		"--partial_report_uri="+partialReportURI2,
 		"--expand_parameters_uri="+expandParamsURI0,
 		"--partial_histogram_uri="+partialHistogramURI02,
-		"--evaluation_context_uri="+evaluationContextURI02,
+		"--decrypted_report_uri="+decryptedReportURI2,
 		"--private_key_params_uri="+privateKeyURI,
 	); err != nil {
 		t.Fatal(err)
@@ -157,24 +157,20 @@ func TestPipeline(t *testing.T) {
 	}
 
 	partialHistogramURI11 := path.Join(partialResultDir1, "partial_histogram1")
-	evaluationContextURI11 := path.Join(workspaceDir1, "evaluation_context1")
 	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
-		"--partial_report_uri="+evaluationContextURI01,
+		"--partial_report_uri="+decryptedReportURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
-		"--evaluation_context_uri="+evaluationContextURI11,
 		"--private_key_params_uri="+privateKeyURI,
 	); err != nil {
 		t.Fatal(err)
 	}
 
 	partialHistogramURI12 := path.Join(partialResultDir2, "partial_histogram1")
-	evaluationContextURI12 := path.Join(workspaceDir2, "evaluation_context1")
 	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
-		"--partial_report_uri="+evaluationContextURI02,
+		"--partial_report_uri="+decryptedReportURI2,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,
-		"--evaluation_context_uri="+evaluationContextURI12,
 		"--private_key_params_uri="+privateKeyURI,
 	); err != nil {
 		t.Fatal(err)

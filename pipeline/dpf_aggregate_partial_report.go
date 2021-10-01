@@ -49,12 +49,12 @@ import (
 )
 
 var (
-	partialReportURI     = flag.String("partial_report_uri", "", "Input partial reports. It may contain the original encrypted partial reports or evaluation context.")
-	expandParametersURI  = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
-	partialHistogramURI  = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
-	evaluationContextURI = flag.String("evaluation_context_uri", "", "Output evaluation context that records the intermediate query state of the key expansion.")
-	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
-	privateKeyParamsURI  = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
+	partialReportURI    = flag.String("partial_report_uri", "", "Input partial reports. It may contain the original encrypted partial reports or evaluation context.")
+	expandParametersURI = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
+	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
+	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output the decrypted partial reports so the helper won't need to do the decryption repeatedly.")
+	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -116,11 +116,11 @@ func main() {
 	if err := dpfaggregator.AggregatePartialReport(
 		scope,
 		&dpfaggregator.AggregatePartialReportParams{
-			PartialReportURI:     *partialReportURI,
-			PartialHistogramURI:  *partialHistogramURI,
-			EvaluationContextURI: *evaluationContextURI,
-			HelperPrivateKeys:    helperPrivKeys,
-			ExpandParams:         expandParams,
+			PartialReportURI:    *partialReportURI,
+			PartialHistogramURI: *partialHistogramURI,
+			DecryptedReportURI:  *decryptedReportURI,
+			HelperPrivateKeys:   helperPrivKeys,
+			ExpandParams:        expandParams,
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
 				SegmentLength: *segmentLength,

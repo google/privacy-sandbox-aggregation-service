@@ -157,6 +157,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	}
 
 	partialReportURI := request.PartialReportURI
+	outputDecryptedReportURI := ""
 	if request.QueryLevel > 0 {
 		// If it is not the first-level aggregation, check if the result from the partner helper is ready for the previous level.
 		exist, err := utils.IsGCSObjectExist(ctx, h.GCSClient,
@@ -170,8 +171,10 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 			return fmt.Errorf("result from %s for level %d of query %s is not ready", request.PartnerSharedInfo.Origin, request.QueryLevel-1, request.QueryID)
 		}
 
-		// If it is not the first-level aggregation, the pipeline should read the evaluation context instead of the original encrypted partial reports.
-		partialReportURI = query.GetRequestEvaluationContextURI(h.ServerCfg.WorkspaceURI, request.QueryID, request.QueryLevel-1)
+		// If it is not the first-level aggregation, the pipeline should read the decrypted reports instead of the original encrypted ones.
+		partialReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
+	} else {
+		outputDecryptedReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
 	}
 
 	expandParamsURI, err := query.GetRequestExpandParamsURI(ctx, config, request,
@@ -190,13 +193,12 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 	} else {
 		outputResultURI = query.GetRequestPartialResultURI(h.SharedDir, request.QueryID, request.QueryLevel)
 	}
-	outputEvalCtxURI := query.GetRequestEvaluationContextURI(h.ServerCfg.WorkspaceURI, request.QueryID, request.QueryLevel)
 
 	args := []string{
 		"--partial_report_uri=" + partialReportURI,
 		"--expand_parameters_uri=" + expandParamsURI,
 		"--partial_histogram_uri=" + outputResultURI,
-		"--evaluation_context_uri=" + outputEvalCtxURI,
+		"--decrypted_report_uri=" + outputDecryptedReportURI,
 		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.QueryLevel]),
 		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
 		"--runner=" + h.PipelineRunner,

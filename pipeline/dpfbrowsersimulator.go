@@ -28,6 +28,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
@@ -45,15 +46,6 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*RawConversion)(nil)))
 	beam.RegisterFunction(formatPartialReportFn)
-}
-
-// Payload defines the payload sent to one server.
-type Payload struct {
-	Operation string `json:"operation"`
-	// DPFKey is a serialized proto of:
-	// https://github.com/google/distributed_point_functions/blob/199696c7cde95d9f9e07a4dddbcaaa36d120ca12/dpf/distributed_point_function.proto#L110
-	DPFKey  []byte `json:"dpf_key"`
-	Padding string `json:"padding"`
 }
 
 // RawConversion represents a conversion record from the browser. For the DPF protocol the record key is an integer in a known domain.
@@ -125,7 +117,7 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 		return nil, err
 	}
 
-	payload := dpfaggregator.Payload{
+	payload := reporttypes.Payload{
 		Operation: "hierarchical-histogram",
 		DPFKey:    bDpfKey,
 	}

@@ -33,7 +33,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
 )
 
@@ -106,7 +106,7 @@ func main() {
 		publicKeyInfo2 = v
 	}
 	// Empty context information for demo.
-	contextInfo, err := ioutils.MarshalCBOR(&collectorservice.SharedInfo{})
+	contextInfo, err := ioutils.MarshalCBOR(&reporttypes.SharedInfo{})
 	if err != nil {
 		log.Exit(err)
 	}
@@ -136,9 +136,9 @@ func main() {
 			if err != nil {
 				log.Exit(err)
 			}
-			report, err := ioutils.MarshalCBOR(&collectorservice.AggregationReport{
+			report, err := ioutils.MarshalCBOR(&reporttypes.AggregationReport{
 				SharedInfo: contextInfo,
-				Payloads: []*collectorservice.AggregationServicePayload{
+				AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
 					{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: report1.KeyId},
 					{Origin: *helperOrigin2, Payload: report2.EncryptedReport.Data, KeyID: report2.KeyId},
 				},

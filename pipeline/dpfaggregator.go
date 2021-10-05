@@ -44,6 +44,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -78,15 +79,6 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*parsePartialHistogramFn)(nil)).Elem())
 
 	beam.RegisterType(reflect.TypeOf((*expandedVec)(nil)))
-}
-
-// Payload defines the payload sent to one server
-type Payload struct {
-	Operation string `json:"operation"`
-	// DPFKey is a serialized proto of:
-	// https://github.com/google/distributed_point_functions/blob/199696c7cde95d9f9e07a4dddbcaaa36d120ca12/dpf/distributed_point_function.proto#L110
-	DPFKey  []byte `json:"dpf_key"`
-	Padding string `json:"padding"`
 }
 
 // parseEncryptedPartialReportFn parses each line of the input partial report and gets a StandardCiphertext, which represents a encrypted PartialReportDpf.
@@ -136,7 +128,7 @@ func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.EncryptedPartialR
 		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
 	}
 
-	payload := &Payload{}
+	payload := &reporttypes.Payload{}
 	if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
 		return err
 	}

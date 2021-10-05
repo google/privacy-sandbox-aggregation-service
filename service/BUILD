@@ -178,6 +178,7 @@ go_library(
         "//pipeline:crypto_go_proto",
         "//pipeline:dpfbrowsersimulator",
         "//pipeline:ioutils",
+        "//pipeline:reporttypes",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
         "@org_golang_x_sync//errgroup:go_default_library",
@@ -229,11 +230,11 @@ go_binary(
     ],
     x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
-        ":collectorservice",
         ":utils",
         "//pipeline:cryptoio",
         "//pipeline:dpfbrowsersimulator",
         "//pipeline:ioutils",
+        "//pipeline:reporttypes",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",
     ],
@@ -264,6 +265,7 @@ go_test(
     embed = [":collectorservice"],
     deps = [
         "//pipeline:crypto_go_proto",
+        "//pipeline:reporttypes",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",

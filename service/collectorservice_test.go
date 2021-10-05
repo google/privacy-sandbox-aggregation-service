@@ -29,6 +29,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
@@ -37,9 +39,9 @@ func TestCollectPayloads(t *testing.T) {
 
 	contextInfo := []byte("shared_info")
 	payload1, payload2 := []byte("payload1"), []byte("payload2")
-	report := &AggregationReport{
+	report := &reporttypes.AggregationReport{
 		SharedInfo: contextInfo,
-		Payloads: []*AggregationServicePayload{
+		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
 			{Origin: "helper2", Payload: payload2},
 			{Origin: "helper1", Payload: payload1},
 		},
@@ -55,7 +57,7 @@ func TestCollectPayloads(t *testing.T) {
 		batchSize: 1,
 		batchDir:  dir,
 		wg:        &sync.WaitGroup{},
-		reportsCh: make(chan *AggregationReport),
+		reportsCh: make(chan *reporttypes.AggregationReport),
 	}
 	ctx := context.Background()
 	brw.start(ctx, brw.reportsCh)
@@ -104,17 +106,17 @@ func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
 
 	contextInfo := []byte("shared_info")
 	payload1, payload2, payload3 := []byte("payload1"), []byte("payload2"), []byte("payload2")
-	reporth1h2 := &AggregationReport{
+	reporth1h2 := &reporttypes.AggregationReport{
 		SharedInfo: contextInfo,
-		Payloads: []*AggregationServicePayload{
+		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
 			{Origin: "helper2", Payload: payload2},
 			{Origin: "helper1", Payload: payload1},
 		},
 	}
 
-	reporth1h3 := &AggregationReport{
+	reporth1h3 := &reporttypes.AggregationReport{
 		SharedInfo: contextInfo,
-		Payloads: []*AggregationServicePayload{
+		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
 			{Origin: "helper1", Payload: payload1},
 			{Origin: "helper3", Payload: payload3},
 		},
@@ -130,7 +132,7 @@ func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
 		batchSize: 1,
 		batchDir:  dir,
 		wg:        &sync.WaitGroup{},
-		reportsCh: make(chan *AggregationReport),
+		reportsCh: make(chan *reporttypes.AggregationReport),
 	}
 	ctx := context.Background()
 	brw.start(ctx, brw.reportsCh)

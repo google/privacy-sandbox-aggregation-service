@@ -34,6 +34,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -64,7 +65,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 		return err
 	}
 
-	payload := Payload{DPFKey: b}
+	payload := reporttypes.Payload{DPFKey: b}
 	bPayload, err := ioutils.MarshalCBOR(payload)
 	if err != nil {
 		return err

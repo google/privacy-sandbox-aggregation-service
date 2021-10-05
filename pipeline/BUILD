@@ -470,6 +470,7 @@ go_library(
         ":distributednoise",
         ":incrementaldpf",
         ":ioutils",
+        ":reporttypes",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
@@ -488,6 +489,7 @@ go_test(
         ":cryptoio",
         ":incrementaldpf",
         ":ioutils",
+        ":reporttypes",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
@@ -512,6 +514,7 @@ go_library(
         ":dpfaggregator",
         ":incrementaldpf",
         ":ioutils",
+        ":reporttypes",
         ":standardencrypt",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
@@ -637,4 +640,10 @@ go_test(
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
     ],
+)
+
+go_library(
+    name = "reporttypes",
+    srcs = ["reporttypes.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes",
 )

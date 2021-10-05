@@ -524,8 +524,6 @@ type AggregatePartialReportParams struct {
 	HelperPrivateKeys map[string]*pb.StandardPrivateKey
 	ExpandParams      *pb.ExpandParameters
 	CombineParams     *CombineParams
-	// If this is true, we use the evaluation context as the expansion state; otherwise the aggregation always starts with the original partial report.
-	UseEvaluationContext bool
 }
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
@@ -543,11 +541,11 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(params.ExpandParams.SumParameters.Params)-1)
 	var decryptedReport beam.PCollection
-	if params.ExpandParams.PreviousLevel < 0 || !params.UseEvaluationContext {
+	if params.ExpandParams.PreviousLevel < 0 {
 		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
 		resharded := beam.Reshuffle(scope, encrypted)
 		decryptedReport = DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
-		if !isFinalLevel && params.UseEvaluationContext && params.DecryptedReportURI != "" {
+		if !isFinalLevel {
 			writePartialReport(scope, decryptedReport, params.DecryptedReportURI, params.Shards)
 		}
 	} else {

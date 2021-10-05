@@ -85,6 +85,9 @@ func main() {
 		if err != nil {
 			log.Exit(ctx, err)
 		}
+		if *decryptedReportURI == "" {
+			log.Exitf(ctx, "expect non-empty output decrypt report URI")
+		}
 	}
 
 	// For the current design, we define hierarchies for all possible prefix lengths of the bucket ID.
@@ -112,8 +115,7 @@ func main() {
 				Epsilon:       *epsilon,
 				L1Sensitivity: *l1Sensitivity,
 			},
-			Shards:               *fileShards,
-			UseEvaluationContext: *expandParametersURI != "",
+			Shards: *fileShards,
 		}); err != nil {
 		log.Exit(ctx, err)
 	}

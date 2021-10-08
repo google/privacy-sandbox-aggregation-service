@@ -308,27 +308,3 @@ func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.
 	}
 	return nil
 }
-
-// CheckOldExpansionParameters checks if the DPF parameters and prefixes defined in the old pipeline are valid for the hierarchical expansion.
-func CheckOldExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes) error {
-	paramsLen := len(params.Params)
-	if paramsLen == 0 {
-		return errors.New("empty dpf parameters")
-	}
-
-	prefixesLen := len(prefixes.Prefixes)
-	if paramsLen != prefixesLen {
-		return fmt.Errorf("dpf parameter size should equal prefixes size %d, got %d", prefixesLen, paramsLen)
-	}
-
-	if len(prefixes.Prefixes[0].Prefix) != 0 {
-		return fmt.Errorf("prefixes should be empty for the first level expansion, got %s", prefixes.Prefixes[0].String())
-	}
-
-	for i, p := range prefixes.Prefixes {
-		if i > 0 && len(p.Prefix) == 0 {
-			return fmt.Errorf("prefix cannot be empty except for the top level expansion")
-		}
-	}
-	return nil
-}

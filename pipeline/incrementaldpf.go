@@ -29,6 +29,7 @@ import (
 	"unsafe"
 
 	"google.golang.org/protobuf/proto"
+	"lukechampine.com/uint128"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
@@ -39,6 +40,16 @@ const DefaultElementBitSize = 64
 
 func freeCBytes(cb C.struct_CBytes) {
 	C.free(unsafe.Pointer(cb.c))
+}
+
+func createCUInt128s(nums []uint128.Uint128) *C.struct_CUInt128 {
+	len := len(nums)
+	cNums := (*C.struct_CUInt128)(C.malloc(C.sizeof_struct_CUInt128 * C.uint64_t(len)))
+	pSlice := (*[1 << 30]C.struct_CUInt128)(unsafe.Pointer(cNums))[:len:len]
+	for i := range nums {
+		pSlice[i] = C.struct_CUInt128{lo: C.uint64_t(nums[i].Lo), hi: C.uint64_t(nums[i].Hi)}
+	}
+	return cNums
 }
 
 func createCParams(params []*dpfpb.DpfParameters) (*C.struct_CBytes, []unsafe.Pointer, error) {
@@ -65,13 +76,15 @@ func freeCParams(cParams *C.struct_CBytes, cParamPointers []unsafe.Pointer) {
 }
 
 // GenerateKeys generates a pair of DpfKeys for given parameters.
-func GenerateKeys(params []*dpfpb.DpfParameters, alpha uint64, betas []uint64) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
+func GenerateKeys(params []*dpfpb.DpfParameters, alpha uint128.Uint128, betas []uint64) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
 	cParamsSize := C.int64_t(len(params))
 	cParams, cParamPointers, err := createCParams(params)
 	defer freeCParams(cParams, cParamPointers)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	cAlpha := C.struct_CUInt128{lo: C.uint64_t(alpha.Lo), hi: C.uint64_t(alpha.Hi)}
 
 	betasSize := len(betas)
 	cBetasSize := C.int64_t(betasSize)
@@ -83,7 +96,7 @@ func GenerateKeys(params []*dpfpb.DpfParameters, alpha uint64, betas []uint64) (
 	cKey1 := C.struct_CBytes{}
 	cKey2 := C.struct_CBytes{}
 	errStr := C.struct_CBytes{}
-	status := C.CGenerateKeys(cParams, cParamsSize, C.uint64_t(alpha), (*C.uint64_t)(unsafe.Pointer(betasPointer)), cBetasSize, &cKey1, &cKey2, &errStr)
+	status := C.CGenerateKeys(cParams, cParamsSize, &cAlpha, (*C.uint64_t)(unsafe.Pointer(betasPointer)), cBetasSize, &cKey1, &cKey2, &errStr)
 	defer freeCBytes(cKey1)
 	defer freeCBytes(cKey2)
 	defer freeCBytes(errStr)
@@ -137,13 +150,10 @@ func CreateEvaluationContext(params []*dpfpb.DpfParameters, key *dpfpb.DpfKey) (
 }
 
 // EvaluateNext64 evaluates the given DPF key in the evaluation context with the specified configuration.
-func EvaluateNext64(prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
-	pSize := len(prefixes)
-	cPrefixesSize := C.int64_t(pSize)
-	var prefixesPointer *uint64
-	if pSize > 0 {
-		prefixesPointer = &prefixes[0]
-	}
+func EvaluateNext64(prefixes []uint128.Uint128, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
+	cPrefixesSize := C.int64_t(len(prefixes))
+	prefixesPointer := createCUInt128s(prefixes)
+	defer C.free(unsafe.Pointer(prefixesPointer))
 
 	bEvalCtx, err := proto.Marshal(evalCtx)
 	if err != nil {
@@ -152,7 +162,7 @@ func EvaluateNext64(prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint
 	cEvalCtx := C.struct_CBytes{c: (*C.char)(C.CBytes(bEvalCtx)), l: C.int(len(bEvalCtx))}
 	outExpanded := C.struct_CUInt64Vec{}
 	errStr := C.struct_CBytes{}
-	status := C.CEvaluateNext64((*C.uint64_t)(unsafe.Pointer(prefixesPointer)), cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
+	status := C.CEvaluateNext64(prefixesPointer, cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
 	defer freeCBytes(cEvalCtx)
 	defer C.free(unsafe.Pointer(outExpanded.vec))
 	defer freeCBytes(errStr)
@@ -178,13 +188,10 @@ func EvaluateNext64(prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint
 }
 
 // EvaluateUntil64 evaluates the given DPF key in the evaluation context to a certain level of hierarchy.
-func EvaluateUntil64(hierarchyLevel int, prefixes []uint64, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
-	pSize := len(prefixes)
-	cPrefixesSize := C.int64_t(pSize)
-	var prefixesPointer *uint64
-	if pSize > 0 {
-		prefixesPointer = &prefixes[0]
-	}
+func EvaluateUntil64(hierarchyLevel int, prefixes []uint128.Uint128, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
+	cPrefixesSize := C.int64_t(len(prefixes))
+	prefixesPointer := createCUInt128s(prefixes)
+	defer C.free(unsafe.Pointer(prefixesPointer))
 
 	bEvalCtx, err := proto.Marshal(evalCtx)
 	if err != nil {
@@ -193,7 +200,7 @@ func EvaluateUntil64(hierarchyLevel int, prefixes []uint64, evalCtx *dpfpb.Evalu
 	cEvalCtx := C.struct_CBytes{c: (*C.char)(C.CBytes(bEvalCtx)), l: C.int(len(bEvalCtx))}
 	outExpanded := C.struct_CUInt64Vec{}
 	errStr := C.struct_CBytes{}
-	status := C.CEvaluateUntil64(C.int(hierarchyLevel), (*C.uint64_t)(unsafe.Pointer(prefixesPointer)), cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
+	status := C.CEvaluateUntil64(C.int(hierarchyLevel), prefixesPointer, cPrefixesSize, &cEvalCtx, &outExpanded, &errStr)
 	defer freeCBytes(cEvalCtx)
 	defer C.free(unsafe.Pointer(outExpanded.vec))
 	defer freeCBytes(errStr)
@@ -221,7 +228,7 @@ func EvaluateUntil64(hierarchyLevel int, prefixes []uint64, evalCtx *dpfpb.Evalu
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
 // If previousLevel = 1, the DPF key has not been evaluated yet:
 // http://github.com/google/distributed_point_functions/dpf/distributed_point_function.cc?l=730&rcl=396584858
-func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, levels []int32, previousLevel int32) ([]uint64, error) {
+func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) ([]uint128.Uint128, error) {
 	if err := CheckExpansionParameters(params, prefixes, levels, previousLevel); err != nil {
 		return nil, err
 	}
@@ -239,16 +246,16 @@ func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes *pb.Hierarc
 		prefixBitSize = params.Params[previousLevel].GetLogDomainSize()
 	}
 	finalBitSize := params.Params[levels[len(levels)-1]].GetLogDomainSize()
-	finalPrefixes := prefixes.Prefixes[len(prefixes.Prefixes)-1]
+	finalPrefixes := prefixes[len(prefixes)-1]
 
 	expansionBits := finalBitSize - prefixBitSize
 	expansionSize := uint64(1) << expansionBits
-	ids := make([]uint64, uint64(len(finalPrefixes.Prefix))*expansionSize)
+	ids := make([]uint128.Uint128, uint64(len(finalPrefixes))*expansionSize)
 	i := uint64(0)
-	for _, p := range finalPrefixes.Prefix {
-		prefix := p << uint64(expansionBits)
+	for _, p := range finalPrefixes {
+		prefix := p.Lsh(uint(expansionBits))
 		for j := uint64(0); j < expansionSize; j++ {
-			ids[i] = prefix | j
+			ids[i] = prefix.Or(uint128.From64(j))
 			i++
 		}
 	}
@@ -273,7 +280,7 @@ func validateLevels(levels []int32) error {
 }
 
 // CheckExpansionParameters checks if the DPF parameters and prefixes are valid for the hierarchical expansion.
-func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.HierarchicalPrefixes, levels []int32, previousLevel int32) error {
+func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) error {
 	paramsLen := len(params.Params)
 	if paramsLen == 0 {
 		return errors.New("empty dpf parameters")
@@ -289,7 +296,7 @@ func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.
 		return fmt.Errorf("expect previousLevel < levels[0] = %d, got %d", levels[0], previousLevel)
 	}
 
-	prefixesLen := len(prefixes.Prefixes)
+	prefixesLen := len(prefixes)
 	if prefixesLen != len(levels) {
 		return fmt.Errorf("expansion level size should equal prefixes size %d, got %d", prefixesLen, len(levels))
 	}
@@ -297,13 +304,13 @@ func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes *pb.
 		return fmt.Errorf("expect prefixes size <= DPF parameter size %d, got %d", paramsLen, prefixesLen)
 	}
 
-	for i, p := range prefixes.Prefixes {
-		if i == 0 && previousLevel < 0 && len(p.Prefix) != 0 {
-			return fmt.Errorf("prefixes should be empty for the first level expansion, got %s", prefixes.String())
+	for i, p := range prefixes {
+		if i == 0 && previousLevel < 0 && len(p) != 0 {
+			return fmt.Errorf("prefixes should be empty for the first level expansion, got %+v", prefixes)
 		}
 
-		if !(i == 0 && previousLevel < 0) && len(p.Prefix) == 0 {
-			return fmt.Errorf("prefix cannot be empty except for the first level expansion, got %s with previous level %d", prefixes.String(), previousLevel)
+		if !(i == 0 && previousLevel < 0) && len(p) == 0 {
+			return fmt.Errorf("prefix cannot be empty except for the first level expansion, got %s with previous level %+v", prefixes, previousLevel)
 		}
 	}
 	return nil

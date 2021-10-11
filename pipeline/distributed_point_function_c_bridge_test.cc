@@ -33,11 +33,11 @@ TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
 
   CBytes params[2] = {b_param0, b_param1};
 
-  uint64_t alpha = 8;
+  CUInt128 alpha = {.lo = 8, .hi = 0};
   uint64_t betas[2] = {1, 1};
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateKeys(params, /*params_size=*/2, alpha, betas,
+  EXPECT_EQ(CGenerateKeys(params, /*params_size=*/2, &alpha, betas,
                           /*betas_size=*/2, &b_key1, &b_key2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
@@ -50,7 +50,7 @@ TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
                                      &b_eval_ctx2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
-  uint64_t *prefixes;
+  CUInt128 *prefixes;
   uint64_t prefixes_size = 0;
   CUInt64Vec vec1;
   EXPECT_EQ(
@@ -104,11 +104,11 @@ TEST(DistributedPointFunctionBridge, TestMultiLevelKeyGenEval) {
 
   CBytes params[3] = {b_param0, b_param1, b_param2};
 
-  uint64_t alpha = 16;
+  CUInt128 alpha = {.lo = 16, .hi = 0};
   uint64_t betas[3] = {1, 1, 1};
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateKeys(params, /*params_size=*/3, alpha, betas,
+  EXPECT_EQ(CGenerateKeys(params, /*params_size=*/3, &alpha, betas,
                           /*betas_size=*/3, &b_key1, &b_key2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
@@ -121,7 +121,7 @@ TEST(DistributedPointFunctionBridge, TestMultiLevelKeyGenEval) {
                                      &b_eval_ctx2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
-  uint64_t *prefixes0;
+  CUInt128 *prefixes0;
   uint64_t prefixes0_size = 0;
   CUInt64Vec vec01;
   EXPECT_EQ(CEvaluateUntil64(0, prefixes0, prefixes0_size, &b_eval_ctx1, &vec01,
@@ -132,7 +132,9 @@ TEST(DistributedPointFunctionBridge, TestMultiLevelKeyGenEval) {
                              &error),
             static_cast<int>(absl::StatusCode::kOk));
 
-  uint64_t prefixes1[2] = {0, 2};
+  CUInt128 p0 = {.lo = 0, .hi = 0};
+  CUInt128 p1 = {.lo = 2, .hi = 0};
+  CUInt128 prefixes1[2] = {p0, p1};
   uint64_t prefixes1_size = 2;
   CUInt64Vec vec11;
   EXPECT_EQ(CEvaluateUntil64(2, prefixes1, prefixes1_size, &b_eval_ctx1, &vec11,
@@ -182,11 +184,11 @@ TEST(DistributedPointFunctionBridge, TestReturnError) {
   ASSERT_TRUE(StrToCBytes(param.SerializeAsString(), &b_params));
   CBytes params[1] = {b_params};
 
-  uint64_t alpha = 0;
+  CUInt128 alpha = {.lo = 16, .hi = 0};
   uint64_t betas[2] = {1, 1};
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateKeys(params, /*params_size=*/1, alpha, betas, 2, &b_key1,
+  EXPECT_EQ(CGenerateKeys(params, /*params_size=*/1, &alpha, betas, 2, &b_key1,
                           &b_key2, &error),
             static_cast<int>(absl::StatusCode::kInvalidArgument));
 

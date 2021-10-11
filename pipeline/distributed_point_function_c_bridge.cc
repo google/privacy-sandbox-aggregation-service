@@ -26,6 +26,10 @@ using ::distributed_point_functions::DpfKey;
 using ::distributed_point_functions::DpfParameters;
 using ::distributed_point_functions::EvaluationContext;
 
+absl::uint128 ConvertCUInt128(const struct CUInt128* num) {
+  return absl::MakeUint128(num->hi, num->lo);
+}
+
 absl::StatusOr<std::unique_ptr<DistributedPointFunction>> CreateIncrementalDpf(
     const struct CBytes* params, int64_t params_size) {
   std::vector<DpfParameters> parameters(params_size);
@@ -38,9 +42,9 @@ absl::StatusOr<std::unique_ptr<DistributedPointFunction>> CreateIncrementalDpf(
 }
 
 int CGenerateKeys(const struct CBytes* params, int64_t params_size,
-                  uint64_t alpha, const uint64_t* betas, int64_t betas_size,
-                  struct CBytes* out_key1, struct CBytes* out_key2,
-                  struct CBytes* out_error) {
+                  const struct CUInt128* alpha, const uint64_t* betas,
+                  int64_t betas_size, struct CBytes* out_key1,
+                  struct CBytes* out_key2, struct CBytes* out_error) {
   absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
       CreateIncrementalDpf(params, params_size);
   if (!dpf.ok()) {
@@ -54,7 +58,7 @@ int CGenerateKeys(const struct CBytes* params, int64_t params_size,
   }
 
   absl::StatusOr<std::pair<DpfKey, DpfKey>> keys =
-      (*dpf)->GenerateKeysIncremental(absl::uint128(alpha), betas_128);
+      (*dpf)->GenerateKeysIncremental(ConvertCUInt128(alpha), betas_128);
   if (!keys.ok()) {
     StrToCBytes(keys.status().message(), out_error);
     return keys.status().raw_code();
@@ -109,7 +113,7 @@ int CCreateEvaluationContext(const struct CBytes* params, int64_t params_size,
 }
 
 int Evaluate64(bool is_multilevel, int hierarchy_level,
-               const uint64_t* prefixes, int64_t prefixes_size,
+               const struct CUInt128* prefixes, int64_t prefixes_size,
                struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
                struct CBytes* out_error) {
   EvaluationContext eval_context;
@@ -129,7 +133,7 @@ int Evaluate64(bool is_multilevel, int hierarchy_level,
 
   std::vector<absl::uint128> prefixes_128(prefixes_size);
   for (int i = 0; i < prefixes_size; i++) {
-    prefixes_128[i] = absl::uint128(prefixes[i]);
+    prefixes_128[i] = ConvertCUInt128(&prefixes[i]);
   }
 
   absl::StatusOr<std::vector<uint64_t>> result;
@@ -164,14 +168,14 @@ int Evaluate64(bool is_multilevel, int hierarchy_level,
   return static_cast<int>(absl::StatusCode::kOk);
 }
 
-int CEvaluateNext64(const uint64_t* prefixes, int64_t prefixes_size,
+int CEvaluateNext64(const struct CUInt128* prefixes, int64_t prefixes_size,
                     struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
                     struct CBytes* out_error) {
   return Evaluate64(false, 0, prefixes, prefixes_size, mutable_context, out_vec,
                     out_error);
 }
 
-int CEvaluateUntil64(int hierarchy_level, const uint64_t* prefixes,
+int CEvaluateUntil64(int hierarchy_level, const struct CUInt128* prefixes,
                      int64_t prefixes_size, struct CBytes* mutable_context,
                      struct CUInt64Vec* out_vec, struct CBytes* out_error) {
   return Evaluate64(true, hierarchy_level, prefixes, prefixes_size,

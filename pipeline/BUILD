@@ -445,6 +445,7 @@ go_library(
     deps = [
         ":crypto_go_proto",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -458,6 +459,7 @@ go_test(
         ":crypto_go_proto",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
     ],
 )
 
@@ -475,6 +477,7 @@ go_library(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -499,6 +502,7 @@ go_test(
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
     ],
@@ -519,6 +523,7 @@ go_library(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )

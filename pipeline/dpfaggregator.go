@@ -44,10 +44,11 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -262,6 +263,18 @@ type expandDpfKeyFn struct {
 	vecCounter   beam.Counter
 }
 
+func hierarchicalPrefixesToUint128(hp *pb.HierarchicalPrefixes) [][]uint128.Uint128 {
+	var prefixes [][]uint128.Uint128
+	for _, ep := range hp.Prefixes {
+		var tmpPrefix []uint128.Uint128
+		for _, p := range ep.Prefix {
+			tmpPrefix = append(tmpPrefix, uint128.From64(p))
+		}
+		prefixes = append(prefixes, tmpPrefix)
+	}
+	return prefixes
+}
+
 func (fn *expandDpfKeyFn) Setup() {
 	fn.vecCounter = beam.NewCounter("aggregation", "expandDpfFn-vec-count")
 }
@@ -276,8 +289,9 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 		err    error
 	)
 
+	prefixes := hierarchicalPrefixesToUint128(fn.ExpandParams.Prefixes)
 	for i, level := range fn.ExpandParams.Levels {
-		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), fn.ExpandParams.Prefixes.Prefixes[i].Prefix, evalCtx)
+		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), prefixes[i], evalCtx)
 		if err != nil {
 			return err
 		}
@@ -474,7 +488,8 @@ type CombineParams struct {
 
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
 func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *pb.ExpandParameters, combineParams *CombineParams) (beam.PCollection, error) {
-	bucketIDs, err := incrementaldpf.CalculateBucketID(expandParams.SumParameters, expandParams.Prefixes, expandParams.Levels, expandParams.PreviousLevel)
+	prefixes := hierarchicalPrefixesToUint128(expandParams.Prefixes)
+	bucketIDs, err := incrementaldpf.CalculateBucketID(expandParams.SumParameters, prefixes, expandParams.Levels, expandParams.PreviousLevel)
 	if err != nil {
 		return beam.PCollection{}, err
 	}
@@ -489,11 +504,17 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 		vectorLength = uint64(1) << expandParams.SumParameters.Params[finalLevel].LogDomainSize
 	}
 
+	// TODO: Use the 128-bit bucket IDs in the pipeline.
+	var bucketIDs64 []uint64
+	for _, b := range bucketIDs {
+		bucketIDs64 = append(bucketIDs64, b.Lo)
+	}
+
 	var rawResult beam.PCollection
 	if combineParams.DirectCombine {
-		rawResult = directCombine(scope, expanded, vectorLength, bucketIDs)
+		rawResult = directCombine(scope, expanded, vectorLength, bucketIDs64)
 	} else {
-		rawResult = segmentCombine(scope, expanded, vectorLength, combineParams.SegmentLength, bucketIDs)
+		rawResult = segmentCombine(scope, expanded, vectorLength, combineParams.SegmentLength, bucketIDs64)
 	}
 
 	if combineParams.Epsilon > 0 {
@@ -520,9 +541,10 @@ type AggregatePartialReportParams struct {
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
 func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportParams) error {
+	prefixes := hierarchicalPrefixesToUint128(params.ExpandParams.Prefixes)
 	if err := incrementaldpf.CheckExpansionParameters(
 		params.ExpandParams.SumParameters,
-		params.ExpandParams.Prefixes,
+		prefixes,
 		params.ExpandParams.Levels,
 		params.ExpandParams.PreviousLevel,
 	); err != nil {

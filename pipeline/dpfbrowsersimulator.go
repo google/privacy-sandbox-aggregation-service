@@ -28,6 +28,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
@@ -159,7 +160,7 @@ func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, public
 		return nil, nil, err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, conversion.Index, putValueForHierarchies(allParams, conversion.Value))
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, uint128.From64(conversion.Index), putValueForHierarchies(allParams, conversion.Value))
 	if err != nil {
 		return nil, nil, err
 	}

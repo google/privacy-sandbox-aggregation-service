@@ -34,6 +34,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
@@ -226,7 +227,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 		return err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(ctxParams, c.Index, valueSum)
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(ctxParams, uint128.From64(c.Index), valueSum)
 	if err != nil {
 		return err
 	}

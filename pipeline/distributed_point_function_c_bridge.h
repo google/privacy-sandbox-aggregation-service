@@ -14,6 +14,11 @@ struct CUInt64Vec {
   int64_t vec_size;
 };
 
+struct CUInt128 {
+  uint64_t lo;
+  uint64_t hi;
+};
+
 // The following C wrappers for functions in
 // go/incremental-dpf-code/distributed_point_function.h will be called in the Go
 // code. Callers are responsible for freeing all the memory pointed by
@@ -23,9 +28,9 @@ struct CUInt64Vec {
 // http://google3/dpf/distributed_point_function.h?l=66&rcl=368424076int
 // CGenerateKeys(const struct CBytes *params, int64_t params_size,
 int CGenerateKeys(const struct CBytes *params, int64_t params_size,
-                  uint64_t alpha, const uint64_t *betas, int64_t betas_size,
-                  struct CBytes *out_key1, struct CBytes *out_key2,
-                  struct CBytes *out_error);
+                  const struct CUInt128 *alpha, const uint64_t *betas,
+                  int64_t betas_size, struct CBytes *out_key1,
+                  struct CBytes *out_key2, struct CBytes *out_error);
 
 // CCreateEvaluationContext wraps CreateEvaluationContext() in C:
 // http://google3/dpf/distributed_point_function.h?l=83&rcl=368424076
@@ -35,13 +40,13 @@ int CCreateEvaluationContext(const struct CBytes *params, int64_t params_size,
                              struct CBytes *out_error);
 // CEvaluateNext64 wraps EvaluateNext<uint64_t>() in C:
 // http://google3/dpf/distributed_point_function.h?l=119&rcl=368424076
-int CEvaluateNext64(const uint64_t *prefixes, int64_t prefixes_size,
+int CEvaluateNext64(const struct CUInt128 *prefixes, int64_t prefixes_size,
                     struct CBytes *mutable_context, struct CUInt64Vec *out_vec,
                     struct CBytes *out_error);
 
 // CEvaluateUntil64 wraps EvaluateUntil<uint64_t>() in C:
 // http://google3/dpf/distributed_point_function.h?l=123&rcl=369891806
-int CEvaluateUntil64(int hierarchy_level, const uint64_t *prefixes,
+int CEvaluateUntil64(int hierarchy_level, const struct CUInt128 *prefixes,
                      int64_t prefixes_size, struct CBytes *mutable_context,
                      struct CUInt64Vec *out_vec, struct CBytes *out_error);
 

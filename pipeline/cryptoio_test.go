@@ -22,11 +22,9 @@ import (
 	"testing"
 
 	
+	"lukechampine.com/uint128"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
-	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -59,100 +57,6 @@ func testKMSEncryptDecryptStandardPrivateKey(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantKey, &pb.StandardPrivateKey{Key: decrypted}, protocmp.Transform()); diff != "" {
 		t.Errorf("Decrypted and original private key mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestKeyGeneration(t *testing.T) {
-	privDir, err := ioutil.TempDir("/tmp", "test-private")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(privDir)
-
-	ctx := context.Background()
-	sPub, ePub, err := CreateKeysAndSecret(ctx, privDir)
-	if err != nil {
-		t.Fatalf("CreateKeysAndSecret() = %s", err)
-	}
-
-	pubDir, err := ioutil.TempDir("/tmp", "test-pub")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(pubDir)
-
-	if err := SaveStandardPublicKey(path.Join(pubDir, DefaultStandardPublicKey), sPub); err != nil {
-		t.Fatalf("SaveStandardPublicKey() = %s", err)
-	}
-	if err := SaveElGamalPublicKey(path.Join(pubDir, DefaultElgamalPublicKey), ePub); err != nil {
-		t.Fatalf("SaveElGamalPublicKey() = %s", err)
-	}
-
-	sPub, err = ReadStandardPublicKey(path.Join(pubDir, DefaultStandardPublicKey))
-	if err != nil {
-		t.Fatalf("ReadStandardPublicKey() = %s", err)
-	}
-	ePub, err = ReadElGamalPublicKey(path.Join(pubDir, DefaultElgamalPublicKey))
-	if err != nil {
-		t.Fatalf("ReadElGamalPublicKey() = %s", err)
-	}
-
-	message := "original message"
-	sEncrypted, err := standardencrypt.Encrypt([]byte(message), nil, sPub)
-	if err != nil {
-		t.Fatalf("standardencrypt.Encrypt() = %s", err)
-	}
-	eEncrypted, err := elgamalencrypt.Encrypt(message, ePub)
-	if err != nil {
-		t.Fatalf("elgamalencrypt.Encrypt() = %s", err)
-	}
-
-	sPriv, err := ReadStandardPrivateKey(ctx, &ReadStandardPrivateKeyParams{FilePath: path.Join(privDir, DefaultStandardPrivateKey)})
-	if err != nil {
-		t.Fatalf("ReadStandardPrivateKey() = %s", err)
-	}
-	ePriv, err := ReadElGamalPrivateKey(path.Join(privDir, DefaultElgamalPrivateKey))
-	if err != nil {
-		t.Fatalf("ReadElGamalPrivateKey() = %s", err)
-	}
-
-	sDecrypted, err := standardencrypt.Decrypt(sEncrypted, nil, sPriv)
-	if err != nil {
-		t.Fatalf("standardencrypt.Decrypt() = %s", err)
-	}
-	if message != string(sDecrypted) {
-		t.Fatalf("want standard decrypted message %s, got %s", message, string(sDecrypted))
-	}
-	messageHashed, err := elgamalencrypttesting.GetHashedECPointStrForTesting(message)
-	if err != nil {
-		t.Fatalf("elgamalencrypttesting.GetHashedECPointStrForTesting() = %s", err)
-	}
-	eDecrypted, err := elgamalencrypt.Decrypt(eEncrypted, ePriv)
-	if err != nil {
-		t.Fatalf("elgamalencrypt.Decrypt() = %s", err)
-	}
-	if messageHashed != eDecrypted {
-		t.Fatalf("want ElGamal decrypted message %s, got %s", message, string(sDecrypted))
-	}
-
-	secret, err := ReadElGamalSecret(path.Join(privDir, DefaultElgamalSecret))
-	if err != nil {
-		t.Fatalf("ReadElGamalSecret() = %s", err)
-	}
-	encryptedExp, err := elgamalencrypt.ExponentiateOnCiphertext(eEncrypted, ePub, secret)
-	if err != nil {
-		t.Fatalf("elgamalencrypt.ExponentiateOnCiphertext() = %s", err)
-	}
-	exp1, err := elgamalencrypt.Decrypt(encryptedExp, ePriv)
-	if err != nil {
-		t.Fatalf("elgamalencrypt.Decrypt() = %s", err)
-	}
-	exp2, err := elgamalencrypt.ExponentiateOnECPointStr(messageHashed, secret)
-	if err != nil {
-		t.Fatalf("elgamalencrypt.ExponentiateOnECPointStr() = %s", err)
-	}
-	if exp1 != exp2 {
-		t.Fatalf("exponential results should be the same: want %s, got %s", exp1, exp2)
 	}
 }
 

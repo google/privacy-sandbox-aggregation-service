@@ -21,48 +21,10 @@ option optimize_for = LITE_RUNTIME;
 
 import "dpf/distributed_point_function.proto";
 
-// For serialization of elgamal::Ciphertext
-// http://google3/privacy/blinders/cpp/crypto/elgamal.h?rcl=321831591&l=39
-message ElGamalCiphertext {
-  bytes u = 1;
-  bytes e = 2;
-}
-
-// For serialization of elgamal::PublicKey
-// http://google3/privacy/blinders/cpp/crypto/elgamal.h?rcl=321831591&l=45
-message ElGamalPublicKey {
-  bytes g = 1 ;
-
-  bytes y = 2 ;
-}
-
-// For serialization of elgamal::PrivateKey
-// http://google3/privacy/blinders/cpp/crypto/elgamal.h?rcl=321831591&l=50
-message ElGamalPrivateKey {
-  bytes x = 1 ;
-}
-
 // StandardCiphertext holds a ciphertext encrypted under the
 // ECIES-HKDF-AES128GCM encryption scheme.
 message StandardCiphertext {
   bytes data = 1;
-}
-
-// PartialReport contains the key and value shares split from the original
-// conversion. Each raw conversion is split into two partial reports for two
-// helpers, respectively.
-message PartialReport {
-  ElGamalCiphertext encrypted_conversion_key = 1;
-  uint32 value_share = 2;
-  bytes key_share = 3;
-}
-
-// PartialAggregation contains the aggregation results from one of the helpers
-// for one specific aggregation ID.
-message PartialAggregation {
-  bytes key_share = 1;
-  int64 partial_count = 2;
-  uint32 partial_sum = 3;
 }
 
 // Public key in ECIES-HKDF-AES128GCM encryption scheme.

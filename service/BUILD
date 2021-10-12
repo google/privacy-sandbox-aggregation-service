@@ -21,7 +21,6 @@ licenses(["notice"])
 proto_library(
     name = "service_proto",
     srcs = ["service.proto"],
-    deps = ["//pipeline:crypto_proto"],
 )
 
 go_proto_library(
@@ -52,8 +51,6 @@ go_binary(
     name = "server",
     srcs = ["server.go"],
     gc_linkopts = [
-        "-extldflags",
-        "-static",
         "-X",
         "main.version=$(VERSION)",
     ],
@@ -94,31 +91,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service",
     deps = [
         ":service_go_grpc_proto",
-        "//pipeline:cryptoio",
         "//pipeline:ioutils",
-    ],
-)
-
-go_binary(
-    name = "create_crypto_key",
-    srcs = ["create_crypto_key.go"],
-    deps = [
-        ":service_go_grpc_proto",
-        "//pipeline:crypto_go_proto",
-        "//pipeline:cryptoio",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-    ],
-)
-
-go_binary(
-    name = "simulate_reporter_partial_aggregation",
-    srcs = ["simulate_reporter_partial_aggregation.go"],
-    deps = [
-        ":service_go_grpc_proto",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_x_sync//errgroup:go_default_library",
     ],
 )
 

@@ -20,14 +20,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
 
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 	"github.com/google/tink/go/aead"
@@ -43,10 +40,6 @@ import (
 const (
 	DefaultStandardPublicKey  = "STANDARD_PUBLIC_KEY"
 	DefaultStandardPrivateKey = "STANDARD_PRIVATE_KEY"
-
-	DefaultElgamalPublicKey  = "ELGAMAL_PUBLIC_KEY"
-	DefaultElgamalPrivateKey = "ELGAMAL_PRIVATE_KEY"
-	DefaultElgamalSecret     = "ELGAMAL_SECRET"
 
 	PublicKeysEnv = "AGGPUBLICKEYS"
 )
@@ -146,15 +139,6 @@ func KMSDecryptData(ctx context.Context, keyURI, credentialPath string, encrypte
 	return a.Decrypt(encryptedData, nil)
 }
 
-// ReadElGamalSecret is called by the helper servers, which reads the ElGamal secret.
-func ReadElGamalSecret(filePath string) (string, error) {
-	bs, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return "", err
-	}
-	return string(bs), nil
-}
-
 // ReadStandardPrivateKeyParams contains necessary parameters for function ReadStandardPrivateKey.
 type ReadStandardPrivateKeyParams struct {
 	// KMSKeyURI and KMSCredentialPath are required by Google Key Mangagement service.
@@ -187,46 +171,6 @@ func ReadStandardPrivateKey(ctx context.Context, params *ReadStandardPrivateKeyP
 	return &pb.StandardPrivateKey{Key: data}, err
 }
 
-// ReadElGamalPrivateKey is called by the helper servers, which reads the ElGamal private key.
-func ReadElGamalPrivateKey(filePath string) (*pb.ElGamalPrivateKey, error) {
-	bhPriv, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	hPriv := &pb.ElGamalPrivateKey{}
-	if err := proto.Unmarshal(bhPriv, hPriv); err != nil {
-		return nil, err
-	}
-	return hPriv, nil
-}
-
-// ReadStandardPublicKey is called by the browser, which reads the standard encryption public key.
-func ReadStandardPublicKey(filePath string) (*pb.StandardPublicKey, error) {
-	bsPub, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.StandardPublicKey{Key: bsPub}, nil
-}
-
-// ReadElGamalPublicKey is called by the browser and the other helper, which reads the homomorphic encryption public key.
-func ReadElGamalPublicKey(filePath string) (*pb.ElGamalPublicKey, error) {
-	bhPub, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	hPub := &pb.ElGamalPublicKey{}
-	if err := proto.Unmarshal(bhPub, hPub); err != nil {
-		return nil, err
-	}
-	return hPub, nil
-}
-
-// SaveStandardPublicKey is called by the browser, which saves the public standard encryption key.
-func SaveStandardPublicKey(filePath string, sPub *pb.StandardPublicKey) error {
-	return ioutil.WriteFile(filePath, sPub.Key, os.ModePerm)
-}
-
 // SaveStandardPrivateKeyParams contains necessary parameters for function SaveStandardPrivateKey.
 type SaveStandardPrivateKeyParams struct {
 	// KMSKeyURI and KMSCredentialPath are required by Google Key Mangagement service.
@@ -257,51 +201,6 @@ func SaveStandardPrivateKey(ctx context.Context, params *SaveStandardPrivateKeyP
 		return ioutils.SaveSecret(ctx, data, params.SecretProjectID, params.SecretID)
 	}
 	return "", ioutils.WriteBytes(ctx, data, params.FilePath)
-}
-
-// SaveElGamalPublicKey is called by the browser and the other helper, which saves the public ElGamal encryption key into a file.
-func SaveElGamalPublicKey(filePath string, hPub *pb.ElGamalPublicKey) error {
-	bhPub, err := proto.Marshal(hPub)
-	if err != nil {
-		return fmt.Errorf("hPub marshal(%s) failed: %v", hPub.String(), err)
-	}
-	return ioutil.WriteFile(filePath, bhPub, os.ModePerm)
-}
-
-// CreateKeysAndSecret is called by the helper, which generates all the private/public key pairs and secrets.
-//
-// The private keys and secret are saved by the helper, and the public keys will be saved by other parties in the aggregation process.
-func CreateKeysAndSecret(ctx context.Context, fileDir string) (*pb.StandardPublicKey, *pb.ElGamalPublicKey, error) {
-	// Create/save keys for the standard public-key encryption.
-	sPriv, sPub, err := standardencrypt.GenerateStandardKeyPair()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if _, err := SaveStandardPrivateKey(ctx, &SaveStandardPrivateKeyParams{FilePath: path.Join(fileDir, DefaultStandardPrivateKey)}, sPriv); err != nil {
-		return nil, nil, err
-	}
-
-	// Create/save keys for the ElGamal encryption.
-	hPriv, hPub, err := elgamalencrypt.GenerateElGamalKeyPair()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	bhPriv, err := proto.Marshal(hPriv)
-	if err != nil {
-		return nil, nil, err
-	}
-	err = ioutil.WriteFile(path.Join(fileDir, DefaultElgamalPrivateKey), bhPriv, os.ModePerm)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	secret, err := elgamalencrypt.GenerateSecret()
-	if err != nil {
-		return nil, nil, err
-	}
-	return sPub, hPub, ioutil.WriteFile(path.Join(fileDir, DefaultElgamalSecret), []byte(secret), os.ModePerm)
 }
 
 // SavePrefixes saves prefixes to a file.

@@ -32,11 +32,6 @@ import (
 var (
 	port = flag.Int("port", 3389, "Port for the server.")
 
-	keyDir                       = flag.String("key_dir", "", "Directory for the private keys and secrets used by the PRF protocol.")
-	otherHelperInfoDir           = flag.String("other_helper_info_dir", "", "Directory storing information of the other helper.")
-	reencryptConversionKeyBinary = flag.String("reencrypt_conversion_key_binary", "", "Binary for conversion key reencryption.")
-	aggregatePartialReportBinary = flag.String("aggregate_partial_report_binary", "", "Binary for partial report aggregation.")
-
 	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
 	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
 	workspaceURI                    = flag.String("workspace_uri", "", "The Private directory to save the intermediate query states.")
@@ -73,11 +68,6 @@ func main() {
 	server := grpc.NewServer()
 	pb.RegisterAggregatorServer(server, service.New(
 		service.ServerCfg{
-			PrivateKeyDir:                *keyDir,
-			OtherHelperInfoDir:           *otherHelperInfoDir,
-			ReencryptConversionKeyBinary: *reencryptConversionKeyBinary,
-			AggregatePartialReportBinary: *aggregatePartialReportBinary,
-
 			PrivateKeyParamsURI:             *privateKeyParamsURI,
 			DpfAggregatePartialReportBinary: *dpfAggregatePartialReportBinary,
 			WorkspaceURI:                    *workspaceURI,

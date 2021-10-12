@@ -19,9 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path"
 
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
 	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
@@ -40,11 +38,6 @@ type DataflowCfg struct {
 
 // ServerCfg contains directories and file paths necessary for the service.
 type ServerCfg struct {
-	PrivateKeyDir                string
-	OtherHelperInfoDir           string
-	ReencryptConversionKeyBinary string
-	AggregatePartialReportBinary string
-
 	PrivateKeyParamsURI             string
 	DpfAggregatePartialReportBinary string
 	// The private directory to save the intermediate query states.
@@ -60,69 +53,6 @@ type server struct {
 // New creates an Aggregator server.
 func New(serverCfg ServerCfg, runner string, dataflowCfg DataflowCfg) grpcpb.AggregatorServer {
 	return &server{ServerCfg: serverCfg, PipelineRunner: runner, DataflowCfg: dataflowCfg}
-}
-
-func (s *server) CreateCryptoKeys(ctx context.Context, in *pb.CreateCryptoKeysRequest) (*pb.CreateCryptoKeysResponse, error) {
-	sPub, ePub, err := cryptoio.CreateKeysAndSecret(ctx, s.ServerCfg.PrivateKeyDir)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.CreateCryptoKeysResponse{
-		StandardPublicKey: sPub,
-		ElgamalPublicKey:  ePub,
-	}, nil
-}
-
-func (s *server) SaveOtherHelperInfo(ctx context.Context, in *pb.SaveOtherHelperInfoRequest) (*pb.SaveOtherHelperInfoResponse, error) {
-	return &pb.SaveOtherHelperInfoResponse{}, cryptoio.SaveElGamalPublicKey(path.Join(s.ServerCfg.OtherHelperInfoDir, cryptoio.DefaultElgamalPublicKey), in.ElgamalPublicKey)
-}
-
-func (s *server) ExponentiateConversionKey(ctx context.Context, in *pb.ExponentiateConversionKeyRequest) (*pb.ExponentiateConversionKeyResponse, error) {
-	args := []string{
-		"--partial_report_file=" + in.PartialReportFile,
-		"--exponentiated_key_file=" + in.ExponentiatedKeyFile,
-		"--private_key_dir=" + s.ServerCfg.PrivateKeyDir,
-		"--other_public_key_dir=" + s.ServerCfg.OtherHelperInfoDir,
-		"--runner=" + s.PipelineRunner,
-	}
-
-	if s.PipelineRunner == "dataflow" {
-		args = append(args,
-			"--project="+s.DataflowCfg.Project,
-			"--temp_location="+s.DataflowCfg.TempLocation,
-			"--staging_location="+s.DataflowCfg.StagingLocation,
-			"--worker_binary="+s.ServerCfg.ReencryptConversionKeyBinary,
-		)
-	}
-
-	return &pb.ExponentiateConversionKeyResponse{}, exec.CommandContext(ctx, s.ServerCfg.ReencryptConversionKeyBinary, args...).Run()
-}
-
-func (s *server) AggregatePartialReport(ctx context.Context, in *pb.AggregatePartialReportRequest) (*pb.AggregatePartialReportResponse, error) {
-	privateStr := "true"
-	if in.IgnorePrivacy {
-		privateStr = "false"
-	}
-
-	args := []string{
-		"--partial_report_file=" + in.PartialReportFile,
-		"--exponentiated_key_file=" + in.ExponentiatedKeyFile,
-		"--partial_aggregation_file=" + in.PartialAggregationFile,
-		"--private=" + privateStr,
-		"--private_key_dir=" + s.ServerCfg.PrivateKeyDir,
-		"--runner=" + s.PipelineRunner,
-	}
-
-	if s.PipelineRunner == "dataflow" {
-		args = append(args,
-			"--project="+s.DataflowCfg.Project,
-			"--temp_location="+s.DataflowCfg.TempLocation,
-			"--staging_location="+s.DataflowCfg.StagingLocation,
-			"--worker_binary="+s.ServerCfg.AggregatePartialReportBinary,
-		)
-	}
-
-	return &pb.AggregatePartialReportResponse{}, exec.CommandContext(ctx, s.ServerCfg.AggregatePartialReportBinary, args...).Run()
 }
 
 func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.AggregateDpfPartialReportRequest) (*pb.AggregateDpfPartialReportResponse, error) {

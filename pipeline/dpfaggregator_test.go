@@ -35,10 +35,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -115,11 +115,11 @@ func TestDecryptPartialReport(t *testing.T) {
 }
 
 type idPartialAggregation struct {
-	ID                 uint64
+	ID                 uint128.Uint128
 	PartialAggregation *pb.PartialAggregationDpf
 }
 
-func convertIDPartialAggregationFn(id uint64, agg *pb.PartialAggregationDpf) idPartialAggregation {
+func convertIDPartialAggregationFn(id uint128.Uint128, agg *pb.PartialAggregationDpf) idPartialAggregation {
 	return idPartialAggregation{ID: id, PartialAggregation: agg}
 }
 
@@ -190,7 +190,7 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 
 	want := make([]idPartialAggregation, 1<<logN)
 	for i := 0; i < 1<<logN; i++ {
-		want[i].ID = uint64(i)
+		want[i].ID = uint128.From64(uint64(i))
 		want[i].PartialAggregation = &pb.PartialAggregationDpf{}
 	}
 	want[0].PartialAggregation.PartialSum = 6
@@ -209,12 +209,12 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 }
 
 type rawConversion struct {
-	Index uint64
+	Index uint128.Uint128
 	Value uint64
 }
 
 type splitConversionFn struct {
-	KeyBitSize int32
+	KeyBitSize int
 }
 
 func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion, emit1 func(*pb.PartialReportDpf), emit2 func(*pb.PartialReportDpf)) error {
@@ -227,7 +227,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 		return err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(ctxParams, uint128.From64(c.Index), valueSum)
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(ctxParams, c.Index, valueSum)
 	if err != nil {
 		return err
 	}
@@ -245,12 +245,12 @@ const keyBitSize = 8
 
 func TestDirectAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
-		{Index: 1, Sum: 10},
+		{Bucket: uint128.From64(1), Sum: 10},
 	}
 	var reports []rawConversion
 	for _, h := range want {
 		for i := uint64(0); i < h.Sum; i++ {
-			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
+			reports = append(reports, rawConversion{Index: h.Bucket, Value: 1})
 		}
 	}
 
@@ -262,27 +262,24 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expandParams := &pb.ExpandParameters{
+	expandParams := &ExpandParameters{
 		Levels:        []int32{7},
-		Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{{}}},
+		Prefixes:      [][]uint128.Uint128{{}},
 		PreviousLevel: -1,
-	}
-	expandParams.SumParameters = &pb.IncrementalDpfParameters{
-		Params: ctxParams,
 	}
 	combineParams := &CombineParams{
 		DirectCombine: true,
 	}
 
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
-	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams)
-	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams)
+	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams, ctxParams)
+	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams, ctxParams)
 
-	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, combineParams)
+	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, combineParams)
+	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,12 +296,12 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 
 func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
-		{Index: 16, Sum: 10},
+		{Bucket: uint128.From64(16), Sum: 10},
 	}
 	var reports []rawConversion
 	for _, h := range want {
 		for i := uint64(0); i < h.Sum; i++ {
-			reports = append(reports, rawConversion{Index: h.Index, Value: 1})
+			reports = append(reports, rawConversion{Index: h.Bucket, Value: 1})
 		}
 	}
 	combineParams := &CombineParams{
@@ -321,21 +318,18 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
 
 	// For the first level.
-	expandParams0 := &pb.ExpandParameters{
-		SumParameters: &pb.IncrementalDpfParameters{Params: ctxParams},
-		Prefixes: &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
-			{},
-		}},
+	expandParams0 := &ExpandParameters{
+		Prefixes:      [][]uint128.Uint128{{}},
 		Levels:        []int32{3},
 		PreviousLevel: -1,
 	}
-	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0)
-	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0)
-	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, combineParams)
+	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, ctxParams)
+	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0, ctxParams)
+	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, combineParams)
+	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,26 +337,22 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	joined0 := beam.CoGroupByKey(scope, partialResult01, partialResult02)
 	got0 := beam.ParDo(scope, &mergeHistogramFn{}, joined0)
 	passert.Equals(scope, got0, beam.CreateList(scope, []CompleteHistogram{
-		{Index: 1, Sum: 10},
+		{Bucket: uint128.From64(1), Sum: 10},
 	}))
 
 	// For the second level.
-	expandParams1 := &pb.ExpandParameters{
-		SumParameters: &pb.IncrementalDpfParameters{Params: ctxParams},
-		Prefixes: &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{
-			{Prefix: []uint64{1}},
-		}},
+	expandParams1 := &ExpandParameters{
+		Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
 		Levels:        []int32{7},
 		PreviousLevel: 3,
 	}
-	expandParams1.SumParameters = &pb.IncrementalDpfParameters{Params: ctxParams}
-	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1)
-	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1)
-	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, combineParams)
+	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, ctxParams)
+	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1, ctxParams)
+	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, combineParams)
+	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +367,7 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 }
 
 type idAgg struct {
-	ID  uint64
+	ID  uint128.Uint128
 	Agg *pb.PartialAggregationDpf
 }
 
@@ -389,17 +379,17 @@ func TestReadPartialHistogram(t *testing.T) {
 	defer os.RemoveAll(fileDir)
 
 	data := []*idAgg{
-		{ID: 111, Agg: &pb.PartialAggregationDpf{PartialSum: 222}},
-		{ID: 444, Agg: &pb.PartialAggregationDpf{PartialSum: 555}},
+		{ID: uint128.From64(111), Agg: &pb.PartialAggregationDpf{PartialSum: 222}},
+		{ID: uint128.From64(444), Agg: &pb.PartialAggregationDpf{PartialSum: 555}},
 	}
-	want := make(map[uint64]*pb.PartialAggregationDpf)
+	want := make(map[uint128.Uint128]*pb.PartialAggregationDpf)
 	for _, d := range data {
 		want[d.ID] = d.Agg
 	}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	records := beam.CreateList(scope, data)
-	partial := beam.ParDo(scope, func(a *idAgg) (uint64, *pb.PartialAggregationDpf) {
+	partial := beam.ParDo(scope, func(a *idAgg) (uint128.Uint128, *pb.PartialAggregationDpf) {
 		return a.ID, a.Agg
 	}, records)
 	partialFile := path.Join(fileDir, "partial_agg.txt")
@@ -423,7 +413,7 @@ func parseCompleteHistogram(line string) (CompleteHistogram, error) {
 	if gotLen, wantLen := len(cols), 2; gotLen != wantLen {
 		return CompleteHistogram{}, fmt.Errorf("got %d columns in line %q, want %d", gotLen, line, wantLen)
 	}
-	idx, err := strconv.ParseUint(cols[0], 10, 64)
+	idx, err := ioutils.StringToUint128(cols[0])
 	if err != nil {
 		return CompleteHistogram{}, err
 	}
@@ -431,7 +421,7 @@ func parseCompleteHistogram(line string) (CompleteHistogram, error) {
 	if err != nil {
 		return CompleteHistogram{}, err
 	}
-	return CompleteHistogram{Index: idx, Sum: sum}, nil
+	return CompleteHistogram{Bucket: idx, Sum: sum}, nil
 }
 
 func TestWriteCompleteHistogramWithoutPipeline(t *testing.T) {
@@ -441,9 +431,9 @@ func TestWriteCompleteHistogramWithoutPipeline(t *testing.T) {
 	}
 	defer os.RemoveAll(fileDir)
 
-	want := map[uint64]CompleteHistogram{
-		111: {Index: 111, Sum: 222},
-		555: {Index: 555, Sum: 666},
+	want := map[uint128.Uint128]CompleteHistogram{
+		uint128.From64(111): {Bucket: uint128.From64(111), Sum: 222},
+		uint128.From64(555): {Bucket: uint128.From64(555), Sum: 666},
 	}
 	resultFile := path.Join(fileDir, "result.txt")
 	ctx := context.Background()
@@ -455,13 +445,13 @@ func TestWriteCompleteHistogramWithoutPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := make(map[uint64]CompleteHistogram)
+	got := make(map[uint128.Uint128]CompleteHistogram)
 	for _, l := range lines {
 		histogram, err := parseCompleteHistogram(l)
 		if err != nil {
 			t.Fatal(err)
 		}
-		got[histogram.Index] = histogram
+		got[histogram.Bucket] = histogram
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Read and saved complete histogram mismatch (-want +got):\n%s", diff)
@@ -476,14 +466,14 @@ func TestWriteReadPartialHistogram(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	want := []idPartialAggregation{
-		{ID: 1, PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 1}},
-		{ID: 2, PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 2}},
-		{ID: 3, PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 3}},
+		{ID: uint128.From64(1), PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 1}},
+		{ID: uint128.From64(2), PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 2}},
+		{ID: uint128.From64(3), PartialAggregation: &pb.PartialAggregationDpf{PartialSum: 3}},
 	}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	wantList := beam.CreateList(scope, want)
-	table := beam.ParDo(scope, func(p idPartialAggregation) (uint64, *pb.PartialAggregationDpf) {
+	table := beam.ParDo(scope, func(p idPartialAggregation) (uint128.Uint128, *pb.PartialAggregationDpf) {
 		return p.ID, p.PartialAggregation
 	}, wantList)
 	filename := path.Join(tmpDir, "partial.txt")
@@ -509,9 +499,9 @@ func TestWriteReadCompleteHistogramWithPipeline(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	want := []CompleteHistogram{
-		{Index: 1, Sum: 1},
-		{Index: 2, Sum: 2},
-		{Index: 3, Sum: 3},
+		{Bucket: uint128.From64(1), Sum: 1},
+		{Bucket: uint128.From64(2), Sum: 2},
+		{Bucket: uint128.From64(3), Sum: 3},
 	}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
@@ -539,17 +529,17 @@ func TestWriteReadCompleteHistogramWithPipeline(t *testing.T) {
 }
 
 func TestMergePartialHistogram(t *testing.T) {
-	partial1 := map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 1},
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
-		2: &pb.PartialAggregationDpf{PartialSum: 1},
-		3: &pb.PartialAggregationDpf{PartialSum: 1},
+	partial1 := map[uint128.Uint128]*pb.PartialAggregationDpf{
+		uint128.From64(0): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(1): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(2): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(3): &pb.PartialAggregationDpf{PartialSum: 1},
 	}
-	partial2 := map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 0},
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
-		2: &pb.PartialAggregationDpf{PartialSum: 2},
-		3: &pb.PartialAggregationDpf{PartialSum: 3},
+	partial2 := map[uint128.Uint128]*pb.PartialAggregationDpf{
+		uint128.From64(0): &pb.PartialAggregationDpf{PartialSum: 0},
+		uint128.From64(1): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(2): &pb.PartialAggregationDpf{PartialSum: 2},
+		uint128.From64(3): &pb.PartialAggregationDpf{PartialSum: 3},
 	}
 
 	got, err := MergePartialResult(partial1, partial2)
@@ -558,21 +548,21 @@ func TestMergePartialHistogram(t *testing.T) {
 	}
 
 	want := []CompleteHistogram{
-		{Index: 0, Sum: 1},
-		{Index: 1, Sum: 2},
-		{Index: 2, Sum: 3},
-		{Index: 3, Sum: 4},
+		{Bucket: uint128.From64(0), Sum: 1},
+		{Bucket: uint128.From64(1), Sum: 2},
+		{Bucket: uint128.From64(2), Sum: 3},
+		{Bucket: uint128.From64(3), Sum: 4},
 	}
-	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b CompleteHistogram) bool { return a.Index < b.Index })); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b CompleteHistogram) bool { return a.Bucket.Cmp(b.Bucket) == -1 })); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 
 	errStr := "partial results have different lengths: 1 and 2"
-	if _, err := MergePartialResult(map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 1},
-	}, map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 1},
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
+	if _, err := MergePartialResult(map[uint128.Uint128]*pb.PartialAggregationDpf{
+		uint128.From64(0): &pb.PartialAggregationDpf{PartialSum: 1},
+	}, map[uint128.Uint128]*pb.PartialAggregationDpf{
+		uint128.From64(0): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(1): &pb.PartialAggregationDpf{PartialSum: 1},
 	}); err == nil {
 		t.Fatalf("expect error %q", errStr)
 	} else if err.Error() != errStr {
@@ -580,15 +570,42 @@ func TestMergePartialHistogram(t *testing.T) {
 	}
 
 	errStr = "index 2 appears in partial1, missing in partial2"
-	if _, err := MergePartialResult(map[uint64]*pb.PartialAggregationDpf{
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
-		2: &pb.PartialAggregationDpf{PartialSum: 1},
-	}, map[uint64]*pb.PartialAggregationDpf{
-		0: &pb.PartialAggregationDpf{PartialSum: 1},
-		1: &pb.PartialAggregationDpf{PartialSum: 1},
+	if _, err := MergePartialResult(map[uint128.Uint128]*pb.PartialAggregationDpf{
+		uint128.From64(1): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(2): &pb.PartialAggregationDpf{PartialSum: 1},
+	}, map[uint128.Uint128]*pb.PartialAggregationDpf{
+		uint128.From64(0): &pb.PartialAggregationDpf{PartialSum: 1},
+		uint128.From64(1): &pb.PartialAggregationDpf{PartialSum: 1},
 	}); err == nil {
 		t.Fatalf("expect error %q", errStr)
 	} else if err.Error() != errStr {
 		t.Fatalf("expect error message %q, got %q", errStr, err.Error())
+	}
+}
+
+func TestReadWriteDPFparameters(t *testing.T) {
+	baseDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(baseDir)
+
+	wantExpandParams := &ExpandParameters{
+		Levels:        []int32{1, 2, 3},
+		Prefixes:      [][]uint128.Uint128{{}, {uint128.From64(1)}},
+		PreviousLevel: -1,
+	}
+	expandPath := path.Join(baseDir, "expand.txt")
+
+	ctx := context.Background()
+	if err := SaveExpandParameters(ctx, wantExpandParams, expandPath); err != nil {
+		t.Fatal(err)
+	}
+	gotExpandParams, err := ReadExpandParameters(ctx, expandPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(wantExpandParams, gotExpandParams, protocmp.Transform()); diff != "" {
+		t.Errorf("Expand parameters read/write mismatch (-want +got):\n%s", diff)
 	}
 }

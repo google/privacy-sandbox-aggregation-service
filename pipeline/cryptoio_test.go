@@ -24,6 +24,7 @@ import (
 	
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypttesting"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
@@ -163,12 +164,10 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	defer os.RemoveAll(baseDir)
 
 	// wantPrefix := &pb.HierarchicalPrefixes{nil, nil, {1, 8, 10}}
-	wantPrefix := &pb.HierarchicalPrefixes{
-		Prefixes: []*pb.DomainPrefixes{
-			{},
-			{},
-			{Prefix: []uint64{1, 8, 10}},
-		},
+	wantPrefix := [][]uint128.Uint128{
+		{},
+		{},
+		{uint128.From64(1), uint128.From64(2)},
 	}
 	prefixPath := path.Join(baseDir, "prefix.txt")
 
@@ -201,25 +200,6 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantParams, gotParams, protocmp.Transform()); diff != "" {
 		t.Errorf("DPF parameters read/write mismatch (-want +got):\n%s", diff)
-	}
-
-	wantExpandParams := &pb.ExpandParameters{
-		SumParameters: wantParams,
-		Levels:        []int32{1, 2, 3},
-		Prefixes:      wantPrefix,
-		PreviousLevel: -1,
-	}
-	expandPath := path.Join(baseDir, "expand.txt")
-
-	if err := SaveExpandParameters(ctx, wantExpandParams, expandPath); err != nil {
-		t.Fatal(err)
-	}
-	gotExpandParams, err := ReadExpandParameters(ctx, expandPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(wantExpandParams, gotExpandParams, protocmp.Transform()); diff != "" {
-		t.Errorf("Expand parameters read/write mismatch (-want +got):\n%s", diff)
 	}
 }
 

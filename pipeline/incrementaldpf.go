@@ -32,7 +32,6 @@ import (
 	"lukechampine.com/uint128"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 // DefaultElementBitSize is the default element size for generating the DPF keys.
@@ -228,7 +227,7 @@ func EvaluateUntil64(hierarchyLevel int, prefixes []uint128.Uint128, evalCtx *dp
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
 // If previousLevel = 1, the DPF key has not been evaluated yet:
 // http://github.com/google/distributed_point_functions/dpf/distributed_point_function.cc?l=730&rcl=396584858
-func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) ([]uint128.Uint128, error) {
+func CalculateBucketID(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) ([]uint128.Uint128, error) {
 	if err := CheckExpansionParameters(params, prefixes, levels, previousLevel); err != nil {
 		return nil, err
 	}
@@ -241,11 +240,11 @@ func CalculateBucketID(params *pb.IncrementalDpfParameters, prefixes [][]uint128
 
 	var prefixBitSize int32
 	if len(levels) > 1 {
-		prefixBitSize = params.Params[levels[len(levels)-2]].GetLogDomainSize()
+		prefixBitSize = params[levels[len(levels)-2]].GetLogDomainSize()
 	} else {
-		prefixBitSize = params.Params[previousLevel].GetLogDomainSize()
+		prefixBitSize = params[previousLevel].GetLogDomainSize()
 	}
-	finalBitSize := params.Params[levels[len(levels)-1]].GetLogDomainSize()
+	finalBitSize := params[levels[len(levels)-1]].GetLogDomainSize()
 	finalPrefixes := prefixes[len(prefixes)-1]
 
 	expansionBits := finalBitSize - prefixBitSize
@@ -280,8 +279,8 @@ func validateLevels(levels []int32) error {
 }
 
 // CheckExpansionParameters checks if the DPF parameters and prefixes are valid for the hierarchical expansion.
-func CheckExpansionParameters(params *pb.IncrementalDpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) error {
-	paramsLen := len(params.Params)
+func CheckExpansionParameters(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) error {
+	paramsLen := len(params)
 	if paramsLen == 0 {
 		return errors.New("empty dpf parameters")
 	}

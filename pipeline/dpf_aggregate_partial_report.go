@@ -53,7 +53,7 @@ var (
 	expandParametersURI = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
 	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
 	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output the decrypted partial reports so the helper won't need to do the decryption repeatedly.")
-	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	keyBitSize          = flag.Int("key_bit_size", 128, "Bit size of the conversion keys.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
@@ -72,7 +72,7 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	expandParams, err := cryptoio.ReadExpandParameters(ctx, *expandParametersURI)
+	expandParams, err := dpfaggregator.ReadExpandParameters(ctx, *expandParametersURI)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
@@ -91,12 +91,9 @@ func main() {
 	}
 
 	// For the current design, we define hierarchies for all possible prefix lengths of the bucket ID.
-	params, err := dpfaggregator.GetDefaultDPFParameters(int32(*keyBitSize))
+	dpfParams, err := dpfaggregator.GetDefaultDPFParameters(*keyBitSize)
 	if err != nil {
 		log.Exit(ctx, err)
-	}
-	expandParams.SumParameters = &pb.IncrementalDpfParameters{
-		Params: params,
 	}
 
 	pipeline := beam.NewPipeline()
@@ -109,6 +106,7 @@ func main() {
 			DecryptedReportURI:  *decryptedReportURI,
 			HelperPrivateKeys:   helperPrivKeys,
 			ExpandParams:        expandParams,
+			DPFParams:           dpfParams,
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
 				SegmentLength: *segmentLength,

@@ -111,15 +111,15 @@ func main() {
 		log.Exit(err)
 	}
 
-	var conversions []dpfbrowsersimulator.RawConversion
+	var conversions []reporttypes.RawReport
 	if *conversionURI != "" {
 		var err error
-		conversions, err = dpfbrowsersimulator.ReadRawConversions(ctx, *conversionURI, int32(*keyBitSize))
+		conversions, err = dpfbrowsersimulator.ReadRawConversions(ctx, *conversionURI, *keyBitSize)
 		if err != nil {
 			log.Exit(err)
 		}
 	} else {
-		conversion, err := dpfbrowsersimulator.ParseRawConversion(*conversionRaw, int32(*keyBitSize))
+		conversion, err := dpfbrowsersimulator.ParseRawConversion(*conversionRaw, *keyBitSize)
 		if err != nil {
 			log.Exit(err)
 		}
@@ -132,7 +132,7 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, int32(*keyBitSize), publicKeyInfo1, publicKeyInfo2, contextInfo)
+			report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo)
 			if err != nil {
 				log.Exit(err)
 			}

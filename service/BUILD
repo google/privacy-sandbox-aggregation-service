@@ -141,12 +141,12 @@ go_library(
         ":service_go_grpc_proto",
         ":utils",
         "//pipeline:crypto_go_proto",
-        "//pipeline:cryptoio",
         "//pipeline:dpfaggregator",
         "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
+        "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//metadata:go_default_library",
         "@org_golang_x_sync//errgroup:go_default_library",
@@ -161,12 +161,11 @@ go_test(
     embed = [":query"],
     deps = [
         "//pipeline:crypto_go_proto",
-        "//pipeline:cryptoio",
         "//pipeline:dpfaggregator",
         "//pipeline:ioutils",
         "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//testing/protocmp",
     ],
 )
 

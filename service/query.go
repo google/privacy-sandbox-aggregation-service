@@ -26,8 +26,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/gonum/floats"
 	"google.golang.org/grpc"
+	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
@@ -51,7 +51,7 @@ type ExpansionConfig struct {
 // PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
 type PrefixHistogramQuery struct {
 	QueryID                              string
-	Prefixes                             *cryptopb.HierarchicalPrefixes
+	Prefixes                             [][]uint128.Uint128
 	PrefixeLengths                       []int32
 	PreviousPrefixLength                 int32
 	PartialReportURI1, PartialReportURI2 string
@@ -142,7 +142,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 
 // getPrefixHistogram calls the RPC methods on both helpers and merges the generated partial aggregation results.
 func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfaggregator.CompleteHistogram, error) {
-	expandParams := &cryptopb.ExpandParameters{
+	expandParams := &dpfaggregator.ExpandParameters{
 		PreviousLevel: phq.PreviousPrefixLength - 1,
 		Prefixes:      phq.Prefixes,
 	}
@@ -151,7 +151,7 @@ func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfa
 	}
 
 	expandParamsURI := fmt.Sprintf("%s/expand_params%s.txt", phq.ParamsDir, phq.QueryID)
-	if err := cryptoio.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
+	if err := dpfaggregator.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
 		return nil, err
 	}
 
@@ -183,7 +183,7 @@ func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, ep
 
 	var results []HierarchicalResult
 	phq.PreviousPrefixLength = 0
-	phq.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{{}}}
+	phq.Prefixes = [][]uint128.Uint128{{}}
 	for i, threshold := range config.ExpansionThresholdPerPrefix {
 		// The user is supposed to query one hierarchy at a time.
 		phq.PrefixeLengths = []int32{config.PrefixLengths[i]}
@@ -193,9 +193,9 @@ func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, ep
 		if err != nil {
 			return nil, err
 		}
-		phq.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{
-			{Prefix: getNextNonemptyPrefixes(result, threshold)},
-		}}
+		phq.Prefixes = [][]uint128.Uint128{
+			getNextNonemptyPrefixes(result, threshold),
+		}
 		results = append(results, HierarchicalResult{PrefixLength: config.PrefixLengths[i], Histogram: result, ExpansionThreshold: threshold})
 		phq.PreviousPrefixLength = config.PrefixLengths[i]
 	}
@@ -317,7 +317,7 @@ func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, req
 	}
 
 	expandParamsURI := getRequestExpandParamsURI(workDir, request)
-	if err := cryptoio.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
+	if err := dpfaggregator.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
 		return "", err
 	}
 
@@ -359,11 +359,11 @@ func validateExpansionConfig(config *ExpansionConfig) error {
 	return nil
 }
 
-func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold uint64) []uint64 {
-	var prefixes []uint64
+func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold uint64) []uint128.Uint128 {
+	var prefixes []uint128.Uint128
 	for _, r := range result {
 		if r.Sum >= threshold {
-			prefixes = append(prefixes, r.Index)
+			prefixes = append(prefixes, r.Bucket)
 		}
 	}
 	return prefixes
@@ -386,21 +386,22 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
-func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*cryptopb.ExpandParameters, error) {
-	expandParams := &cryptopb.ExpandParameters{
+func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*dpfaggregator.ExpandParameters, error) {
+	expandParams := &dpfaggregator.ExpandParameters{
 		// The DPF levels correspond to the query prefix lengths.
 		Levels: []int32{config.PrefixLengths[queryLevel] - 1},
 	}
 	if previousResults == nil {
 		expandParams.PreviousLevel = -1
-		expandParams.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{{}}}
+		expandParams.Prefixes = [][]uint128.Uint128{{}}
 		return expandParams, nil
 	}
 
 	expandParams.PreviousLevel = config.PrefixLengths[queryLevel-1] - 1
-	expandParams.Prefixes = &cryptopb.HierarchicalPrefixes{Prefixes: []*cryptopb.DomainPrefixes{
-		{Prefix: getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1])},
-	}}
+	expandParams.Prefixes = [][]uint128.Uint128{
+		getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1]),
+	}
+
 	return expandParams, nil
 }
 

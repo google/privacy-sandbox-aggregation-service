@@ -11,8 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
@@ -47,12 +46,12 @@ func TestExpansionConfigReadWrite(t *testing.T) {
 
 func TestGetNextNonemptyPrefixes(t *testing.T) {
 	result := []dpfaggregator.CompleteHistogram{
-		{Index: 1, Sum: 2},
-		{Index: 2, Sum: 3},
-		{Index: 3, Sum: 4},
+		{Bucket: uint128.From64(1), Sum: 2},
+		{Bucket: uint128.From64(2), Sum: 3},
+		{Bucket: uint128.From64(3), Sum: 4},
 	}
 	got := getNextNonemptyPrefixes(result, 3)
-	want := []uint64{2, 3}
+	want := []uint128.Uint128{uint128.From64(2), uint128.From64(3)}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("nonempty prefixes mismatch (-want +got):\n%s", diff)
 	}
@@ -66,7 +65,7 @@ func TestHierarchicalResultsReadWrite(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	wantResults := []HierarchicalResult{
-		{PrefixLength: 1, Histogram: []dpfaggregator.CompleteHistogram{{Index: 1, Sum: 1}}, ExpansionThreshold: 1},
+		{PrefixLength: 1, Histogram: []dpfaggregator.CompleteHistogram{{Bucket: uint128.From64(1), Sum: 1}}, ExpansionThreshold: 1},
 	}
 	resultsFile := path.Join(tmpDir, "results")
 	ctx := context.Background()
@@ -152,30 +151,22 @@ func TestGetRequestExpandParams(t *testing.T) {
 	}
 	type aggParams struct {
 		ExpandParamsURI string
-		ExpandParams    *pb.ExpandParameters
+		ExpandParams    *dpfaggregator.ExpandParameters
 	}
 	for _, want := range []*aggParams{
 		{
 			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 0)),
-			ExpandParams: &pb.ExpandParameters{
-				Levels: []int32{0},
-				Prefixes: &pb.HierarchicalPrefixes{
-					Prefixes: []*pb.DomainPrefixes{
-						{},
-					},
-				},
+			ExpandParams: &dpfaggregator.ExpandParameters{
+				Levels:        []int32{0},
+				Prefixes:      [][]uint128.Uint128{{}},
 				PreviousLevel: -1,
 			},
 		},
 		{
 			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 1)),
-			ExpandParams: &pb.ExpandParameters{
-				Levels: []int32{1},
-				Prefixes: &pb.HierarchicalPrefixes{
-					Prefixes: []*pb.DomainPrefixes{
-						{Prefix: []uint64{1}},
-					},
-				},
+			ExpandParams: &dpfaggregator.ExpandParameters{
+				Levels:        []int32{1},
+				Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
 				PreviousLevel: 0,
 			},
 		},
@@ -192,12 +183,12 @@ func TestGetRequestExpandParams(t *testing.T) {
 			t.Fatalf("expect expand params URI %q, got %q", want.ExpandParamsURI, gotExpandParamsFile)
 		}
 
-		gotExpandParams, err := cryptoio.ReadExpandParameters(ctx, gotExpandParamsFile)
+		gotExpandParams, err := dpfaggregator.ReadExpandParameters(ctx, gotExpandParamsFile)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(want.ExpandParams, gotExpandParams, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(want.ExpandParams, gotExpandParams); diff != "" {
 			t.Errorf("expand params mismatch (-want +got):\n%s", diff)
 		}
 		request.QueryLevel++

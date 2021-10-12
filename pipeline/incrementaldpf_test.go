@@ -23,7 +23,6 @@ import (
 	"lukechampine.com/uint128"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 func TestDpfGenEvalFunctions(t *testing.T) {
@@ -124,7 +123,7 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)
-	ids, err := CalculateBucketID(&pb.IncrementalDpfParameters{Params: params}, prefixes, []int32{0, 1}, -1)
+	ids, err := CalculateBucketID(params, prefixes, []int32{0, 1}, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,25 +145,23 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 
 func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 	os.Setenv("GODEBUG", "cgocheck=2")
-	params := &pb.IncrementalDpfParameters{
-		Params: []*dpfpb.DpfParameters{
-			{LogDomainSize: 2, ElementBitsize: 64},
-			{LogDomainSize: 4, ElementBitsize: 64},
-			{LogDomainSize: 5, ElementBitsize: 64},
-		},
+	params := []*dpfpb.DpfParameters{
+		{LogDomainSize: 2, ElementBitsize: 64},
+		{LogDomainSize: 4, ElementBitsize: 64},
+		{LogDomainSize: 5, ElementBitsize: 64},
 	}
 	alpha, beta := uint128.From64(16), uint64(1)
-	k1, k2, err := GenerateKeys(params.Params, alpha, []uint64{beta, beta, beta})
+	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta, beta, beta})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	evalCtx1, err := CreateEvaluationContext(params.Params, k1)
+	evalCtx1, err := CreateEvaluationContext(params, k1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	evalCtx2, err := CreateEvaluationContext(params.Params, k2)
+	evalCtx2, err := CreateEvaluationContext(params, k2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +186,7 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 	for i := range expanded1 {
 		got[i] = expanded1[i] + expanded2[i]
 	}
-	want := make([]uint64, 1<<params.Params[0].GetLogDomainSize())
+	want := make([]uint64, 1<<params[0].GetLogDomainSize())
 	want[2] = 1
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
@@ -230,12 +227,10 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 }
 
 func TestCalculateBucketID(t *testing.T) {
-	params := &pb.IncrementalDpfParameters{
-		Params: []*dpfpb.DpfParameters{
-			{LogDomainSize: 2, ElementBitsize: 64},
-			{LogDomainSize: 3, ElementBitsize: 64},
-			{LogDomainSize: 4, ElementBitsize: 64},
-		},
+	params := []*dpfpb.DpfParameters{
+		{LogDomainSize: 2, ElementBitsize: 64},
+		{LogDomainSize: 3, ElementBitsize: 64},
+		{LogDomainSize: 4, ElementBitsize: 64},
 	}
 
 	got, err := CalculateBucketID(params, [][]uint128.Uint128{

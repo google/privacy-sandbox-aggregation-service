@@ -101,29 +101,9 @@ message DomainPrefixes {
   repeated uint64 prefix = 1;
 }
 
-// HierarchicalPrefixes contains the prefixes for each of the hierarchical
-// domains.
-message HierarchicalPrefixes {
-  // For the first level of expansion, the prefixes must be empty:
-	// http://google3/third_party/distributed_point_functions/dpf/distributed_point_function.h?l=86&rcl=368846188
-  repeated DomainPrefixes prefixes = 1;
-}
-
 // IncrementalDpfParameters contains DPF parameters for key generation and
 // expansion in each of the hierarchical domains.
 message IncrementalDpfParameters {
   repeated distributed_point_functions.DpfParameters params = 1;
 }
 
-// ExpandParameters contains required parameters for expanding the DPF keys.
-message ExpandParameters {
-  // DPF parameters that used to generate the partial report on the browser.
-  IncrementalDpfParameters sum_parameters = 1;
-  // Levels to expand the DPF keys. The domain size of each level depends on the
-  // sum_parameters.
-  repeated int32 levels = 2;
-  // Prefixes corresponding to each level;
-  HierarchicalPrefixes prefixes = 3;
-  // The previous level that the DPF keys are expanded.
-  int32 previous_level = 4;
-}

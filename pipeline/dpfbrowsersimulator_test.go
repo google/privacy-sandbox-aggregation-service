@@ -26,8 +26,11 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 
@@ -35,10 +38,10 @@ import (
 )
 
 func TestReadInputConversions(t *testing.T) {
-	var conversions []RawConversion
+	var conversions []reporttypes.RawReport
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
-			conversions = append(conversions, RawConversion{Index: uint64(i) << 27, Value: uint64(i)})
+			conversions = append(conversions, reporttypes.RawReport{Bucket: uint128.From64(uint64(i)).Lsh(27), Value: uint64(i)})
 		}
 	}
 
@@ -46,7 +49,7 @@ func TestReadInputConversions(t *testing.T) {
 	
 	pipeline, scope := beam.NewPipelineWithRoot()
 	lines := textio.ReadSdf(scope, testFile)
-	got := beam.ParDo(scope, &parseRawConversionFn{}, lines)
+	got := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: 32}, lines)
 	want := beam.CreateList(scope, conversions)
 
 	passert.Equals(scope, got, want)
@@ -56,23 +59,23 @@ func TestReadInputConversions(t *testing.T) {
 }
 
 type dpfTestData struct {
-	Conversions []RawConversion
+	Conversions []reporttypes.RawReport
 	WantResults [][]dpfaggregator.CompleteHistogram
 	SumParams   *pb.IncrementalDpfParameters
-	Prefixes    *pb.HierarchicalPrefixes
+	Prefixes    [][]uint128.Uint128
 }
 
 // filterResults filters the expected aggregation results with given prefixes to get the expected results at certain prefix length.
 // The results will be used to verify the aggregation output at different hierarchy.
-func filterResults(prefixes []uint64, prefixBitSize, keyBitSize, totalBitSize uint64, allResults map[uint64]uint64) []dpfaggregator.CompleteHistogram {
-	prefixesSet := make(map[uint64]bool)
+func filterResults(prefixes []uint128.Uint128, prefixBitSize, keyBitSize, totalBitSize uint64, allResults map[uint128.Uint128]uint64) []dpfaggregator.CompleteHistogram {
+	prefixesSet := make(map[uint128.Uint128]bool)
 	for _, p := range prefixes {
 		prefixesSet[p] = true
 	}
-	results := make(map[uint64]uint64)
+	results := make(map[uint128.Uint128]uint64)
 	for k, v := range allResults {
-		prefix := k >> (totalBitSize - prefixBitSize)
-		key := k >> (totalBitSize - keyBitSize)
+		prefix := k.Rsh(uint(totalBitSize - prefixBitSize))
+		key := k.Rsh(uint(totalBitSize - keyBitSize))
 		if _, ok := prefixesSet[prefix]; ok || len(prefixesSet) == 0 {
 			results[key] += v
 		}
@@ -80,7 +83,7 @@ func filterResults(prefixes []uint64, prefixBitSize, keyBitSize, totalBitSize ui
 
 	var histogram []dpfaggregator.CompleteHistogram
 	for k, v := range results {
-		histogram = append(histogram, dpfaggregator.CompleteHistogram{Index: k, Sum: v})
+		histogram = append(histogram, dpfaggregator.CompleteHistogram{Bucket: k, Sum: v})
 	}
 	return histogram
 }
@@ -88,42 +91,42 @@ func filterResults(prefixes []uint64, prefixBitSize, keyBitSize, totalBitSize ui
 func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestData, error) {
 	root := &PrefixNode{Class: "root"}
 	for i := 0; i < 1<<5; i++ {
-		root.AddChildNode("campaignid", 12 /*bitSize*/, uint64(i) /*value*/)
+		root.AddChildNode("campaignid", 12 /*bitSize*/, uint128.From64(uint64(i)) /*value*/)
 	}
 
 	prefixes, prefixDomainBits := CalculatePrefixes(root)
 	sumParams := CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum)
 
-	aggResult := make(map[uint64]uint64)
-	var conversions []RawConversion
+	aggResult := make(map[uint128.Uint128]uint64)
+	var conversions []reporttypes.RawReport
 	// Generate conversions with indices that contain one of the given prefixes. These conversions are counted in the aggregation.
-	prefixesLen := len(prefixes.Prefixes)
+	prefixesLen := len(prefixes)
 	for i := uint64(0); i < totalCount-4; i++ {
-		index, err := CreateConversionIndex(prefixes.Prefixes[prefixesLen-1].Prefix, prefixDomainBits[len(prefixDomainBits)-1], logN, true /*hasPrefix*/)
+		index, err := CreateConversionIndex(prefixes[prefixesLen-1], prefixDomainBits[len(prefixDomainBits)-1], logN, true /*hasPrefix*/)
 		if err != nil {
 			return nil, err
 		}
-		conversions = append(conversions, RawConversion{Index: index, Value: 1})
+		conversions = append(conversions, reporttypes.RawReport{Bucket: index, Value: 1})
 		aggResult[index]++
 	}
 	// Generate conversions with indices that do not contain any of the given prefixes. These conversions will not be counted in the aggregation.
 	for i := uint64(0); i < 4; i++ {
-		index, err := CreateConversionIndex(prefixes.Prefixes[prefixesLen-1].Prefix, prefixDomainBits[len(prefixDomainBits)-1], logN, false /*hasPrefix*/)
+		index, err := CreateConversionIndex(prefixes[prefixesLen-1], prefixDomainBits[len(prefixDomainBits)-1], logN, false /*hasPrefix*/)
 		if err != nil {
 			return nil, err
 		}
-		conversions = append(conversions, RawConversion{Index: index, Value: 1})
+		conversions = append(conversions, reporttypes.RawReport{Bucket: index, Value: 1})
 		aggResult[index]++
 	}
 
 	var wantResults [][]dpfaggregator.CompleteHistogram
-	for i := 0; i < len(prefixes.Prefixes); i++ {
+	for i := 0; i < len(prefixes); i++ {
 		prefixBits := int32(logN)
 		if i > 0 {
 			prefixBits = sumParams.Params[i-1].LogDomainSize
 		}
 		keyBits := sumParams.Params[i].LogDomainSize
-		wantResults = append(wantResults, filterResults(prefixes.Prefixes[i].Prefix, uint64(prefixBits), uint64(keyBits), logN, aggResult))
+		wantResults = append(wantResults, filterResults(prefixes[i], uint64(prefixBits), uint64(keyBits), logN, aggResult))
 	}
 
 	return &dpfTestData{Conversions: conversions, WantResults: wantResults, SumParams: sumParams, Prefixes: prefixes}, nil
@@ -150,17 +153,13 @@ func testAggregationPipelineDPF(t testing.TB) {
 		t.Fatal(err)
 	}
 
-	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctxParams := &pb.IncrementalDpfParameters{Params: allParams}
 	combineParams := &dpfaggregator.CombineParams{
 		DirectCombine: true,
 	}
-
-	params := &pb.IncrementalDpfParameters{}
-	prefixes := &pb.HierarchicalPrefixes{}
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	conversions := beam.CreateList(scope, testData.Conversions)
@@ -175,26 +174,22 @@ func testAggregationPipelineDPF(t testing.TB) {
 	pr2 := dpfaggregator.DecryptPartialReport(scope, ePr2, privKeys2)
 
 	previousLevel := int32(-1)
-	for i := range testData.Prefixes.Prefixes {
+	for i := range testData.Prefixes {
 		want := beam.CreateList(scope, testData.WantResults[i])
 
-		expandParams := &pb.ExpandParameters{
-			SumParameters: ctxParams,
-			Prefixes:      &pb.HierarchicalPrefixes{Prefixes: []*pb.DomainPrefixes{testData.Prefixes.Prefixes[i]}},
+		expandParams := &dpfaggregator.ExpandParameters{
+			Prefixes:      [][]uint128.Uint128{testData.Prefixes[i]},
 			Levels:        []int32{testData.SumParams.Params[i].LogDomainSize - 1},
 			PreviousLevel: previousLevel,
 		}
-		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams)
-		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams)
+		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams, ctxParams)
+		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams, ctxParams)
 
-		params.Params = append(params.Params, testData.SumParams.Params[i])
-		prefixes.Prefixes = append(prefixes.Prefixes, testData.Prefixes.Prefixes[i])
-
-		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, combineParams)
+		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, ctxParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, combineParams)
+		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, ctxParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,5 +242,23 @@ func TestWriteReadPartialReports(t *testing.T) {
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func TestGetMaxKey(t *testing.T) {
+	want := uint128.Max
+	got := getMaxKey(128)
+	if got.Cmp(want) != 0 {
+		t.Fatalf("expect %s for key size %d, got %s", want.String(), 128, got.String())
+	}
+
+	var err error
+	want, err = ioutils.StringToUint128("1180591620717411303423") // 2^70-1
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = getMaxKey(70)
+	if got.Cmp(want) != 0 {
+		t.Fatalf("expect %s for key size %d, got %s", want.String(), 70, got.String())
 	}
 }

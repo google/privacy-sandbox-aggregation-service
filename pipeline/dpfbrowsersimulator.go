@@ -29,11 +29,11 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -45,19 +45,13 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*encryptSecretSharesFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*RawConversion)(nil)))
+	beam.RegisterType(reflect.TypeOf((*reporttypes.RawReport)(nil)))
 	beam.RegisterFunction(formatPartialReportFn)
-}
-
-// RawConversion represents a conversion record from the browser. For the DPF protocol the record key is an integer in a known domain.
-type RawConversion struct {
-	Index uint64
-	Value uint64
 }
 
 // parseRawConversionFn parses each line in the raw conversion file in the format: bucket ID, value.
 type parseRawConversionFn struct {
-	KeyBitSize      int32
+	KeyBitSize      int
 	countConversion beam.Counter
 }
 
@@ -65,26 +59,37 @@ func (fn *parseRawConversionFn) Setup(ctx context.Context) {
 	fn.countConversion = beam.NewCounter("aggregation", "parserawConversionFn_conversion_count")
 }
 
-//ParseRawConversion parses a raw conversion into RawConversion
-func ParseRawConversion(line string, keyBitSize int32) (RawConversion, error) {
+func getMaxKey(s int) uint128.Uint128 {
+	maxKey := uint128.Max
+	if s < 128 {
+		maxKey = uint128.Uint128{1, 0}.Lsh(uint(s)).Sub64(1)
+	}
+	return maxKey
+}
+
+//ParseRawConversion parses a raw conversion.
+func ParseRawConversion(line string, keyBitSize int) (reporttypes.RawReport, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
-		return RawConversion{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
+		return reporttypes.RawReport{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
-	key64, err := strconv.ParseUint(cols[0], 10, int(keyBitSize))
+	key128, err := ioutils.StringToUint128(cols[0])
 	if err != nil {
-		return RawConversion{}, err
+		return reporttypes.RawReport{}, err
+	}
+	if key128.Cmp(getMaxKey(keyBitSize)) == 1 {
+		return reporttypes.RawReport{}, fmt.Errorf("key %q overflows the integer with %d bits", key128.String(), keyBitSize)
 	}
 
 	value64, err := strconv.ParseUint(cols[1], 10, 64)
 	if err != nil {
-		return RawConversion{}, err
+		return reporttypes.RawReport{}, err
 	}
-	return RawConversion{Index: key64, Value: value64}, nil
+	return reporttypes.RawReport{Bucket: key128, Value: value64}, nil
 }
 
-func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(RawConversion)) error {
+func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(reporttypes.RawReport)) error {
 	conversion, err := ParseRawConversion(line, fn.KeyBitSize)
 	if err != nil {
 		return err
@@ -97,7 +102,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 
 type encryptSecretSharesFn struct {
 	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
-	KeyBitSize               int32
+	KeyBitSize               int
 
 	countReport beam.Counter
 }
@@ -154,13 +159,13 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 }
 
 // GenerateEncryptedReports splits a conversion record into DPF keys, and encrypts the partial reports.
-func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
+func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
 	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, uint128.From64(conversion.Index), putValueForHierarchies(allParams, conversion.Value))
+	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, report.Bucket, putValueForHierarchies(allParams, report.Value))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -183,7 +188,7 @@ func GenerateEncryptedReports(conversion RawConversion, keyBitSize int32, public
 	return encryptedReport1, encryptedReport2, nil
 }
 
-func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c RawConversion, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
+func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
 	fn.countReport.Inc(ctx, 1)
 
 	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKeys1, fn.PublicKeys2, nil)
@@ -237,7 +242,7 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 type GeneratePartialReportParams struct {
 	ConversionURI, PartialReportURI1, PartialReportURI2 string
 	PublicKeys1, PublicKeys2                            []cryptoio.PublicKeyInfo
-	KeyBitSize                                          int32
+	KeyBitSize                                          int
 	Shards                                              int64
 }
 
@@ -262,18 +267,20 @@ type PrefixNode struct {
 	// A note for what type of information this node records. e.g. "campaignid", "geo", or anything contained in the conversion key.
 	Class string
 	// The value and length of the bit segment represented by this node.
-	BitsValue, BitsSize uint64
+	BitsValue uint128.Uint128
+	BitsSize  uint64
 	// The value and length of the prefix bits accumulated from the root to this node.
-	PrefixValue, PrefixSize uint64
-	Children                []*PrefixNode
+	PrefixValue uint128.Uint128
+	PrefixSize  uint64
+	Children    []*PrefixNode
 }
 
 // AddChildNode adds a node in the prefix tree.
-func (pn *PrefixNode) AddChildNode(class string, bitsSize, bitsValue uint64) *PrefixNode {
+func (pn *PrefixNode) AddChildNode(class string, bitsSize uint64, bitsValue uint128.Uint128) *PrefixNode {
 	child := &PrefixNode{
 		Class:    class,
 		BitsSize: bitsSize, BitsValue: bitsValue,
-		PrefixSize: bitsSize + pn.PrefixSize, PrefixValue: pn.PrefixValue<<bitsSize + bitsValue,
+		PrefixSize: bitsSize + pn.PrefixSize, PrefixValue: pn.PrefixValue.Lsh(uint(bitsSize)).Add(bitsValue),
 	}
 	pn.Children = append(pn.Children, child)
 	return child
@@ -282,17 +289,17 @@ func (pn *PrefixNode) AddChildNode(class string, bitsSize, bitsValue uint64) *Pr
 // CalculatePrefixes calculates the prefixes for each expansion hierarchy and prefix bit sizes.
 //
 // The prefixes will be used for expanding the DPF keys in different levels; and the prefix bit sizes will be used to determine DPF parameters for DPF key generation and expansion.
-func CalculatePrefixes(root *PrefixNode) (*pb.HierarchicalPrefixes, []uint64) {
+func CalculatePrefixes(root *PrefixNode) ([][]uint128.Uint128, []uint64) {
 	var curNodes, nxtNodes []*PrefixNode
 	curNodes = append(curNodes, root.Children...)
 
-	prefixes := &pb.HierarchicalPrefixes{}
+	var prefixes [][]uint128.Uint128
 	// For the first level of expansion, the prefixes must be empty:
 	// http://github.com/google/distributed_point_functions/dpf/distributed_point_function.h?l=86&rcl=368846188
-	prefixes.Prefixes = append(prefixes.Prefixes, &pb.DomainPrefixes{})
+	prefixes = append(prefixes, []uint128.Uint128{})
 	var prefixBitSizes []uint64
 	for len(curNodes) > 0 {
-		var prefix []uint64
+		var prefix []uint128.Uint128
 		var prefixBitSize uint64
 		nxtNodes = []*PrefixNode{}
 		for _, node := range curNodes {
@@ -300,7 +307,7 @@ func CalculatePrefixes(root *PrefixNode) (*pb.HierarchicalPrefixes, []uint64) {
 			prefixBitSize = node.PrefixSize
 			nxtNodes = append(nxtNodes, node.Children...)
 		}
-		prefixes.Prefixes = append(prefixes.Prefixes, &pb.DomainPrefixes{Prefix: prefix})
+		prefixes = append(prefixes, prefix)
 		prefixBitSizes = append(prefixBitSizes, prefixBitSize)
 		curNodes = nxtNodes
 	}
@@ -319,45 +326,73 @@ func CalculateParameters(prefixBitSizes []uint64, logN, elementBitSizeSum int32)
 	return &pb.IncrementalDpfParameters{Params: sumParams}
 }
 
+func randUint64Bits(bitSize uint64) uint64 {
+	return rand.Uint64() >> (64 - bitSize)
+}
+
+func randUint128(bitSize uint64) (uint128.Uint128, error) {
+	if bitSize > 128 {
+		return uint128.Zero, fmt.Errorf("expect bitSize < 128, got %d", bitSize)
+	}
+	if bitSize <= 64 {
+		return uint128.From64(randUint64Bits(bitSize)), nil
+	}
+	return uint128.New(rand.Uint64(), randUint64Bits(bitSize-64)), nil
+}
+
 // CreateConversionIndex generates a random conversion ID that matches one of the prefixes described by the input, or does not have any of the prefixes.
-func CreateConversionIndex(prefixes []uint64, prefixBitSize, totalBitSize uint64, hasPrefix bool) (uint64, error) {
+func CreateConversionIndex(prefixes []uint128.Uint128, prefixBitSize, totalBitSize uint64, hasPrefix bool) (uint128.Uint128, error) {
 	if prefixBitSize > totalBitSize {
-		return 0, fmt.Errorf("expect a prefix bit size no larger than total bit size %d, got %d", totalBitSize, prefixBitSize)
+		return uint128.Zero, fmt.Errorf("expect a prefix bit size no larger than total bit size %d, got %d", totalBitSize, prefixBitSize)
 	}
 	if len(prefixes) == 1<<prefixBitSize || len(prefixes) == 0 {
 		if hasPrefix {
-			return uint64(rand.Int63n(int64(1) << totalBitSize)), nil
+			return randUint128(totalBitSize)
 		}
-		return 0, errors.New("unable to generate an index without any of the prefixes")
+		return uint128.Zero, errors.New("unable to generate an index without any of the prefixes")
 	}
 
 	suffixBitSize := totalBitSize - prefixBitSize
 	if hasPrefix {
-		return prefixes[rand.Intn(len(prefixes))]<<suffixBitSize + uint64(rand.Int63n(1<<suffixBitSize)), nil
+		suffix, err := randUint128(suffixBitSize)
+		if err != nil {
+			return uint128.Zero, err
+		}
+		return prefixes[rand.Intn(len(prefixes))].Lsh(uint(suffixBitSize)).Add(suffix), nil
 	}
 
-	existing := make(map[uint64]struct{})
+	existing := make(map[uint128.Uint128]struct{})
 	for _, p := range prefixes {
 		existing[p] = struct{}{}
 	}
-	var otherPrefix uint64
+	var (
+		otherPrefix uint128.Uint128
+		err         error
+	)
 	for {
-		otherPrefix = uint64(rand.Int63n(int64(1) << prefixBitSize))
+		otherPrefix, err = randUint128(prefixBitSize)
+		if err != nil {
+			return uint128.Zero, err
+		}
 		if _, ok := existing[otherPrefix]; !ok {
 			break
 		}
 	}
-	return otherPrefix<<suffixBitSize | uint64(rand.Int63n(1<<suffixBitSize)), nil
+	suffix, err := randUint128(suffixBitSize)
+	if err != nil {
+		return uint128.Zero, err
+	}
+	return otherPrefix.Lsh(uint(suffixBitSize)).Or(suffix), nil
 }
 
 // ReadRawConversions reads conversions from a file. Each line of the file represents a conversion record.
-func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize int32) ([]RawConversion, error) {
+func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize int) ([]reporttypes.RawReport, error) {
 	lines, err := ioutils.ReadLines(ctx, conversionFile)
 	if err != nil {
 		return nil, err
 	}
 
-	var conversions []RawConversion
+	var conversions []reporttypes.RawReport
 	for _, l := range lines {
 		conversion, err := ParseRawConversion(l, keyBitSize)
 		if err != nil {

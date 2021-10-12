@@ -57,7 +57,7 @@ var (
 
 	publicKeysURI1 = flag.String("public_keys_uri1", "", "Input file containing the public keys from helper 1.")
 	publicKeysURI2 = flag.String("public_keys_uri2", "", "Input file containing the public keys from helper 2.")
-	keyBitSize     = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	keyBitSize     = flag.Int("key_bit_size", 128, "Bit size of the conversion keys.")
 
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
@@ -93,7 +93,7 @@ func main() {
 		ConversionURI:     *conversionURI,
 		PartialReportURI1: *partialReportURI1,
 		PartialReportURI2: *partialReportURI2,
-		KeyBitSize:        int32(*keyBitSize),
+		KeyBitSize:        *keyBitSize,
 		PublicKeys1:       publicKeyInfo1,
 		PublicKeys2:       publicKeyInfo2,
 		Shards:            *fileShards,

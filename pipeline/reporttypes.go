@@ -16,6 +16,8 @@
 // The formats need to be consistent.
 package reporttypes
 
+import "lukechampine.com/uint128"
+
 // The struct tags in the following structs need to be consistent with the field names defined in:
 // https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#aggregate-attribution-reports
 
@@ -52,4 +54,10 @@ type Payload struct {
 	// https://github.com/google/distributed_point_functions/blob/199696c7cde95d9f9e07a4dddbcaaa36d120ca12/dpf/distributed_point_function.proto#L110
 	DPFKey  []byte `json:"dpf_key"`
 	Padding string `json:"padding"`
+}
+
+// RawReport contains the reported key/value pair.
+type RawReport struct {
+	Bucket uint128.Uint128
+	Value  uint64
 }

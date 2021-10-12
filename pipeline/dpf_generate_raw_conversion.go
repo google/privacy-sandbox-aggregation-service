@@ -23,9 +23,11 @@ import (
 	"fmt"
 
 	log "github.com/golang/glog"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 )
 
 var (
@@ -38,10 +40,10 @@ var (
 	logElementSizeSum = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
 )
 
-func writeConversions(ctx context.Context, filename string, conversions []dpfbrowsersimulator.RawConversion) error {
+func writeConversions(ctx context.Context, filename string, conversions []reporttypes.RawReport) error {
 	lines := make([]string, len(conversions))
 	for i, conversion := range conversions {
-		lines[i] = fmt.Sprintf("%d,%d", conversion.Index, conversion.Value)
+		lines[i] = fmt.Sprintf("%d,%d", conversion.Bucket, conversion.Value)
 	}
 	return ioutils.WriteLines(ctx, lines, filename)
 }
@@ -53,10 +55,10 @@ func main() {
 	root := &dpfbrowsersimulator.PrefixNode{Class: "root"}
 	// Suppose the first 12 bits represent the campaign ID, and only 2^5 IDs have data.
 	for i := 0; i < 1<<5; i++ {
-		child := root.AddChildNode("campaignid", 12 /*bitSize*/, uint64(i) /*value*/)
+		child := root.AddChildNode("campaignid", 12 /*bitSize*/, uint128.From64(uint64(i)) /*value*/)
 		// Following 5 bits representing geo, and only 2^3 locations have data.
 		for j := 0; j < 1<<3; j++ {
-			child.AddChildNode("geo", 5 /*bitSize*/, uint64(j) /*value*/)
+			child.AddChildNode("geo", 5 /*bitSize*/, uint128.From64(uint64(j)) /*value*/)
 		}
 	}
 
@@ -70,13 +72,13 @@ func main() {
 		log.Exit(err)
 	}
 
-	var conversions []dpfbrowsersimulator.RawConversion
+	var conversions []reporttypes.RawReport
 	for i := uint64(0); i < *totalCount; i++ {
-		index, err := dpfbrowsersimulator.CreateConversionIndex(prefixes.Prefixes[len(prefixes.Prefixes)-1].Prefix, prefixDomainBits[len(prefixDomainBits)-1], *logN, true /*hasPrefix*/)
+		index, err := dpfbrowsersimulator.CreateConversionIndex(prefixes[len(prefixes)-1], prefixDomainBits[len(prefixDomainBits)-1], *logN, true /*hasPrefix*/)
 		if err != nil {
 			log.Exit(err)
 		}
-		conversions = append(conversions, dpfbrowsersimulator.RawConversion{Index: index, Value: 1})
+		conversions = append(conversions, reporttypes.RawReport{Bucket: index, Value: 1})
 	}
 	if err := writeConversions(ctx, *rawConversionOutputURI, conversions); err != nil {
 		log.Exit(err)

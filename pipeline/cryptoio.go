@@ -25,6 +25,7 @@ import (
 	"path"
 
 	"google.golang.org/protobuf/proto"
+	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/elgamalencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
@@ -306,10 +307,10 @@ func CreateKeysAndSecret(ctx context.Context, fileDir string) (*pb.StandardPubli
 // SavePrefixes saves prefixes to a file.
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
-func SavePrefixes(ctx context.Context, filename string, prefixes *pb.HierarchicalPrefixes) error {
-	bPrefixes, err := proto.Marshal(prefixes)
+func SavePrefixes(ctx context.Context, filename string, prefixes [][]uint128.Uint128) error {
+	bPrefixes, err := json.Marshal(prefixes)
 	if err != nil {
-		return fmt.Errorf("prefixes marshal(%s) failed: %v", prefixes.String(), err)
+		return fmt.Errorf("prefixes marshal(%s) failed: %+v", prefixes, err)
 	}
 	return ioutils.WriteBytes(ctx, bPrefixes, filename)
 }
@@ -328,13 +329,13 @@ func SaveDPFParameters(ctx context.Context, filename string, params *pb.Incremen
 // ReadPrefixes reads the prefixes from a file.
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
-func ReadPrefixes(ctx context.Context, filename string) (*pb.HierarchicalPrefixes, error) {
+func ReadPrefixes(ctx context.Context, filename string) ([][]uint128.Uint128, error) {
 	bPrefixes, err := ioutils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
-	prefixes := &pb.HierarchicalPrefixes{}
-	if err := proto.Unmarshal(bPrefixes, prefixes); err != nil {
+	prefixes := [][]uint128.Uint128{}
+	if err := json.Unmarshal(bPrefixes, &prefixes); err != nil {
 		return nil, err
 	}
 	return prefixes, nil
@@ -413,26 +414,4 @@ func GenerateHybridKeyPairs(ctx context.Context, keyCount int, notBefore, notAft
 		})
 	}
 	return privKeys, pubInfo, nil
-}
-
-// SaveExpandParameters save the ExpandParams into a file.
-func SaveExpandParameters(ctx context.Context, params *pb.ExpandParameters, uri string) error {
-	b, err := proto.Marshal(params)
-	if err != nil {
-		return err
-	}
-	return ioutils.WriteBytes(ctx, b, uri)
-}
-
-// ReadExpandParameters reads the ExpandParams from a file.
-func ReadExpandParameters(ctx context.Context, uri string) (*pb.ExpandParameters, error) {
-	b, err := ioutils.ReadBytes(ctx, uri)
-	if err != nil {
-		return nil, err
-	}
-	params := &pb.ExpandParameters{}
-	if err := proto.Unmarshal(b, params); err != nil {
-		return nil, err
-	}
-	return params, nil
 }

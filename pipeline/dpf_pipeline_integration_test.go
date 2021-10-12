@@ -8,16 +8,17 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 	"testing"
 
 	
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
+
+const keyBitSize = 32
 
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
@@ -59,6 +60,7 @@ func TestPipeline(t *testing.T) {
 		"--partial_report_uri2="+partialReportURI2,
 		"--public_keys_uri1="+publicKeyURI,
 		"--public_keys_uri2="+publicKeyURI,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -69,13 +71,9 @@ func TestPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	expandParamsURI0 := path.Join(expandParamsDir, "expand_params0")
-	if err := cryptoio.SaveExpandParameters(ctx, &pb.ExpandParameters{
-		Levels: []int32{1},
-		Prefixes: &pb.HierarchicalPrefixes{
-			Prefixes: []*pb.DomainPrefixes{
-				{Prefix: []uint64{}},
-			},
-		},
+	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
+		Levels:        []int32{1},
+		Prefixes:      [][]uint128.Uint128{{}},
 		PreviousLevel: -1,
 	}, expandParamsURI0); err != nil {
 		t.Fatal(err)
@@ -97,6 +95,7 @@ func TestPipeline(t *testing.T) {
 		"--partial_histogram_uri="+partialHistogramURI01,
 		"--decrypted_report_uri="+decryptedReportURI1,
 		"--private_key_params_uri="+privateKeyURI,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -117,6 +116,7 @@ func TestPipeline(t *testing.T) {
 		"--partial_histogram_uri="+partialHistogramURI02,
 		"--decrypted_report_uri="+decryptedReportURI2,
 		"--private_key_params_uri="+privateKeyURI,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -134,23 +134,19 @@ func TestPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	if diff := cmp.Diff([]dpfaggregator.CompleteHistogram{
-		{Index: 0, Sum: 110},
-		{Index: 1, Sum: 1100},
-		{Index: 2, Sum: 1630},
-		{Index: 3, Sum: 0},
-	}, gotResult0, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Index < b.Index })); diff != "" {
+		{Bucket: uint128.From64(0), Sum: 110},
+		{Bucket: uint128.From64(1), Sum: 1100},
+		{Bucket: uint128.From64(2), Sum: 1630},
+		{Bucket: uint128.From64(3), Sum: 0},
+	}, gotResult0, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Bucket.Cmp(b.Bucket) == -1 })); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 
 	// Second-level aggregation: 5-bit prefixes.
 	expandParamsURI1 := path.Join(expandParamsDir, "expand_params1")
-	if err := cryptoio.SaveExpandParameters(ctx, &pb.ExpandParameters{
-		Levels: []int32{4},
-		Prefixes: &pb.HierarchicalPrefixes{
-			Prefixes: []*pb.DomainPrefixes{
-				{Prefix: []uint64{2, 3}},
-			},
-		},
+	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
+		Levels:        []int32{4},
+		Prefixes:      [][]uint128.Uint128{{uint128.From64(2), uint128.From64(3)}},
 		PreviousLevel: 1,
 	}, expandParamsURI1); err != nil {
 		t.Fatal(err)
@@ -161,6 +157,7 @@ func TestPipeline(t *testing.T) {
 		"--partial_report_uri="+decryptedReportURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -170,6 +167,7 @@ func TestPipeline(t *testing.T) {
 		"--partial_report_uri="+decryptedReportURI2,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -187,23 +185,23 @@ func TestPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	if diff := cmp.Diff([]dpfaggregator.CompleteHistogram{
-		{Index: 16, Sum: 256},
-		{Index: 17, Sum: 289},
-		{Index: 18, Sum: 324},
-		{Index: 19, Sum: 361},
-		{Index: 20, Sum: 400},
-		{Index: 21, Sum: 0},
-		{Index: 22, Sum: 0},
-		{Index: 23, Sum: 0},
-		{Index: 24, Sum: 0},
-		{Index: 25, Sum: 0},
-		{Index: 26, Sum: 0},
-		{Index: 27, Sum: 0},
-		{Index: 28, Sum: 0},
-		{Index: 29, Sum: 0},
-		{Index: 30, Sum: 0},
-		{Index: 31, Sum: 0},
-	}, gotResult1, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Index < b.Index })); diff != "" {
+		{Bucket: uint128.From64(16), Sum: 256},
+		{Bucket: uint128.From64(17), Sum: 289},
+		{Bucket: uint128.From64(18), Sum: 324},
+		{Bucket: uint128.From64(19), Sum: 361},
+		{Bucket: uint128.From64(20), Sum: 400},
+		{Bucket: uint128.From64(21), Sum: 0},
+		{Bucket: uint128.From64(22), Sum: 0},
+		{Bucket: uint128.From64(23), Sum: 0},
+		{Bucket: uint128.From64(24), Sum: 0},
+		{Bucket: uint128.From64(25), Sum: 0},
+		{Bucket: uint128.From64(26), Sum: 0},
+		{Bucket: uint128.From64(27), Sum: 0},
+		{Bucket: uint128.From64(28), Sum: 0},
+		{Bucket: uint128.From64(29), Sum: 0},
+		{Bucket: uint128.From64(30), Sum: 0},
+		{Bucket: uint128.From64(31), Sum: 0},
+	}, gotResult1, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Bucket.Cmp(b.Bucket) == -1 })); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 }

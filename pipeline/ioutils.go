@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -36,6 +37,7 @@ import (
 	"cloud.google.com/go/storage"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 	"github.com/ugorji/go/codec"
+	"lukechampine.com/uint128"
 )
 
 func init() {
@@ -340,4 +342,13 @@ func ReadSecret(ctx context.Context, name string) ([]byte, error) {
 		return nil, err
 	}
 	return result.Payload.Data, nil
+}
+
+// StringToUint128 converts a string of decimal number to an uint128 integer.
+func StringToUint128(str string) (uint128.Uint128, error) {
+	n, ok := (&big.Int{}).SetString(str, 10)
+	if !ok {
+		return uint128.Uint128{}, fmt.Errorf("function SetString(%s) failed", str)
+	}
+	return uint128.FromBig(n), nil
 }

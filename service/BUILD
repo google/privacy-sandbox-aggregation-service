@@ -70,7 +70,7 @@ container_image(
     creation_time = "{BUILD_TIMESTAMP}",
     entrypoint = ["/server"],
     files = [
-        "//pipeline:dpf_aggregate_partial_report",
+        "//pipeline:dpf_aggregate_partial_report_pipeline",
         "//service:server",
     ],
     stamp = True,
@@ -296,7 +296,7 @@ container_image(
     entrypoint = ["/aggregator_server"],
     files = [
         ":aggregator_server",
-        "//pipeline:dpf_aggregate_partial_report",
+        "//pipeline:dpf_aggregate_partial_report_pipeline",
     ],
     stamp = True,
 )

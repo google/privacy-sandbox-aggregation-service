@@ -54,10 +54,10 @@ func TestPipeline(t *testing.T) {
 	partialReportURI2 := path.Join(partialReportDir, "encrypted_partial_report2")
 	testFile := "dpf_test_conversion_data.csv"
 	
-	if err := executeCommand(ctx, "dpf_generate_partial_report",
+	if err := executeCommand(ctx, "generate_test_data_pipeline",
 		"--conversion_uri="+testFile,
-		"--partial_report_uri1="+partialReportURI1,
-		"--partial_report_uri2="+partialReportURI2,
+		"--encrypted_report_uri1="+partialReportURI1,
+		"--encrypted_report_uri2="+partialReportURI2,
 		"--public_keys_uri1="+publicKeyURI,
 		"--public_keys_uri2="+publicKeyURI,
 		"--key_bit_size="+strconv.Itoa(keyBitSize),
@@ -89,7 +89,7 @@ func TestPipeline(t *testing.T) {
 	}
 	partialHistogramURI01 := path.Join(partialResultDir1, "partial_histogram0")
 	decryptedReportURI1 := path.Join(workspaceDir1, "decrypted_report")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
+	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
 		"--partial_report_uri="+partialReportURI1,
 		"--expand_parameters_uri="+expandParamsURI0,
 		"--partial_histogram_uri="+partialHistogramURI01,
@@ -110,7 +110,7 @@ func TestPipeline(t *testing.T) {
 	}
 	partialHistogramURI02 := path.Join(partialResultDir2, "partial_histogram0")
 	decryptedReportURI2 := path.Join(workspaceDir2, "decrypted_report")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
+	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
 		"--partial_report_uri="+partialReportURI2,
 		"--expand_parameters_uri="+expandParamsURI0,
 		"--partial_histogram_uri="+partialHistogramURI02,
@@ -153,7 +153,7 @@ func TestPipeline(t *testing.T) {
 	}
 
 	partialHistogramURI11 := path.Join(partialResultDir1, "partial_histogram1")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
+	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
 		"--partial_report_uri="+decryptedReportURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
@@ -163,7 +163,7 @@ func TestPipeline(t *testing.T) {
 	}
 
 	partialHistogramURI12 := path.Join(partialResultDir2, "partial_histogram1")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report",
+	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
 		"--partial_report_uri="+decryptedReportURI2,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,

@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 
 	"google.golang.org/protobuf/proto"
@@ -313,4 +314,14 @@ func GenerateHybridKeyPairs(ctx context.Context, keyCount int, notBefore, notAft
 		})
 	}
 	return privKeys, pubInfo, nil
+}
+
+// GetRandomPublicKey picks a random public key from a list for the browser simulator.
+func GetRandomPublicKey(keys []PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
+	keyInfo := keys[rand.Intn(len(keys))]
+	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
+	if err != nil {
+		return "", nil, err
+	}
+	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
 }

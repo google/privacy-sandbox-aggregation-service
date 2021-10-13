@@ -31,7 +31,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
@@ -114,12 +114,12 @@ func main() {
 	var conversions []reporttypes.RawReport
 	if *conversionURI != "" {
 		var err error
-		conversions, err = dpfbrowsersimulator.ReadRawConversions(ctx, *conversionURI, *keyBitSize)
+		conversions, err = dpfdataconverter.ReadRawConversions(ctx, *conversionURI, *keyBitSize)
 		if err != nil {
 			log.Exit(err)
 		}
 	} else {
-		conversion, err := dpfbrowsersimulator.ParseRawConversion(*conversionRaw, *keyBitSize)
+		conversion, err := dpfdataconverter.ParseRawConversion(*conversionRaw, *keyBitSize)
 		if err != nil {
 			log.Exit(err)
 		}
@@ -132,7 +132,7 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			report1, report2, err := dpfbrowsersimulator.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo)
+			report1, report2, err := dpfdataconverter.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo)
 			if err != nil {
 				log.Exit(err)
 			}

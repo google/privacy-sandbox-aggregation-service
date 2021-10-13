@@ -148,7 +148,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
     deps = [
         "//pipeline:crypto_go_proto",
-        "//pipeline:dpfbrowsersimulator",
+        "//pipeline:dpfdataconverter",
         "//pipeline:ioutils",
         "//pipeline:reporttypes",
         "@com_github_golang_glog//:go_default_library",
@@ -204,7 +204,7 @@ go_binary(
     deps = [
         ":utils",
         "//pipeline:cryptoio",
-        "//pipeline:dpfbrowsersimulator",
+        "//pipeline:dpfdataconverter",
         "//pipeline:ioutils",
         "//pipeline:reporttypes",
         "@com_github_golang_glog//:go_default_library",

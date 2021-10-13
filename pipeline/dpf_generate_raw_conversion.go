@@ -25,7 +25,7 @@ import (
 	log "github.com/golang/glog"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 )
@@ -52,7 +52,7 @@ func main() {
 	flag.Parse()
 
 	// Create the prefix tree.
-	root := &dpfbrowsersimulator.PrefixNode{Class: "root"}
+	root := &dpfdataconverter.PrefixNode{Class: "root"}
 	// Suppose the first 12 bits represent the campaign ID, and only 2^5 IDs have data.
 	for i := 0; i < 1<<5; i++ {
 		child := root.AddChildNode("campaignid", 12 /*bitSize*/, uint128.From64(uint64(i)) /*value*/)
@@ -62,8 +62,8 @@ func main() {
 		}
 	}
 
-	prefixes, prefixDomainBits := dpfbrowsersimulator.CalculatePrefixes(root)
-	sumParams := dpfbrowsersimulator.CalculateParameters(prefixDomainBits, int32(*logN), 1<<*logElementSizeSum)
+	prefixes, prefixDomainBits := dpfdataconverter.CalculatePrefixes(root)
+	sumParams := dpfdataconverter.CalculateParameters(prefixDomainBits, int32(*logN), 1<<*logElementSizeSum)
 	ctx := context.Background()
 	if err := cryptoio.SavePrefixes(ctx, *prefixesOutPutURI, prefixes); err != nil {
 		log.Exit(err)
@@ -74,7 +74,7 @@ func main() {
 
 	var conversions []reporttypes.RawReport
 	for i := uint64(0); i < *totalCount; i++ {
-		index, err := dpfbrowsersimulator.CreateConversionIndex(prefixes[len(prefixes)-1], prefixDomainBits[len(prefixDomainBits)-1], *logN, true /*hasPrefix*/)
+		index, err := dpfdataconverter.CreateConversionIndex(prefixes[len(prefixes)-1], prefixDomainBits[len(prefixDomainBits)-1], *logN, true /*hasPrefix*/)
 		if err != nil {
 			log.Exit(err)
 		}

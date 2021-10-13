@@ -252,53 +252,12 @@ go_test(
     ],
 )
 
-go_library(
-    name = "dpfbrowsersimulator",
-    srcs = ["dpfbrowsersimulator.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator",
-    deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
-        ":dpfaggregator",
-        ":incrementaldpf",
-        ":ioutils",
-        ":reporttypes",
-        ":standardencrypt",
-        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
-        "@com_lukechampine_uint128//:go_default_library",
-        "@org_golang_google_protobuf//proto",
-    ],
-)
-
-go_test(
-    name = "dpfbrowsersimulator_test",
-    size = "small",
-    srcs = ["dpfbrowsersimulator_test.go"],
-    data = [":dpf_test_conversion_data.csv"],
-    embed = [":dpfbrowsersimulator"],
-    deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
-        ":dpfaggregator",
-        ":ioutils",
-        ":reporttypes",
-        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
-        "@com_lukechampine_uint128//:go_default_library",
-    ],
-)
-
 go_binary(
     name = "dpf_generate_raw_conversion",
     srcs = ["dpf_generate_raw_conversion.go"],
     deps = [
         ":cryptoio",
-        ":dpfbrowsersimulator",
+        ":dpfdataconverter",
         ":ioutils",
         ":reporttypes",
         "@com_github_golang_glog//:go_default_library",
@@ -445,5 +404,46 @@ go_binary(
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_library(
+    name = "dpfdataconverter",
+    srcs = ["dpfdataconverter.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter",
+    deps = [
+        ":crypto_go_proto",
+        ":cryptoio",
+        ":dpfaggregator",
+        ":incrementaldpf",
+        ":ioutils",
+        ":reporttypes",
+        ":standardencrypt",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+        "@com_lukechampine_uint128//:go_default_library",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "dpfdataconverter_test",
+    size = "small",
+    srcs = ["dpfdataconverter_test.go"],
+    data = [":dpf_test_conversion_data.csv"],
+    embed = [":dpfdataconverter"],
+    deps = [
+        ":crypto_go_proto",
+        ":cryptoio",
+        ":dpfaggregator",
+        ":ioutils",
+        ":reporttypes",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
     ],
 )

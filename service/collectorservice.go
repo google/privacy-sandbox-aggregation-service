@@ -26,7 +26,7 @@ import (
 	log "github.com/golang/glog"
 	"golang.org/x/sync/errgroup"
 	"github.com/ugorji/go/codec"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfbrowsersimulator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 
@@ -126,7 +126,7 @@ func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *re
 			tempMap := make(map[string]string)
 			itemsCount := 0
 			for _, payload := range report.AggregationServicePayloads {
-				encryptedPayload, err := dpfbrowsersimulator.FormatEncryptedPartialReport(&pb.EncryptedPartialReportDpf{
+				encryptedPayload, err := dpfdataconverter.FormatEncryptedPartialReport(&pb.EncryptedPartialReportDpf{
 					EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
 					ContextInfo:     report.SharedInfo,
 					KeyId:           payload.KeyID,

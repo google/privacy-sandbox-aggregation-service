@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package dpfbrowsersimulator simulates the browser behavior under the DPF protocol.
-package dpfbrowsersimulator
+// Package dpfdataconverter simulates the browser behavior under the DPF protocol.
+package dpfdataconverter
 
 import (
 	"context"

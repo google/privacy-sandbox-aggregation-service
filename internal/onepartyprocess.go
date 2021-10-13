@@ -12,92 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package onepartydataconverter contains functions for simulating browser behavior in the one-party aggregation service design.
-package onepartydataconverter
+// Package onepartyprocess processes data for the one-party service design.
+package onepartyprocess
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"reflect"
-	"strconv"
-	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
-	"google.golang.org/protobuf/proto"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reportutils"
+	"github.com/google/privacy-sandbox-aggregation-service/tools/onepartyconvert"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
-
-//ParseRawReport parses a raw conversion into RawReport.
-func ParseRawReport(line string) (*reporttypes.RawReport, error) {
-	cols := strings.Split(line, ",")
-	if got, want := len(cols), 2; got != want {
-		return nil, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
-	}
-
-	key128, err := ioutils.StringToUint128(cols[0])
-	if err != nil {
-		return nil, err
-	}
-
-	value64, err := strconv.ParseUint(cols[1], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	return &reporttypes.RawReport{Bucket: key128, Value: value64}, nil
-}
-
-// EncryptReport encrypts an input report with given public keys.
-func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, error) {
-	b, err := json.Marshal(report)
-	if err != nil {
-		return nil, err
-	}
-
-	payload := reporttypes.Payload{
-		Operation: "one-party",
-		DPFKey:    b,
-	}
-	bPayload, err := ioutils.MarshalCBOR(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	keyID, key, err := cryptoio.GetRandomPublicKey(keys)
-	if err != nil {
-		return nil, err
-	}
-
-	if !encryptOutput {
-		return &pb.EncryptedReport{
-			EncryptedReport: &pb.StandardCiphertext{Data: bPayload},
-			ContextInfo:     contextInfo,
-			KeyId:           keyID,
-		}, nil
-	}
-
-	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.EncryptedReport{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
-}
-
-// FormatEncryptedReport serializes the EncryptedReport into a string.
-func FormatEncryptedReport(encrypted *pb.EncryptedReport) (string, error) {
-	bEncrypted, err := proto.Marshal(encrypted)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(bEncrypted), nil
-}
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
@@ -118,8 +50,8 @@ func (fn *parseRawReportFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("aggregation", "parserawReportFn_report_count")
 }
 
-func (fn *parseRawReportFn) ProcessElement(ctx context.Context, line string, emit func(*reporttypes.RawReport)) error {
-	conversion, err := ParseRawReport(line)
+func (fn *parseRawReportFn) ProcessElement(ctx context.Context, line string, emit func(reporttypes.RawReport)) error {
+	conversion, err := reportutils.ParseRawReport(line, 128 /*keyBitSize*/)
 	if err != nil {
 		return err
 	}
@@ -140,10 +72,10 @@ func (fn *encryptReportFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("aggregation", "encryptReportFn_report_count")
 }
 
-func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *reporttypes.RawReport, emit func(*pb.EncryptedReport)) error {
+func (fn *encryptReportFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit func(*pb.EncryptedReport)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	encrypted, err := EncryptReport(c, fn.PublicKeys, nil, fn.EncryptOutput)
+	encrypted, err := onepartyconvert.EncryptReport(c, fn.PublicKeys, nil, fn.EncryptOutput)
 	if err != nil {
 		return err
 	}
@@ -154,7 +86,7 @@ func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *reporttypes.Ra
 
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
 func formatEncryptedReportFn(encrypted *pb.EncryptedReport, emit func(string)) error {
-	encryptedStr, err := FormatEncryptedReport(encrypted)
+	encryptedStr, err := onepartyconvert.FormatEncryptedReport(encrypted)
 	if err != nil {
 		return err
 	}
@@ -165,7 +97,7 @@ func formatEncryptedReportFn(encrypted *pb.EncryptedReport, emit func(string)) e
 func writeEncryptedReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
 	s = s.Scope("WriteEncryptedReport")
 	formatted := beam.ParDo(s, formatEncryptedReportFn, output)
-	ioutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
+	pipelineutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
 }
 
 // GenerateEncryptedReportParams contains required parameters for generating partial reports.
@@ -183,7 +115,7 @@ type GenerateEncryptedReportParams struct {
 func GenerateEncryptedReport(scope beam.Scope, params *GenerateEncryptedReportParams) {
 	scope = scope.Scope("GenerateEncryptedReport")
 
-	allFiles := ioutils.AddStrInPath(params.RawReportURI, "*")
+	allFiles := utils.AddStrInPath(params.RawReportURI, "*")
 	lines := textio.Read(scope, allFiles)
 
 	rawReports := beam.ParDo(scope, &parseRawReportFn{}, lines)

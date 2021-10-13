@@ -20,7 +20,7 @@
 #include <string>
 
 #include "absl/strings/string_view.h"
-#include "pipeline/cbytes.h"
+#include "encryption/cbytes.h"
 
 namespace convagg {
 namespace crypto {

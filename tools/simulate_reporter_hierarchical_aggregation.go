@@ -40,8 +40,8 @@ var (
 	paramsDir                = flag.String("params_dir", "", "Input directory that stores the parameter files.")
 	partialAggregationDir    = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
 
-	epsilon = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
-  keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	epsilon    = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
+	keyBitSize = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 )
 
 func main() {

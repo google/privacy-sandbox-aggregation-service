@@ -30,11 +30,11 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reportutils"
+	"github.com/google/privacy-sandbox-aggregation-service/tools/dpfconvert"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 // TODO: Store some of the flag values in manifest files.
@@ -108,7 +108,7 @@ func main() {
 		publicKeyInfo2 = v
 	}
 	// Empty context information for demo.
-	contextInfo, err := ioutils.MarshalCBOR(&reporttypes.SharedInfo{})
+	contextInfo, err := utils.MarshalCBOR(&reporttypes.SharedInfo{})
 	if err != nil {
 		log.Exit(err)
 	}
@@ -116,12 +116,12 @@ func main() {
 	var conversions []reporttypes.RawReport
 	if *conversionURI != "" {
 		var err error
-		conversions, err = dpfdataconverter.ReadRawConversions(ctx, *conversionURI, *keyBitSize)
+		conversions, err = reportutils.ReadRawReports(ctx, *conversionURI, *keyBitSize)
 		if err != nil {
 			log.Exit(err)
 		}
 	} else {
-		conversion, err := dpfdataconverter.ParseRawConversion(*conversionRaw, *keyBitSize)
+		conversion, err := reportutils.ParseRawReport(*conversionRaw, *keyBitSize)
 		if err != nil {
 			log.Exit(err)
 		}
@@ -134,11 +134,11 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			report1, report2, err := dpfdataconverter.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
+			report1, report2, err := dpfconvert.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
 			if err != nil {
 				log.Exit(err)
 			}
-			report, err := ioutils.MarshalCBOR(&reporttypes.AggregationReport{
+			report, err := utils.MarshalCBOR(&reporttypes.AggregationReport{
 				SharedInfo: contextInfo,
 				AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
 					{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: report1.KeyId},

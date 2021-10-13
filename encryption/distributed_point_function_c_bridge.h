@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "pipeline/cbytes.h"
+#include "encryption/cbytes.h"
 
 #ifdef __cplusplus
 extern "C" {

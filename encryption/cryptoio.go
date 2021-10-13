@@ -23,18 +23,20 @@ import (
 	"math/rand"
 	"os"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/core/registry"
 	"github.com/google/tink/go/integration/gcpkms"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/tink"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 // The default file names for stored encryption keys and secret.
@@ -65,7 +67,7 @@ func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo,
 		os.Setenv(PublicKeysEnv, base64.StdEncoding.EncodeToString(bKeys))
 		return nil
 	}
-	return ioutils.WriteBytes(ctx, bKeys, filePath)
+	return utils.WriteBytes(ctx, bKeys, filePath)
 }
 
 // ReadPublicKeyVersions reads the standard public keys and corresponding information.
@@ -86,7 +88,7 @@ func ReadPublicKeyVersions(ctx context.Context, filePath string) (map[string][]P
 			return nil, err
 		}
 	} else {
-		bKeys, err = ioutils.ReadBytes(ctx, filePath)
+		bKeys, err = utils.ReadBytes(ctx, filePath)
 		if err != nil {
 			return nil, err
 		}
@@ -159,9 +161,9 @@ func ReadStandardPrivateKey(ctx context.Context, params *ReadStandardPrivateKeyP
 		err  error
 	)
 	if params.SecretName != "" {
-		data, err = ioutils.ReadSecret(ctx, params.SecretName)
+		data, err = utils.ReadSecret(ctx, params.SecretName)
 	} else {
-		data, err = ioutils.ReadBytes(ctx, params.FilePath)
+		data, err = utils.ReadBytes(ctx, params.FilePath)
 	}
 	if err != nil {
 		return nil, err
@@ -199,9 +201,9 @@ func SaveStandardPrivateKey(ctx context.Context, params *SaveStandardPrivateKeyP
 		}
 	}
 	if params.SecretProjectID != "" {
-		return ioutils.SaveSecret(ctx, data, params.SecretProjectID, params.SecretID)
+		return utils.SaveSecret(ctx, data, params.SecretProjectID, params.SecretID)
 	}
-	return "", ioutils.WriteBytes(ctx, data, params.FilePath)
+	return "", utils.WriteBytes(ctx, data, params.FilePath)
 }
 
 // SavePrefixes saves prefixes to a file.
@@ -212,7 +214,7 @@ func SavePrefixes(ctx context.Context, filename string, prefixes [][]uint128.Uin
 	if err != nil {
 		return fmt.Errorf("prefixes marshal(%s) failed: %+v", prefixes, err)
 	}
-	return ioutils.WriteBytes(ctx, bPrefixes, filename)
+	return utils.WriteBytes(ctx, bPrefixes, filename)
 }
 
 // SaveDPFParameters saves the DPF parameters into a file.
@@ -223,14 +225,14 @@ func SaveDPFParameters(ctx context.Context, filename string, params *pb.Incremen
 	if err != nil {
 		return fmt.Errorf("params marshal(%s) failed: %v", params.String(), err)
 	}
-	return ioutils.WriteBytes(ctx, bParams, filename)
+	return utils.WriteBytes(ctx, bParams, filename)
 }
 
 // ReadPrefixes reads the prefixes from a file.
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
 func ReadPrefixes(ctx context.Context, filename string) ([][]uint128.Uint128, error) {
-	bPrefixes, err := ioutils.ReadBytes(ctx, filename)
+	bPrefixes, err := utils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +247,7 @@ func ReadPrefixes(ctx context.Context, filename string) ([][]uint128.Uint128, er
 //
 // The file can be stored locally or in a GCS bucket (prefixed with 'gs://').
 func ReadDPFParameters(ctx context.Context, filename string) (*pb.IncrementalDpfParameters, error) {
-	bParams, err := ioutils.ReadBytes(ctx, filename)
+	bParams, err := utils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -262,12 +264,12 @@ func SavePrivateKeyParamsCollection(ctx context.Context, idKeys map[string]*Read
 	if err != nil {
 		return err
 	}
-	return ioutils.WriteBytes(ctx, b, uri)
+	return utils.WriteBytes(ctx, b, uri)
 }
 
 // ReadPrivateKeyParamsCollection reads the information how the private keys can be read.
 func ReadPrivateKeyParamsCollection(ctx context.Context, filePath string) (map[string]*ReadStandardPrivateKeyParams, error) {
-	b, err := ioutils.ReadBytes(ctx, filePath)
+	b, err := utils.ReadBytes(ctx, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -324,4 +326,19 @@ func GetRandomPublicKey(keys []PublicKeyInfo) (string, *pb.StandardPublicKey, er
 		return "", nil, err
 	}
 	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
+}
+
+// GetDefaultDPFParameters generates the DPF parameters for creating DPF keys or evaluation context for all possible prefix lengths.
+func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
+	if keyBitSize <= 0 {
+		return nil, fmt.Errorf("keyBitSize should be positive, got %d", keyBitSize)
+	}
+	allParams := make([]*dpfpb.DpfParameters, keyBitSize)
+	for i := int32(1); i <= int32(keyBitSize); i++ {
+		allParams[i-1] = &dpfpb.DpfParameters{
+			LogDomainSize:  i,
+			ElementBitsize: incrementaldpf.DefaultElementBitSize,
+		}
+	}
+	return allParams, nil
 }

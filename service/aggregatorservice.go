@@ -28,9 +28,8 @@ import (
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/storage"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
-	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 // DataflowCfg contains parameters necessary for running pipelines on Dataflow.
@@ -142,7 +141,7 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 }
 
 func getFinalPartialResultURI(resultDir, queryID, origin string) string {
-	return ioutils.JoinPath(resultDir, fmt.Sprintf("%s_%s", queryID, strings.ReplaceAll(origin, ".", "_")))
+	return utils.JoinPath(resultDir, fmt.Sprintf("%s_%s", queryID, strings.ReplaceAll(origin, ".", "_")))
 }
 
 func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, request *query.AggregateRequest) error {

@@ -20,8 +20,8 @@ import (
 	"flag"
 
 	log "github.com/golang/glog"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 var (
@@ -53,7 +53,7 @@ func main() {
 
 	privInfo := make(map[string]*cryptoio.ReadStandardPrivateKeyParams)
 	for keyID, key := range privKeys {
-		privKeyFile := ioutils.JoinPath(*privateKeyDir, keyID)
+		privKeyFile := utils.JoinPath(*privateKeyDir, keyID)
 		secretName, err := cryptoio.SaveStandardPrivateKey(ctx, &cryptoio.SaveStandardPrivateKeyParams{
 			KMSKeyURI:         *kmsKeyURI,
 			KMSCredentialPath: *kmsCredentialFile,

@@ -49,9 +49,9 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartydataconverter"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/internal/dpfprocess"
+	"github.com/google/privacy-sandbox-aggregation-service/internal/onepartyprocess"
 )
 
 var (
@@ -104,7 +104,7 @@ func main() {
 
 	if *publicKeysURI2 != "" {
 		log.Infof(ctx, "encrypting the reports for MPC protocol")
-		dpfdataconverter.GeneratePartialReport(scope, &dpfdataconverter.GeneratePartialReportParams{
+		dpfprocess.GeneratePartialReport(scope, &dpfprocess.GeneratePartialReportParams{
 			ConversionURI:     *conversionURI,
 			PartialReportURI1: *encryptedReportURI1,
 			PartialReportURI2: *encryptedReportURI2,
@@ -116,7 +116,7 @@ func main() {
 		})
 	} else {
 		log.Infof(ctx, "encrypting the reports for one-party protocol")
-		onepartydataconverter.GenerateEncryptedReport(scope, &onepartydataconverter.GenerateEncryptedReportParams{
+		onepartyprocess.GenerateEncryptedReport(scope, &onepartyprocess.GenerateEncryptedReportParams{
 			RawReportURI:       *conversionURI,
 			EncryptedReportURI: *encryptedReportURI1,
 			PublicKeys:         publicKeyInfo1,

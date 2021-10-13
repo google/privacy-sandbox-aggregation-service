@@ -18,6 +18,10 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 
 licenses(["notice"])
 
+package(
+    default_visibility = ["//visibility:public"],
+)
+
 proto_library(
     name = "service_proto",
     srcs = ["service.proto"],
@@ -29,21 +33,7 @@ go_proto_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto",
     proto = ":service_proto",
     deps = [
-        "//pipeline:crypto_go_proto",
-    ],
-)
-
-go_library(
-    name = "utils",
-    srcs = ["utils.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/utils",
-    deps = [
-        "//pipeline:ioutils",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_google_cloud_go_pubsub//:go_default_library",
-        "@com_google_cloud_go_storage//:go_default_library",
-        "@org_golang_google_api//iamcredentials/v1:go_default_library",
-        "@org_golang_google_api//idtoken:go_default_library",
+        "//encryption:crypto_go_proto",
     ],
 )
 
@@ -91,18 +81,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service",
     deps = [
         ":service_go_grpc_proto",
-        "//pipeline:ioutils",
-    ],
-)
-
-go_binary(
-    name = "simulate_reporter_hierarchical_aggregation",
-    srcs = ["simulate_reporter_hierarchical_aggregation.go"],
-    deps = [
-        ":query",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//credentials:go_default_library",
+        "//utils",
     ],
 )
 
@@ -112,10 +91,9 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/query",
     deps = [
         ":service_go_grpc_proto",
-        ":utils",
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
-        "//pipeline:ioutils",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
@@ -133,9 +111,9 @@ go_test(
     srcs = ["query_test.go"],
     embed = [":query"],
     deps = [
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
-        "//pipeline:ioutils",
+        "//utils",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
@@ -147,10 +125,10 @@ go_library(
     srcs = ["collectorservice.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
     deps = [
-        "//pipeline:crypto_go_proto",
-        "//pipeline:dpfdataconverter",
-        "//pipeline:ioutils",
-        "//pipeline:reporttypes",
+        "//encryption:crypto_go_proto",
+        "//report:reporttypes",
+        "//tools:dpfconvert",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
         "@org_golang_x_sync//errgroup:go_default_library",
@@ -189,68 +167,17 @@ container_push(
     tag = "$(VERSION)",
 )
 
-go_binary(
-    name = "browser_simulator",
-    srcs = ["browser_simulator.go"],
-    gc_linkopts = [
-        "-X",
-        "main.version=$(VERSION)",
-    ],
-    x_defs = {"build": "{BUILD_TIMESTAMP}"},
-    deps = [
-        ":utils",
-        "//pipeline:cryptoio",
-        "//pipeline:dpfdataconverter",
-        "//pipeline:ioutils",
-        "//pipeline:reporttypes",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_github_hashicorp_go_retryablehttp//:go_default_library",
-    ],
-)
-
-container_image(
-    name = "browser_simulator_image",
-    base = "@base_image//image",
-    creation_time = "{BUILD_TIMESTAMP}",
-    entrypoint = ["/browser_simulator"],
-    files = [":browser_simulator"],
-    stamp = True,
-)
-
-container_push(
-    name = "browser_simulator_image_publish",
-    format = "Docker",
-    image = ":browser_simulator_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/browser_simulator",
-    tag = "$(VERSION)",
-)
-
 go_test(
     name = "collectorservice_test",
     size = "small",
     srcs = ["collectorservice_test.go"],
     embed = [":collectorservice"],
     deps = [
-        "//pipeline:crypto_go_proto",
-        "//pipeline:reporttypes",
+        "//encryption:crypto_go_proto",
+        "//report:reporttypes",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
-    ],
-)
-
-go_binary(
-    name = "simulate_reporter_hierarchical_aggregation_pubsub",
-    srcs = ["simulate_reporter_hierarchical_aggregation_pubsub.go"],
-    deps = [
-        ":aggregatorservice",
-        ":query",
-        ":utils",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_github_hashicorp_go_retryablehttp//:go_default_library",
-        "@com_github_pborman_uuid//:uuid",
-        "@com_google_cloud_go_pubsub//:go_default_library",
     ],
 )
 
@@ -275,8 +202,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/aggregatorservice",
     deps = [
         ":query",
-        ":utils",
-        "//pipeline:ioutils",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",
@@ -302,11 +228,4 @@ container_push(
     registry = "gcr.io",
     repository = "$(GCR_PROJECT)/aggregator_server",
     tag = "$(VERSION)",
-)
-
-go_test(
-    name = "utils_test",
-    size = "small",
-    srcs = ["utils_test.go"],
-    embed = [":utils"],
 )

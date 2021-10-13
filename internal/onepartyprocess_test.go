@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package onepartydataconverter
+package onepartyprocess
 
 import (
 	"context"
@@ -22,9 +22,9 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reporttypes"
 )
 
 func TestAggregationPipelineOneParty(t *testing.T) {
@@ -44,14 +44,14 @@ func testAggregationPipeline(t testing.TB, withEncryption bool) {
 		Value uint64
 	}
 
-	var rawReports []*reporttypes.RawReport
+	var rawReports []reporttypes.RawReport
 	wantSum := make(map[uint128.Uint128]uint64)
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
 			index := uint128.From64(uint64(i) << 27)
 			value := uint64(i)
 			wantSum[index] += value
-			rawReports = append(rawReports, &reporttypes.RawReport{Bucket: index, Value: value})
+			rawReports = append(rawReports, reporttypes.RawReport{Bucket: index, Value: value})
 		}
 	}
 	var wantResult []*keyValue

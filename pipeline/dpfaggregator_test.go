@@ -35,14 +35,14 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
@@ -67,7 +67,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 	}
 
 	payload := reporttypes.Payload{DPFKey: b}
-	bPayload, err := ioutils.MarshalCBOR(payload)
+	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	for i := range valueSum {
 		valueSum[i] = c.Value
 	}
-	ctxParams, err := GetDefaultDPFParameters(fn.KeyBitSize)
+	ctxParams, err := cryptoio.GetDefaultDPFParameters(fn.KeyBitSize)
 	if err != nil {
 		return err
 	}
@@ -272,7 +272,7 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	pipeline, scope := beam.NewPipelineWithRoot()
 	conversions := beam.CreateList(scope, reports)
 
-	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := cryptoio.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +322,7 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	combineParams := &CombineParams{
 		DirectCombine: true,
 	}
-	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := cryptoio.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ func parseCompleteHistogram(line string) (CompleteHistogram, error) {
 	if gotLen, wantLen := len(cols), 2; gotLen != wantLen {
 		return CompleteHistogram{}, fmt.Errorf("got %d columns in line %q, want %d", gotLen, line, wantLen)
 	}
-	idx, err := ioutils.StringToUint128(cols[0])
+	idx, err := utils.StringToUint128(cols[0])
 	if err != nil {
 		return CompleteHistogram{}, err
 	}
@@ -456,7 +456,7 @@ func TestWriteCompleteHistogramWithoutPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lines, err := ioutils.ReadLines(ctx, resultFile)
+	lines, err := utils.ReadLines(ctx, resultFile)
 	if err != nil {
 		t.Fatal(err)
 	}

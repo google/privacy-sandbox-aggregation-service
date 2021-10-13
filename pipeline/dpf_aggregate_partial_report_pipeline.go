@@ -42,10 +42,10 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 var (
@@ -91,7 +91,7 @@ func main() {
 	}
 
 	// For the current design, we define hierarchies for all possible prefix lengths of the bucket ID.
-	dpfParams, err := dpfaggregator.GetDefaultDPFParameters(*keyBitSize)
+	dpfParams, err := cryptoio.GetDefaultDPFParameters(*keyBitSize)
 	if err != nil {
 		log.Exit(ctx, err)
 	}

@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ioutils
+package utils
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
-	"strconv"
 	"testing"
 
-	"github.com/apache/beam/sdks/go/pkg/beam"
-	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
-	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
-	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
@@ -44,59 +38,6 @@ func TestAddStrInPath(t *testing.T) {
 		if got != a.Want {
 			t.Fatalf("want result %q, got %q", a.Want, got)
 		}
-	}
-}
-
-func TestWriteNShardedFiles(t *testing.T) {
-	storageDir, err := ioutil.TempDir("/tmp", "test-shards")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %s", err)
-	}
-	defer os.RemoveAll(storageDir)
-
-	var wantStr []string
-	for i := int64(0); i < 100; i++ {
-		wantStr = append(wantStr, strconv.FormatInt(i, 10))
-	}
-
-	pipeline, scope := beam.NewPipelineWithRoot()
-	want := beam.CreateList(scope, wantStr)
-
-	fileName := "/output.txt"
-	outputName := path.Join(storageDir, fileName)
-
-	shards := int64(10)
-	wantFiles := []string{
-		storageDir + "/output-1-10.txt",
-		storageDir + "/output-2-10.txt",
-		storageDir + "/output-3-10.txt",
-		storageDir + "/output-4-10.txt",
-		storageDir + "/output-5-10.txt",
-		storageDir + "/output-6-10.txt",
-		storageDir + "/output-7-10.txt",
-		storageDir + "/output-8-10.txt",
-		storageDir + "/output-9-10.txt",
-		storageDir + "/output-10-10.txt",
-	}
-	WriteNShardedFiles(scope, outputName, shards, want)
-
-	if err := ptest.Run(pipeline); err != nil {
-		t.Fatalf("pipeline failed: %s", err)
-	}
-
-	gotFiles, err := filepath.Glob(AddStrInPath(outputName, "*"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if diff := cmp.Diff(wantFiles, gotFiles, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
-		t.Fatalf("files mismatch (-want +got):\n%s", diff)
-	}
-
-	got := textio.Read(scope, AddStrInPath(outputName, "*"))
-	passert.Equals(scope, got, want)
-	if err := ptest.Run(pipeline); err != nil {
-		t.Fatalf("pipeline failed: %s", err)
 	}
 }
 
@@ -217,4 +158,43 @@ func TestStringToUint128Negative(t *testing.T) {
 		}
 	}()
 	StringToUint128("-147573952589676412928") // -2^67
+}
+
+func TestParsePubSubResourceName(t *testing.T) {
+	type parseResult struct {
+		Input, Project, Name string
+		ErrStr               string
+	}
+	for _, want := range []parseResult{
+		{
+			Input:   "projects/myproject/topics/mytopic",
+			Project: "myproject",
+			Name:    "mytopic",
+		},
+		{
+			Input:   "projects/myproject/topics",
+			Project: "",
+			Name:    "",
+			ErrStr:  fmt.Sprintf("expect format %s, got %s", "projects/project-identifier/collection/relative-name", "projects/myproject/topics"),
+		},
+		{
+			Input:   "projects/myproject/foo/mytopic",
+			Project: "",
+			Name:    "",
+			ErrStr:  fmt.Sprintf("expect format %s, got %s", "projects/project-identifier/collection/relative-name", "projects/myproject/foo/mytopic"),
+		},
+	} {
+		project, name, err := ParsePubSubResourceName(want.Input)
+		var errStr string
+		if err != nil {
+			errStr = err.Error()
+		}
+		if want.ErrStr != errStr {
+			t.Errorf("expect error message %s, got %s", want.ErrStr, errStr)
+		}
+
+		if project != want.Project || name != want.Name {
+			t.Errorf("want project %q and name %q, got %q, and %q", want.Project, want.Name, project, name)
+		}
+	}
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dpfdataconverter
+package dpfprocess
 
 import (
 	"context"
@@ -26,14 +26,15 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/report/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/tools/dpfconvert"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 func TestReadInputConversions(t *testing.T) {
@@ -44,7 +45,7 @@ func TestReadInputConversions(t *testing.T) {
 		}
 	}
 
-	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("report/test_raw_report_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,20 +91,20 @@ func filterResults(prefixes []uint128.Uint128, prefixBitSize, keyBitSize, totalB
 }
 
 func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestData, error) {
-	root := &PrefixNode{Class: "root"}
+	root := &dpfconvert.PrefixNode{Class: "root"}
 	for i := 0; i < 1<<5; i++ {
 		root.AddChildNode("campaignid", 12 /*bitSize*/, uint128.From64(uint64(i)) /*value*/)
 	}
 
-	prefixes, prefixDomainBits := CalculatePrefixes(root)
-	sumParams := CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum)
+	prefixes, prefixDomainBits := dpfconvert.CalculatePrefixes(root)
+	sumParams := dpfconvert.CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum)
 
 	aggResult := make(map[uint128.Uint128]uint64)
 	var conversions []reporttypes.RawReport
 	// Generate conversions with indices that contain one of the given prefixes. These conversions are counted in the aggregation.
 	prefixesLen := len(prefixes)
 	for i := uint64(0); i < totalCount-4; i++ {
-		index, err := CreateConversionIndex(prefixes[prefixesLen-1], prefixDomainBits[len(prefixDomainBits)-1], logN, true /*hasPrefix*/)
+		index, err := dpfconvert.CreateConversionIndex(prefixes[prefixesLen-1], prefixDomainBits[len(prefixDomainBits)-1], logN, true /*hasPrefix*/)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +113,7 @@ func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestD
 	}
 	// Generate conversions with indices that do not contain any of the given prefixes. These conversions will not be counted in the aggregation.
 	for i := uint64(0); i < 4; i++ {
-		index, err := CreateConversionIndex(prefixes[prefixesLen-1], prefixDomainBits[len(prefixDomainBits)-1], logN, false /*hasPrefix*/)
+		index, err := dpfconvert.CreateConversionIndex(prefixes[prefixesLen-1], prefixDomainBits[len(prefixDomainBits)-1], logN, false /*hasPrefix*/)
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +156,7 @@ func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 		t.Fatal(err)
 	}
 
-	ctxParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := cryptoio.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,23 +246,5 @@ func TestWriteReadPartialReports(t *testing.T) {
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
-	}
-}
-
-func TestGetMaxKey(t *testing.T) {
-	want := uint128.Max
-	got := getMaxKey(128)
-	if got.Cmp(want) != 0 {
-		t.Fatalf("expect %s for key size %d, got %s", want.String(), 128, got.String())
-	}
-
-	var err error
-	want, err = ioutils.StringToUint128("1180591620717411303423") // 2^70-1
-	if err != nil {
-		t.Fatal(err)
-	}
-	got = getMaxKey(70)
-	if got.Cmp(want) != 0 {
-		t.Fatalf("expect %s for key size %d, got %s", want.String(), 70, got.String())
 	}
 }

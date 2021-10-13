@@ -27,7 +27,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/service/aggregatorservice"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
-	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 var (

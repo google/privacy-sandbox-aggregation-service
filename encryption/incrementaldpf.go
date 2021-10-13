@@ -18,7 +18,7 @@ package incrementaldpf
 // #cgo CFLAGS: -g -Wall
 // #include <stdbool.h>
 // #include <stdlib.h>
-// #include "pipeline/distributed_point_function_c_bridge.h"
+// #include "encryption/distributed_point_function_c_bridge.h"
 import (
 	"C"
 )

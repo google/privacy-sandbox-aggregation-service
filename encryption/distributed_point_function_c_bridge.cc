@@ -1,4 +1,4 @@
-#include "pipeline/distributed_point_function_c_bridge.h"
+#include "encryption/distributed_point_function_c_bridge.h"
 
 #include <alloca.h>
 
@@ -16,8 +16,8 @@
 #include "absl/types/span.h"
 #include "dpf/distributed_point_function.h"
 #include "dpf/distributed_point_function.pb.h"
-#include "pipeline/cbytes.h"
-#include "pipeline/cbytes_utils.h"
+#include "encryption/cbytes.h"
+#include "encryption/cbytes_utils.h"
 
 using ::convagg::crypto::AllocateCBytes;
 using ::convagg::crypto::StrToCBytes;

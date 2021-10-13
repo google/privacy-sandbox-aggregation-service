@@ -127,22 +127,39 @@ func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam
 // decryptPartialReportFn decrypts the StandardCiphertext and gets a PartialReportDpf with the private key from the helper server.
 type decryptPartialReportFn struct {
 	StandardPrivateKeys map[string]*pb.StandardPrivateKey
+
+	isEncryptedBundle   bool
+	nonencryptedCounter beam.Counter
 }
 
-func (fn *decryptPartialReportFn) ProcessElement(encrypted *pb.EncryptedPartialReportDpf, emit func(*pb.PartialReportDpf)) error {
+func (fn *decryptPartialReportFn) Setup() {
+	fn.isEncryptedBundle = true
+	fn.nonencryptedCounter = beam.NewCounter("aggregation", "unpack-nonencrypted-count")
+}
+
+func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted *pb.EncryptedPartialReportDpf, emit func(*pb.PartialReportDpf)) error {
 	privateKey, ok := fn.StandardPrivateKeys[encrypted.KeyId]
 	if !ok {
 		return fmt.Errorf("no private key found for keyID = %q", encrypted.KeyId)
 	}
 
-	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
-	if err != nil {
-		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
-	}
-
 	payload := &reporttypes.Payload{}
-	if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
-		return err
+	if fn.isEncryptedBundle {
+		b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
+		if err != nil {
+			if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+				return fmt.Errorf("failed in decrypting and deserializing for data: %s", encrypted.String())
+			}
+			fn.nonencryptedCounter.Inc(ctx, 1)
+			fn.isEncryptedBundle = false
+		} else if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
+			return err
+		}
+	} else {
+		if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+			return fmt.Errorf("failed in deserializing non-encrypted data: %s", encrypted.String())
+		}
+		fn.nonencryptedCounter.Inc(ctx, 1)
 	}
 
 	dpfKey := &dpfpb.DpfKey{}

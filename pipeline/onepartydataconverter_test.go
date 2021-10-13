@@ -28,6 +28,11 @@ import (
 )
 
 func TestAggregationPipelineOneParty(t *testing.T) {
+	testAggregationPipeline(t, true /*withEncryption*/)
+	testAggregationPipeline(t, false /*withEncryption*/)
+}
+
+func testAggregationPipeline(t testing.TB, withEncryption bool) {
 	ctx := context.Background()
 	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
 	if err != nil {
@@ -56,7 +61,7 @@ func TestAggregationPipelineOneParty(t *testing.T) {
 
 	pipeline, scope := beam.NewPipelineWithRoot()
 	report := beam.CreateList(scope, rawReports)
-	encrypted := beam.ParDo(scope, &encryptReportFn{PublicKeys: pubKeysInfo}, report)
+	encrypted := beam.ParDo(scope, &encryptReportFn{PublicKeys: pubKeysInfo, EncryptOutput: withEncryption}, report)
 
 	decrypted := onepartyaggregator.DecryptReport(scope, encrypted, privKeys)
 	result := onepartyaggregator.SumRawReport(scope, decrypted)

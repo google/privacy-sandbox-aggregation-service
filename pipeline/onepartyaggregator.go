@@ -108,12 +108,15 @@ func ReadEncryptedReport(scope beam.Scope, reportFile string) beam.PCollection {
 
 // decryptReportFn decrypts the StandardCiphertext and gets a raw report with the private key from the helper server.
 type decryptReportFn struct {
-	StandardPrivateKeys map[string]*pb.StandardPrivateKey
-	reportCounter       beam.Counter
+	StandardPrivateKeys                map[string]*pb.StandardPrivateKey
+	reportCounter, nonencryptedCounter beam.Counter
+	isEncryptedBundle                  bool
 }
 
 func (fn *decryptReportFn) Setup() {
+	fn.isEncryptedBundle = true
 	fn.reportCounter = beam.NewCounter("one-party", "decrypt-report-count")
+	fn.nonencryptedCounter = beam.NewCounter("one-party", "decrypt-nonencrypted-count")
 }
 
 func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.EncryptedReport, emit func(uint128.Uint128, uint64)) error {
@@ -122,14 +125,23 @@ func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.Enc
 		return fmt.Errorf("no private key found for keyID = %q", encrypted.KeyId)
 	}
 
-	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
-	if err != nil {
-		return fmt.Errorf("decrypt failed for cipherText: %s", encrypted.String())
-	}
-
 	payload := &reporttypes.Payload{}
-	if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
-		return err
+	if fn.isEncryptedBundle {
+		b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
+		if err != nil {
+			if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+				return fmt.Errorf("failed in decrypting and deserializing for data: %s", encrypted.String())
+			}
+			fn.nonencryptedCounter.Inc(ctx, 1)
+			fn.isEncryptedBundle = false
+		} else if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
+			return err
+		}
+	} else {
+		if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+			return fmt.Errorf("failed in deserializing non-encrypted data: %s", encrypted.String())
+		}
+		fn.nonencryptedCounter.Inc(ctx, 1)
 	}
 
 	report := &reporttypes.RawReport{}

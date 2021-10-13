@@ -55,7 +55,7 @@ func ParseRawReport(line string) (*reporttypes.RawReport, error) {
 }
 
 // EncryptReport encrypts an input report with given public keys.
-func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedReport, error) {
+func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, error) {
 	b, err := json.Marshal(report)
 	if err != nil {
 		return nil, err
@@ -74,6 +74,15 @@ func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo,
 	if err != nil {
 		return nil, err
 	}
+
+	if !encryptOutput {
+		return &pb.EncryptedReport{
+			EncryptedReport: &pb.StandardCiphertext{Data: bPayload},
+			ContextInfo:     contextInfo,
+			KeyId:           keyID,
+		}, nil
+	}
+
 	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
 	if err != nil {
 		return nil, err
@@ -121,7 +130,9 @@ func (fn *parseRawReportFn) ProcessElement(ctx context.Context, line string, emi
 }
 
 type encryptReportFn struct {
-	PublicKeys  []cryptoio.PublicKeyInfo
+	PublicKeys    []cryptoio.PublicKeyInfo
+	EncryptOutput bool
+
 	countReport beam.Counter
 }
 
@@ -132,7 +143,7 @@ func (fn *encryptReportFn) Setup(ctx context.Context) {
 func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *reporttypes.RawReport, emit func(*pb.EncryptedReport)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	encrypted, err := EncryptReport(c, fn.PublicKeys, nil)
+	encrypted, err := EncryptReport(c, fn.PublicKeys, nil, fn.EncryptOutput)
 	if err != nil {
 		return err
 	}
@@ -163,6 +174,9 @@ type GenerateEncryptedReportParams struct {
 	EncryptedReportURI string
 	PublicKeys         []cryptoio.PublicKeyInfo
 	Shards             int64
+
+	// EncryptOutput should only be used for integration test before HPKE is ready in Go Tink.
+	EncryptOutput bool
 }
 
 // GenerateEncryptedReport encrypts the reports with public keys from corresponding helpers.

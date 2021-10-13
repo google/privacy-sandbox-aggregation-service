@@ -50,6 +50,8 @@ var (
 	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2.")
 	concurrency          = flag.Int("concurrency", 10, "Concurrent requests.")
 
+	encryptOutput = flag.Bool("encrypt_output", true, "Generate reports with encryption. This should only be false for integration test before HPKE is ready in Go Tink.")
+
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
 	version string // set by linker -X
@@ -132,7 +134,7 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			report1, report2, err := dpfdataconverter.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo)
+			report1, report2, err := dpfdataconverter.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
 			if err != nil {
 				log.Exit(err)
 			}

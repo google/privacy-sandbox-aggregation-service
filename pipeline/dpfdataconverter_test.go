@@ -133,10 +133,11 @@ func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestD
 }
 
 func TestAggregationPipelineDPF(t *testing.T) {
-	testAggregationPipelineDPF(t)
+	testAggregationPipelineDPF(t, true /*withEncryption*/)
+	testAggregationPipelineDPF(t, false /*withEncryption*/)
 }
 
-func testAggregationPipelineDPF(t testing.TB) {
+func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 	ctx := context.Background()
 	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
 	if err != nil {
@@ -168,6 +169,7 @@ func testAggregationPipelineDPF(t testing.TB) {
 		PublicKeys1: pubKeysInfo1,
 		PublicKeys2: pubKeysInfo2,
 		KeyBitSize:  keyBitSize,
+		EncryptOutput: withEncryption,
 	})
 
 	pr1 := dpfaggregator.DecryptPartialReport(scope, ePr1, privKeys1)
@@ -206,7 +208,7 @@ func testAggregationPipelineDPF(t testing.TB) {
 
 func BenchmarkPipeline(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		testAggregationPipelineDPF(b)
+		testAggregationPipelineDPF(b, true /*withEncryption*/)
 	}
 }
 

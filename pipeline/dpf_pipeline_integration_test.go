@@ -25,6 +25,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestPipeline(t *testing.T) {
+	testPipeline(t, false /*encryptOutput*/)
+	testPipeline(t, true /*encryptOutput*/)
+}
+
+func testPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
 	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
 	if err != nil {
@@ -61,6 +66,7 @@ func TestPipeline(t *testing.T) {
 		"--public_keys_uri1="+publicKeyURI,
 		"--public_keys_uri2="+publicKeyURI,
 		"--key_bit_size="+strconv.Itoa(keyBitSize),
+		"--encrypt_output="+strconv.FormatBool(encryptOutput),
 	); err != nil {
 		t.Fatal(err)
 	}

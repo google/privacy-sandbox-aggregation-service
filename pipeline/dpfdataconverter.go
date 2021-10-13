@@ -103,6 +103,7 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 type encryptSecretSharesFn struct {
 	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
 	KeyBitSize               int
+	EncryptOutput            bool
 
 	countReport beam.Counter
 }
@@ -117,7 +118,7 @@ func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPubl
 	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
 }
 
-func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, error) {
+func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedPartialReportDpf, error) {
 	bDpfKey, err := proto.Marshal(partialReport.SumKey)
 	if err != nil {
 		return nil, err
@@ -136,6 +137,15 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 	if err != nil {
 		return nil, err
 	}
+	// TODO: Remove the option of aggregating reports without encryption when HPKE is ready in Go tink.
+	if !encryptOutput {
+		return &pb.EncryptedPartialReportDpf{
+			EncryptedReport: &pb.StandardCiphertext{Data: bPayload},
+			ContextInfo:     contextInfo,
+			KeyId:           keyID,
+		}, nil
+	}
+
 	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
 	if err != nil {
 		return nil, err
@@ -159,7 +169,7 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 }
 
 // GenerateEncryptedReports splits a conversion record into DPF keys, and encrypts the partial reports.
-func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
+func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
 	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		return nil, nil, err
@@ -172,14 +182,14 @@ func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publ
 
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum1,
-	}, publicKeys1, contextInfo)
+	}, publicKeys1, contextInfo, encryptOutput)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: keyDpfSum2,
-	}, publicKeys2, contextInfo)
+	}, publicKeys2, contextInfo, encryptOutput)
 
 	if err != nil {
 		return nil, nil, err
@@ -191,7 +201,7 @@ func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publ
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKeys1, fn.PublicKeys2, nil)
+	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKeys1, fn.PublicKeys2, nil, fn.EncryptOutput)
 	if err != nil {
 		return err
 	}
@@ -232,9 +242,10 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 
 	return beam.ParDo2(s,
 		&encryptSecretSharesFn{
-			PublicKeys1: params.PublicKeys1,
-			PublicKeys2: params.PublicKeys2,
-			KeyBitSize:  params.KeyBitSize,
+			PublicKeys1:   params.PublicKeys1,
+			PublicKeys2:   params.PublicKeys2,
+			KeyBitSize:    params.KeyBitSize,
+			EncryptOutput: params.EncryptOutput,
 		}, reports)
 }
 
@@ -244,6 +255,9 @@ type GeneratePartialReportParams struct {
 	PublicKeys1, PublicKeys2                            []cryptoio.PublicKeyInfo
 	KeyBitSize                                          int
 	Shards                                              int64
+
+	// EncryptOutput should only be used for integration test before HPKE is ready in Go Tink.
+	EncryptOutput bool
 }
 
 // GeneratePartialReport splits the raw reports into two shares and encrypts them with public keys from corresponding helpers.

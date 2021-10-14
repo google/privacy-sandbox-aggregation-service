@@ -1,0 +1,192 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+steps:
+###########################################################
+# Step 1: Build Collector Container
+###########################################################
+- name: 'gcr.io/cloud-builders/bazel'
+  entrypoint: 'bazel'
+  id: 'collector-container-build'
+  args:
+    - 'run'
+    - '//service:collector_server_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$_VERSION'
+    - '--define'
+    - 'GCR_PROJECT=$PROJECT_ID'
+    - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
+    - '--google_default_credentials'
+
+
+###########################################################
+# Step 2: Build Aggregator Container
+###########################################################
+- name: 'gcr.io/cloud-builders/bazel'
+  entrypoint: 'bazel'
+  id: 'aggregator-container-build'
+  args:
+    - 'run'
+    - '//service:aggregator_server_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$_VERSION'
+    - '--define'
+    - 'GCR_PROJECT=$PROJECT_ID'
+    - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
+    - '--google_default_credentials'
+
+
+###########################################################
+# Step 3: Build Browser Simulator Container
+###########################################################
+- name: 'gcr.io/cloud-builders/bazel'
+  entrypoint: 'bazel'
+  id: 'browser-simulator-container-build'
+  args:
+    - 'run'
+    - '//service:browser_simulator_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$_VERSION'
+    - '--define'
+    - 'GCR_PROJECT=$PROJECT_ID'
+    - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
+    - '--google_default_credentials'
+
+
+###########################################################
+# Step 4: Create Aggregator 1 PubSub Topic
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'create-aggregator-1-pubsub-topic'
+  entrypoint: bash
+  args:
+    - '-c'
+    - |
+      gcloud pubsub topics create aggregator-1-pr${_PR_NUMBER} || exit 0
+  waitFor:
+    - 'aggregator-container-build'
+
+###########################################################
+# Step 5: Create Aggregator 1 PubSub Subscription
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'create-aggregator-1-pubsub-subscription'
+  entrypoint: bash
+  args:
+    - '-c'
+    - |
+      gcloud pubsub subscriptions create aggregator-1-pr${_PR_NUMBER}-sub \
+      --topic aggregator-1-pr${_PR_NUMBER} \
+      --min-retry-delay 60 \
+      --max-retry-delay 600 \
+      --ack-deadline 600 \
+      --max-delivery-attempts 5 \
+      --dead-letter-topic catch-all-dead-letter \
+      || exit 0
+  waitFor:
+    - 'create-aggregator-1-pubsub-topic'
+
+###########################################################
+# Step 6: Create Aggregator 2 PubSub Topic
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'create-aggregator-2-pubsub-topic'
+  entrypoint: bash
+  args:
+    - '-c'
+    - |
+      gcloud pubsub topics create aggregator-2-pr${_PR_NUMBER} || exit 0
+  waitFor:
+    - 'aggregator-container-build'
+
+###########################################################
+# Step 7: Create Aggregator 2 PubSub Subscription
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'create-aggregator-2-pubsub-subscription'
+  entrypoint: bash
+  args:
+    - '-c'
+    - |
+      gcloud pubsub subscriptions create aggregator-2-pr${_PR_NUMBER}-sub \
+      --topic aggregator-2-pr${_PR_NUMBER} \
+      --min-retry-delay 60 \
+      --max-retry-delay 600 \
+      --ack-deadline 600 \
+      --max-delivery-attempts 5 \
+      --dead-letter-topic catch-all-dead-letter \
+      || exit 0
+  waitFor:
+    - 'create-aggregator-2-pubsub-topic'
+
+###########################################################
+# Step 8: Deploy MPC Aggregator 1 Service
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'deploy-aggregator-1'
+  entrypoint: gcloud
+  args: [
+    '--quiet','beta','run','deploy','aggregator-1-pr${_PR_NUMBER}',
+    '--image','gcr.io/$PROJECT_ID/aggregator_server:${_VERSION}',
+    '--region','us-central1',
+    '--no-cpu-throttling',
+    '--platform=managed',
+    '--no-allow-unauthenticated',
+    '--port','8080',
+    '--args=--address=:8080,--pubsub_topic=projects/${PROJECT_ID}/topics/aggregator-1-pr${_PR_NUMBER},--pubsub_subscription=projects/${PROJECT_ID}/subscriptions/aggregator-1-pr${_PR_NUMBER}-sub,--origin=helper1,--pipeline_runner=dataflow,--dataflow_project=${PROJECT_ID},--dataflow_temp_location=gs://${PROJECT_ID}-workspace/tmp,--dataflow_staging_location=gs://${PROJECT_ID}-workspace/staging,--dataflow_region=us-central1,-logtostderr=true,--private_key_params_uri=gs://convagg_dataflow/endtoend/helper1/private/private_keys-20200802.json,--workspace_uri=gs://${PROJECT_ID}-workspace/${_VERSION}-tmp,--shared_dir=gs://${PROJECT_ID}-workspace/${_VERSION}-1-shared'
+  ]
+  waitFor:
+    - 'create-aggregator-1-pubsub-subscription'
+
+###########################################################
+# Step 9: Deploy MPC Aggregator 2 Service
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'deploy-aggregator-2'
+  entrypoint: gcloud
+  args: [
+    '--quiet','beta','run','deploy','aggregator-2-pr${_PR_NUMBER}',
+    '--image','gcr.io/$PROJECT_ID/aggregator_server:${_VERSION}',
+    '--region','us-central1',
+    '--no-cpu-throttling',
+    '--platform=managed',
+    '--no-allow-unauthenticated',
+    '--port','8080',
+    '--args=--address=:8080,--pubsub_topic=projects/${PROJECT_ID}/topics/aggregator-2-pr${_PR_NUMBER},--pubsub_subscription=projects/${PROJECT_ID}/subscriptions/aggregator-2-pr${_PR_NUMBER}-sub,--origin=helper2,--pipeline_runner=dataflow,--dataflow_project=${PROJECT_ID},--dataflow_temp_location=gs://${PROJECT_ID}-workspace/tmp,--dataflow_staging_location=gs://${PROJECT_ID}-workspace/staging,--dataflow_region=us-central1,-logtostderr=true,--private_key_params_uri=gs://convagg_dataflow/endtoend/helper2/private/private_keys-20200802.json,--workspace_uri=gs://${PROJECT_ID}-workspace/${_VERSION}-tmp,--shared_dir=gs://${PROJECT_ID}-workspace/${_VERSION}-2-shared'
+  ]
+  waitFor:
+    - 'create-aggregator-2-pubsub-subscription'
+
+###########################################################
+# Step 10: Deploy Collector Service
+###########################################################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  id: 'deploy-collector'
+  entrypoint: gcloud
+  args: [
+    'run','deploy','collector-pr${_PR_NUMBER}',
+    '--image','gcr.io/$PROJECT_ID/collector_server:${_VERSION}',
+    '--region','us-central1',
+    '--memory','2Gi',
+    '--no-allow-unauthenticated',
+    '--port','8080',
+    '--args=--address=:8080,-logtostderr=true,--batch_size=100000,--batch_dir=gs://pa-collector-data/${_VERSION}'
+  ]
+  waitFor:
+    - 'collector-container-build'
+
+timeout: 3600s

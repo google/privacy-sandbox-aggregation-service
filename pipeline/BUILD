@@ -374,6 +374,10 @@ go_test(
 go_binary(
     name = "dpf_aggregate_partial_report_pipeline",
     srcs = ["dpf_aggregate_partial_report_pipeline.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+    ],
     deps = [
         ":crypto_go_proto",
         ":cryptoio",
@@ -387,6 +391,10 @@ go_binary(
 go_binary(
     name = "dpf_merge_partial_aggregation_pipeline",
     srcs = ["dpf_merge_partial_aggregation_pipeline.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+    ],
     deps = [
         ":dpfaggregator",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
@@ -398,6 +406,11 @@ go_binary(
 go_binary(
     name = "oneparty_aggregate_report_pipeline",
     srcs = ["oneparty_aggregate_report_pipeline.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+        "-linkmode=external",
+    ],
     deps = [
         ":cryptoio",
         ":onepartyaggregator",

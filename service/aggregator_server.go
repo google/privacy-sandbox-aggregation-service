@@ -34,7 +34,7 @@ var (
 	address = flag.String("address", ":8080", "Address of the server.")
 
 	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
-	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report", "Binary for partial report aggregation with DPF protocol.")
+	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report_pipeline", "Binary for partial report aggregation with DPF protocol.")
 	workspaceURI                    = flag.String("workspace_uri", "", "The Private location to save the intermediate query states.")
 	// The PubSub subscription should enable the retry policy with a exponential backoff delay.
 	// Recommended retry policy: min_retry_delay=60s, max_retry_delay=600s.

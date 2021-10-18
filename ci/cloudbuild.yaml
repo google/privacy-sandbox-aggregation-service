@@ -147,7 +147,9 @@ steps:
     '--platform=managed',
     '--no-allow-unauthenticated',
     '--port','8080',
-    '--args=--address=:8080,--pubsub_topic=projects/${PROJECT_ID}/topics/aggregator-1-pr${_PR_NUMBER},--pubsub_subscription=projects/${PROJECT_ID}/subscriptions/aggregator-1-pr${_PR_NUMBER}-sub,--origin=helper1,--pipeline_runner=dataflow,--dataflow_project=${PROJECT_ID},--dataflow_temp_location=gs://${PROJECT_ID}-workspace/tmp,--dataflow_staging_location=gs://${PROJECT_ID}-workspace/staging,--dataflow_region=us-central1,-logtostderr=true,--private_key_params_uri=gs://convagg_dataflow/endtoend/helper1/private/private_keys-20200802.json,--workspace_uri=gs://${PROJECT_ID}-workspace/${_VERSION}-tmp,--shared_dir=gs://${PROJECT_ID}-workspace/${_VERSION}-1-shared'
+    '--min-instances','1',
+    '--max-instances','1',
+    '--args=--address=:8080,--pubsub_topic=projects/${PROJECT_ID}/topics/aggregator-1-pr${_PR_NUMBER},--pubsub_subscription=projects/${PROJECT_ID}/subscriptions/aggregator-1-pr${_PR_NUMBER}-sub,--origin=helper1,--pipeline_runner=dataflow,--dataflow_project=${PROJECT_ID},--dataflow_temp_location=gs://${PROJECT_ID}-workspace/tmp,--dataflow_staging_location=gs://${PROJECT_ID}-workspace/staging,--dataflow_region=us-central1,-logtostderr=true,--private_key_params_uri=gs://convagg_dataflow/endtoend/helper1/private/private_keys-20200802.json,--workspace_uri=gs://${PROJECT_ID}-workspace/${_VERSION}-1-tmp,--shared_dir=gs://${PROJECT_ID}-workspace/${_VERSION}-1-shared'
   ]
   waitFor:
     - 'create-aggregator-1-pubsub-subscription'
@@ -166,7 +168,9 @@ steps:
     '--platform=managed',
     '--no-allow-unauthenticated',
     '--port','8080',
-    '--args=--address=:8080,--pubsub_topic=projects/${PROJECT_ID}/topics/aggregator-2-pr${_PR_NUMBER},--pubsub_subscription=projects/${PROJECT_ID}/subscriptions/aggregator-2-pr${_PR_NUMBER}-sub,--origin=helper2,--pipeline_runner=dataflow,--dataflow_project=${PROJECT_ID},--dataflow_temp_location=gs://${PROJECT_ID}-workspace/tmp,--dataflow_staging_location=gs://${PROJECT_ID}-workspace/staging,--dataflow_region=us-central1,-logtostderr=true,--private_key_params_uri=gs://convagg_dataflow/endtoend/helper2/private/private_keys-20200802.json,--workspace_uri=gs://${PROJECT_ID}-workspace/${_VERSION}-tmp,--shared_dir=gs://${PROJECT_ID}-workspace/${_VERSION}-2-shared'
+    '--min-instances','1',
+    '--max-instances','1',
+    '--args=--address=:8080,--pubsub_topic=projects/${PROJECT_ID}/topics/aggregator-2-pr${_PR_NUMBER},--pubsub_subscription=projects/${PROJECT_ID}/subscriptions/aggregator-2-pr${_PR_NUMBER}-sub,--origin=helper2,--pipeline_runner=dataflow,--dataflow_project=${PROJECT_ID},--dataflow_temp_location=gs://${PROJECT_ID}-workspace/tmp,--dataflow_staging_location=gs://${PROJECT_ID}-workspace/staging,--dataflow_region=us-central1,-logtostderr=true,--private_key_params_uri=gs://convagg_dataflow/endtoend/helper2/private/private_keys-20200802.json,--workspace_uri=gs://${PROJECT_ID}-workspace/${_VERSION}-2-tmp,--shared_dir=gs://${PROJECT_ID}-workspace/${_VERSION}-2-shared'
   ]
   waitFor:
     - 'create-aggregator-2-pubsub-subscription'

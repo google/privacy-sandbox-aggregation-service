@@ -113,6 +113,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 		return err
 	}
 	emit(encrypted)
+	fn.partialReportCounter.Inc(ctx, 1)
 	return nil
 }
 

@@ -127,9 +127,8 @@ func main() {
 	go func() {
 		err := queryHandler.SetupPullRequests(cctx)
 		if err != nil {
-			log.Errorf("pull failed: %v", err)
+			log.Fatalf("Pull Subscription error: %v", err)
 		}
-		log.Infof("message processed")
 	}()
 
 	// Receive output from signalChan.

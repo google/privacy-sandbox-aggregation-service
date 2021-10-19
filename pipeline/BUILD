@@ -372,6 +372,37 @@ go_test(
 )
 
 go_binary(
+    name = "generate_test_data_pipeline",
+    srcs = ["generate_test_data_pipeline.go"],
+    deps = [
+        ":cryptoio",
+        ":dpfdataconverter",
+        ":onepartydataconverter",
+        "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_test(
+    name = "dpf_pipeline_integration_test",
+    size = "small",
+    srcs = ["dpf_pipeline_integration_test.go"],
+    data = [
+        "dpf_test_conversion_data.csv",
+        "//pipeline:create_hybrid_key_pair",
+        "//pipeline:dpf_aggregate_partial_report_pipeline",
+        "//pipeline:generate_test_data_pipeline",
+    ],
+    deps = [
+        ":dpfaggregator",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
+    ],
+)
+
+go_binary(
     name = "dpf_aggregate_partial_report_pipeline",
     srcs = ["dpf_aggregate_partial_report_pipeline.go"],
     gc_linkopts = [

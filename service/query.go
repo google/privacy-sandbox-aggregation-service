@@ -60,6 +60,7 @@ type PrefixHistogramQuery struct {
 	Helper1, Helper2                     *grpc.ClientConn
 	ImpersonatedSvcAccount               string
 	Epsilon                              float64
+	KeyBitSize                           int32
 }
 
 // HierarchicalResult records the aggregation result at certain prefix length.
@@ -102,6 +103,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			QueryId:              phq.QueryID,
 			PreviousPrefixLength: phq.PreviousPrefixLength,
 			PrefixLengths:        phq.PrefixeLengths,
+			KeyBitSize:           phq.KeyBitSize,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 1: %v", err)
@@ -130,6 +132,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			QueryId:              phq.QueryID,
 			PreviousPrefixLength: phq.PreviousPrefixLength,
 			PrefixLengths:        phq.PrefixeLengths,
+			KeyBitSize:           phq.KeyBitSize,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 2: %v", err)
@@ -268,6 +271,7 @@ type AggregateRequest struct {
 	QueryID          string
 	QueryLevel       int32
 	TotalEpsilon     float64
+	KeyBitSize       int32
 
 	PartnerSharedInfo *HelperSharedInfo
 	ResultDir         string

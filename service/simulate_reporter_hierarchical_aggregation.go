@@ -41,6 +41,7 @@ var (
 	partialAggregationDir    = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
 
 	epsilon = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
+  keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 )
 
 func main() {
@@ -86,6 +87,7 @@ func main() {
 		Helper1:                conn1,
 		Helper2:                conn2,
 		ImpersonatedSvcAccount: *impersonatedSvcAccount,
+		KeyBitSize:             int32(*keyBitSize),
 	}
 
 	results, err := prefixQuery.HierarchicalAggregation(ctx, *epsilon, expansionConfig)

@@ -201,6 +201,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 		"--decrypted_report_uri=" + outputDecryptedReportURI,
 		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.QueryLevel]),
 		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+		"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
 		"--runner=" + h.PipelineRunner,
 	}
 

@@ -37,7 +37,7 @@ var (
 	partialReportURI2  = flag.String("partial_report_uri2", "", "Input partial report for helper 2.")
 	expansionConfigURI = flag.String("expansion_config_uri", "", "URI for the expansion configurations that defines the query hierarchy.")
 	epsilon            = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
-	keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	resultDir          = flag.String("result_dir", "", "The directory where the final results will be saved. Helpers should only have writing permissions to this directory.")
 
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")

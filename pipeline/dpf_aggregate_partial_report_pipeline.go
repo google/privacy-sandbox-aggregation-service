@@ -53,7 +53,7 @@ var (
 	expandParametersURI = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
 	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
 	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output the decrypted partial reports so the helper won't need to do the decryption repeatedly.")
-	keyBitSize          = flag.Int("key_bit_size", 128, "Bit size of the conversion keys.")
+	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
@@ -64,7 +64,7 @@ var (
 	// https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#privacy-budgeting
 	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
 
-	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
+	fileShards = flag.Int64("file_shards", 10, "The number of shards for the output file.")
 )
 
 func main() {
@@ -95,6 +95,8 @@ func main() {
 	if err != nil {
 		log.Exit(ctx, err)
 	}
+
+	log.Infof(ctx, "Output data written to %v file shards", *fileShards)
 
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()

@@ -462,9 +462,20 @@ func directCombine(scope beam.Scope, expanded beam.PCollection, vectorLength uin
 // As a workaround, we split the vectors into pieces and combine the collection of the smaller vectors instead.
 func segmentCombine(scope beam.Scope, expanded beam.PCollection, vectorLength, segmentLength uint64, bucketIDs []uint128.Uint128) beam.PCollection {
 	scope = scope.Scope("SegmentCombine")
-	results := make([]beam.PCollection, vectorLength/segmentLength)
+	segmentCount := vectorLength / segmentLength
+	var segmentLengths []uint64
+	for i := uint64(0); i < segmentCount; i++ {
+		segmentLengths = append(segmentLengths, segmentLength)
+	}
+	remainder := vectorLength % segmentLength
+	if remainder != 0 {
+		segmentLengths = append(segmentLengths, remainder)
+		segmentCount++
+	}
+
+	results := make([]beam.PCollection, segmentCount)
 	for i := range results {
-		pHistogram := beam.Combine(scope, &combineVectorSegmentFn{StartIndex: uint64(i) * segmentLength, Length: segmentLength}, expanded)
+		pHistogram := beam.Combine(scope, &combineVectorSegmentFn{StartIndex: uint64(i) * segmentLength, Length: segmentLengths[i]}, expanded)
 		results[i] = beam.ParDo(scope, &alignVectorSegmentFn{StartIndex: uint64(i) * segmentLength, BucketIDs: bucketIDs}, pHistogram)
 	}
 	return beam.Flatten(scope, results...)

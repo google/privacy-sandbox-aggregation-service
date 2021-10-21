@@ -185,26 +185,41 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 	vec2.SumVec[0] = 5
 	vec2.SumVec[1<<logN-1] = 7
 
-	pipeline, scope := beam.NewPipelineWithRoot()
-	inputVec := beam.CreateList(scope, []*expandedVec{vec1, vec2})
+	for _, withBucketIDs := range []bool{
+		true,
+		false,
+	} {
+		want := make([]idPartialAggregation, 1<<logN)
+		bucketIDs := make([]uint128.Uint128, 1<<logN)
+		for i := 0; i < 1<<logN; i++ {
+			bucketIDs[i] = uint128.From64(rand.Uint64())
+			want[i].ID = uint128.From64(uint64(i))
+			if withBucketIDs {
+				want[i].ID = bucketIDs[i]
+			}
+			want[i].PartialAggregation = &pb.PartialAggregationDpf{}
+		}
+		want[0].PartialAggregation.PartialSum = 6
+		want[1<<logN-1].PartialAggregation.PartialSum = 10
 
-	want := make([]idPartialAggregation, 1<<logN)
-	for i := 0; i < 1<<logN; i++ {
-		want[i].ID = uint128.From64(uint64(i))
-		want[i].PartialAggregation = &pb.PartialAggregationDpf{}
-	}
-	want[0].PartialAggregation.PartialSum = 6
-	want[1<<logN-1].PartialAggregation.PartialSum = 10
-	wantResult := beam.CreateList(scope, want)
+		pipeline, scope := beam.NewPipelineWithRoot()
+		inputVec := beam.CreateList(scope, []*expandedVec{vec1, vec2})
 
-	getResultSegment := segmentCombine(scope, inputVec, 1<<logN, 1<<(logN-5), nil)
-	passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultSegment), wantResult)
+		wantResult := beam.CreateList(scope, want)
 
-	getResultDirect := directCombine(scope, inputVec, 1<<logN, nil)
-	passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultDirect), wantResult)
+		var intputBuckets []uint128.Uint128
+		if withBucketIDs {
+			intputBuckets = bucketIDs
+		}
+		getResultSegment := segmentCombine(scope, inputVec, 1<<logN, 13, intputBuckets)
+		passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultSegment), wantResult)
 
-	if err := ptest.Run(pipeline); err != nil {
-		t.Fatalf("pipeline failed: %s", err)
+		getResultDirect := directCombine(scope, inputVec, 1<<logN, intputBuckets)
+		passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultDirect), wantResult)
+
+		if err := ptest.Run(pipeline); err != nil {
+			t.Fatalf("pipeline failed: %s", err)
+		}
 	}
 }
 

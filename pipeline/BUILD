@@ -83,6 +83,7 @@ go_test(
     deps = [
         ":crypto_go_proto",
         ":standardencrypt",
+        "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
@@ -121,6 +122,7 @@ go_library(
     deps = [
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
+        "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
         "@com_google_cloud_go//secretmanager/apiv1:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",
@@ -396,6 +398,7 @@ go_test(
     ],
     deps = [
         ":dpfaggregator",
+        ":ioutils",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",

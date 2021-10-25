@@ -31,6 +31,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/bazelbuild/rules_go/go/tools/bazel"
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"cloud.google.com/go/secretmanager/apiv1"
@@ -351,4 +352,12 @@ func StringToUint128(str string) (uint128.Uint128, error) {
 		return uint128.Uint128{}, fmt.Errorf("function SetString(%s) failed", str)
 	}
 	return uint128.FromBig(n), nil
+}
+
+// RunfilesPath gets the paths of files based on a rooted file system for the tests.
+func RunfilesPath(path string, isBinary bool) (string, error) {
+	if isBinary {
+		path = fmt.Sprintf("%s_/%s", path, filepath.Base(path))
+	}
+	return bazel.Runfile(path)
 }

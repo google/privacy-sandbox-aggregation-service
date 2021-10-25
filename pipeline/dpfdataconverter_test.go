@@ -21,7 +21,6 @@ import (
 	"path"
 	"testing"
 
-	
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
@@ -45,8 +44,10 @@ func TestReadInputConversions(t *testing.T) {
 		}
 	}
 
-	testFile := "dpf_test_conversion_data.csv"
-	
+	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
 	pipeline, scope := beam.NewPipelineWithRoot()
 	lines := textio.Read(scope, testFile)
 	got := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: 32}, lines)
@@ -166,9 +167,9 @@ func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 	conversions := beam.CreateList(scope, testData.Conversions)
 
 	ePr1, ePr2 := splitRawConversion(scope, conversions, &GeneratePartialReportParams{
-		PublicKeys1: pubKeysInfo1,
-		PublicKeys2: pubKeysInfo2,
-		KeyBitSize:  keyBitSize,
+		PublicKeys1:   pubKeysInfo1,
+		PublicKeys2:   pubKeysInfo2,
+		KeyBitSize:    keyBitSize,
 		EncryptOutput: withEncryption,
 	})
 

@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"testing"
 
-	
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 )
 
 const keyBitSize = 32
@@ -31,6 +31,24 @@ func TestPipeline(t *testing.T) {
 
 func testPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
+
+	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createKeyBinary, err := ioutils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generateTestDataBinary, err := ioutils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dpfAggregateBinary, err := ioutils.RunfilesPath("pipeline/dpf_aggregate_partial_report_pipeline", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -43,7 +61,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	privateKeyURI := path.Join(encryptionKeyDir, "private_key")
 	publicKeyURI := path.Join(encryptionKeyDir, "public_key")
-	if err := executeCommand(ctx, "create_hybrid_key_pair",
+	if err := executeCommand(ctx, createKeyBinary,
 		"--private_key_dir="+encryptionKeyDir,
 		"--private_key_info_file="+privateKeyURI,
 		"--public_key_info_file="+publicKeyURI,
@@ -57,9 +75,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	partialReportURI1 := path.Join(partialReportDir, "encrypted_partial_report1")
 	partialReportURI2 := path.Join(partialReportDir, "encrypted_partial_report2")
-	testFile := "dpf_test_conversion_data.csv"
-	
-	if err := executeCommand(ctx, "generate_test_data_pipeline",
+	if err := executeCommand(ctx, generateTestDataBinary,
 		"--conversion_uri="+testFile,
 		"--encrypted_report_uri1="+partialReportURI1,
 		"--encrypted_report_uri2="+partialReportURI2,
@@ -95,7 +111,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	partialHistogramURI01 := path.Join(partialResultDir1, "partial_histogram0")
 	decryptedReportURI1 := path.Join(workspaceDir1, "decrypted_report")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
+	if err := executeCommand(ctx, dpfAggregateBinary,
 		"--partial_report_uri="+partialReportURI1,
 		"--expand_parameters_uri="+expandParamsURI0,
 		"--partial_histogram_uri="+partialHistogramURI01,
@@ -116,7 +132,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	partialHistogramURI02 := path.Join(partialResultDir2, "partial_histogram0")
 	decryptedReportURI2 := path.Join(workspaceDir2, "decrypted_report")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
+	if err := executeCommand(ctx, dpfAggregateBinary,
 		"--partial_report_uri="+partialReportURI2,
 		"--expand_parameters_uri="+expandParamsURI0,
 		"--partial_histogram_uri="+partialHistogramURI02,
@@ -159,7 +175,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 
 	partialHistogramURI11 := path.Join(partialResultDir1, "partial_histogram1")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
+	if err := executeCommand(ctx, dpfAggregateBinary,
 		"--partial_report_uri="+decryptedReportURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
@@ -169,7 +185,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 
 	partialHistogramURI12 := path.Join(partialResultDir2, "partial_histogram1")
-	if err := executeCommand(ctx, "dpf_aggregate_partial_report_pipeline",
+	if err := executeCommand(ctx, dpfAggregateBinary,
 		"--partial_report_uri="+decryptedReportURI2,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,
@@ -213,7 +229,6 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 }
 
 func executeCommand(ctx context.Context, name string, args ...string) error {
-	name = name+"_/"+name
 	cmd := exec.CommandContext(ctx, name, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

@@ -21,10 +21,9 @@ import (
 	"path"
 	"testing"
 
-	
-	"lukechampine.com/uint128"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
@@ -40,7 +39,6 @@ func testKMSEncryptDecryptStandardPrivateKey(t *testing.T) {
 
 	keyURI := "gcp-kms://projects/tink-test-infrastructure/locations/global/keyRings/unit-and-integration-testing/cryptoKeys/aead-key"
 	credFile := "../../tink_base/testdata/credential.json"
-	
 
 	ctx := context.Background()
 	encrypted, err := KMSEncryptData(ctx, keyURI, credFile, wantKey.Key)

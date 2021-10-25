@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"time"
 
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
@@ -124,6 +125,7 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 	// Only allow pulling one message at a time to avoid overloading the memory.
 	sub.ReceiveSettings.Synchronous = true
 	sub.ReceiveSettings.MaxOutstandingMessages = 1
+	sub.ReceiveSettings.MaxExtension = 24 * time.Hour // extending from 60min default to 1 day
 	return sub.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
 		request := &query.AggregateRequest{}
 		err := json.Unmarshal(msg.Data, request)

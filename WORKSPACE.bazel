@@ -201,10 +201,10 @@ container_pull(
 )
 
 container_pull(
-    name = "static_base",
-    # 'tag' is also supported, but digest is encouraged for reproducibility.
-    digest = "sha256:c070202f5ea785303a9f8cfc5f094d210336e3e0ef09806b2edcce3d5e223eb7",  #prod-image
-    #digest = "sha256:a17f6eadc08cb7a806f576dd7667b0f4355312ea77538e5d4692d6971d413897",  #debug-image
+    name = "base_image",
     registry = "gcr.io",
-    repository = "distroless/static",
+    repository = "distroless/cc-debian11",
+    tag = "latest-amd64",  #prod-image
+    #tag = "debug",  #debug-image
+
 )

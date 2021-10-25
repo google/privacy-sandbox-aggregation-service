@@ -66,7 +66,7 @@ go_binary(
 
 container_image(
     name = "helper_server_image",
-    base = "@static_base//image",
+    base = "@base_image//image",
     creation_time = "{BUILD_TIMESTAMP}",
     entrypoint = ["/server"],
     files = [
@@ -161,8 +161,6 @@ go_binary(
     name = "collector_server",
     srcs = ["collector_server.go"],
     gc_linkopts = [
-        "-extldflags",
-        "-static",
         "-X",
         "main.version=$(VERSION)",
     ],
@@ -175,7 +173,7 @@ go_binary(
 
 container_image(
     name = "collector_server_image",
-    base = "@static_base//image",
+    base = "@base_image//image",
     creation_time = "{BUILD_TIMESTAMP}",
     entrypoint = ["/collector_server"],
     files = [":collector_server"],
@@ -195,8 +193,6 @@ go_binary(
     name = "browser_simulator",
     srcs = ["browser_simulator.go"],
     gc_linkopts = [
-        "-extldflags",
-        "-static",
         "-X",
         "main.version=$(VERSION)",
     ],
@@ -214,7 +210,7 @@ go_binary(
 
 container_image(
     name = "browser_simulator_image",
-    base = "@static_base//image",
+    base = "@base_image//image",
     creation_time = "{BUILD_TIMESTAMP}",
     entrypoint = ["/browser_simulator"],
     files = [":browser_simulator"],
@@ -262,8 +258,6 @@ go_binary(
     name = "aggregator_server",
     srcs = ["aggregator_server.go"],
     gc_linkopts = [
-        "-extldflags",
-        "-static",
         "-X",
         "main.version=$(VERSION)",
     ],
@@ -291,7 +285,7 @@ go_library(
 
 container_image(
     name = "aggregator_server_image",
-    base = "@static_base//image",
+    base = "@base_image//image",
     creation_time = "{BUILD_TIMESTAMP}",
     entrypoint = ["/aggregator_server"],
     files = [

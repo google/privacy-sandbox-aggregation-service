@@ -121,7 +121,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.ReadSdf(scope, allFiles)
+	lines := textio.Read(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
 }
 
@@ -252,7 +252,7 @@ func (fn *parsePartialReportFn) ProcessElement(ctx context.Context, line string,
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.ReadSdf(scope, allFiles)
+	lines := textio.Read(scope, allFiles)
 	return beam.ParDo(scope, &parsePartialReportFn{}, lines)
 }
 
@@ -667,7 +667,7 @@ func (fn *parsePartialHistogramFn) ProcessElement(ctx context.Context, line stri
 func readPartialHistogram(s beam.Scope, partialHistogramFile string) beam.PCollection {
 	s = s.Scope("ReadPartialHistogram")
 	allFiles := ioutils.AddStrInPath(partialHistogramFile, "*")
-	lines := textio.ReadSdf(s, allFiles)
+	lines := textio.Read(s, allFiles)
 	return beam.ParDo(s, &parsePartialHistogramFn{}, lines)
 }
 

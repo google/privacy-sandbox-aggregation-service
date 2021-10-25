@@ -535,7 +535,7 @@ func TestWriteReadCompleteHistogramWithPipeline(t *testing.T) {
 		}
 		emit(histogram)
 		return nil
-	}, textio.ReadSdf(scope, filename))
+	}, textio.Read(scope, filename))
 	passert.Equals(scope, gotList, wantList)
 
 	if err := ptest.Run(pipeline); err != nil {

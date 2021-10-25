@@ -48,7 +48,7 @@ func TestReadInputConversions(t *testing.T) {
 	testFile := "dpf_test_conversion_data.csv"
 	
 	pipeline, scope := beam.NewPipelineWithRoot()
-	lines := textio.ReadSdf(scope, testFile)
+	lines := textio.Read(scope, testFile)
 	got := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: 32}, lines)
 	want := beam.CreateList(scope, conversions)
 

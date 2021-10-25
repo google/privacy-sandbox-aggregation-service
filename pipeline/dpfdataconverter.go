@@ -265,7 +265,7 @@ func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams
 	scope = scope.Scope("GeneratePartialReports")
 
 	allFiles := ioutils.AddStrInPath(params.ConversionURI, "*")
-	lines := textio.ReadSdf(scope, allFiles)
+	lines := textio.Read(scope, allFiles)
 	rawConversions := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: params.KeyBitSize}, lines)
 	resharded := beam.Reshuffle(scope, rawConversions)
 

@@ -93,7 +93,7 @@ func TestWriteNShardedFiles(t *testing.T) {
 		t.Fatalf("files mismatch (-want +got):\n%s", diff)
 	}
 
-	got := textio.ReadSdf(scope, AddStrInPath(outputName, "*"))
+	got := textio.Read(scope, AddStrInPath(outputName, "*"))
 	passert.Equals(scope, got, want)
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)

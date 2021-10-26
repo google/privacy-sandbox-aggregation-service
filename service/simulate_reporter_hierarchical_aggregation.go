@@ -40,8 +40,10 @@ var (
 	paramsDir                = flag.String("params_dir", "", "Input directory that stores the parameter files.")
 	partialAggregationDir    = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
 
-	epsilon = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
-  keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	epsilon    = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
+  keyBitSize = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+
+	numWorkers = flag.Int("num_workers", 1, "Initial number of workers for Dataflow job")
 )
 
 func main() {
@@ -88,6 +90,7 @@ func main() {
 		Helper2:                conn2,
 		ImpersonatedSvcAccount: *impersonatedSvcAccount,
 		KeyBitSize:             int32(*keyBitSize),
+		NumWorkers:             int32(*numWorkers),
 	}
 
 	results, err := prefixQuery.HierarchicalAggregation(ctx, *epsilon, expansionConfig)

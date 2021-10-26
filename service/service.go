@@ -83,6 +83,7 @@ func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.Aggregate
 			"--temp_location="+s.DataflowCfg.TempLocation,
 			"--staging_location="+s.DataflowCfg.StagingLocation,
 			"--worker_binary="+s.ServerCfg.DpfAggregatePartialReportBinary,
+			"--num_workers="+fmt.Sprint(in.NumWorkers),
 		)
 	}
 	return &pb.AggregateDpfPartialReportResponse{}, exec.CommandContext(ctx, s.ServerCfg.DpfAggregatePartialReportBinary, args...).Run()

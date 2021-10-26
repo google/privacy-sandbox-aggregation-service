@@ -34,6 +34,7 @@ message AggregateDpfPartialReportRequest {
   int32 previous_prefix_length = 6;
   repeated int32 prefix_lengths = 7;
   int32 key_bit_size = 8;
+  int32 num_workers = 9;
 }
 
 message AggregateDpfPartialReportResponse {}

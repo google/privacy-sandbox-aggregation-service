@@ -42,6 +42,8 @@ var (
 
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
+	numWorkers = flag.Int("num_workers", 1, "Initial number of workers for Dataflow job")
+
 	version string // set by linker -X
 	build   string // set by linker -X
 )
@@ -110,6 +112,7 @@ func main() {
 		PartnerSharedInfo: sharedInfo2,
 		ResultDir:         *resultDir,
 		KeyBitSize:        int32(*keyBitSize),
+		NumWorkers:        int32(*numWorkers),
 	}); err != nil {
 		log.Exit(err)
 	}
@@ -123,6 +126,7 @@ func main() {
 		PartnerSharedInfo: sharedInfo1,
 		ResultDir:         *resultDir,
 		KeyBitSize:        int32(*keyBitSize),
+		NumWorkers:        int32(*numWorkers),
 	}); err != nil {
 		log.Exit(err)
 	}

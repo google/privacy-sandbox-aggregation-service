@@ -215,6 +215,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 			"--staging_location="+h.DataflowCfg.StagingLocation,
 			// set jobname to queryID-level-origin
 			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
+			"--num_workers="+fmt.Sprint(request.NumWorkers),
 			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
 		)
 	}

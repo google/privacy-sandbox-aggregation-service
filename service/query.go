@@ -61,6 +61,8 @@ type PrefixHistogramQuery struct {
 	ImpersonatedSvcAccount               string
 	Epsilon                              float64
 	KeyBitSize                           int32
+	// Dataflow Job Hints
+	NumWorkers int32
 }
 
 // HierarchicalResult records the aggregation result at certain prefix length.
@@ -104,6 +106,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			PreviousPrefixLength: phq.PreviousPrefixLength,
 			PrefixLengths:        phq.PrefixeLengths,
 			KeyBitSize:           phq.KeyBitSize,
+			NumWorkers:           phq.NumWorkers,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 1: %v", err)
@@ -133,6 +136,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			PreviousPrefixLength: phq.PreviousPrefixLength,
 			PrefixLengths:        phq.PrefixeLengths,
 			KeyBitSize:           phq.KeyBitSize,
+			NumWorkers:           phq.NumWorkers,
 		})
 		if err != nil {
 			log.Errorf("Helper Server 2: %v", err)
@@ -275,6 +279,9 @@ type AggregateRequest struct {
 
 	PartnerSharedInfo *HelperSharedInfo
 	ResultDir         string
+	// Dataflow Job Hints
+	NumWorkers int32
+
 }
 
 // GetRequestPartialResultURI returns the URI of the expected result file for a request.

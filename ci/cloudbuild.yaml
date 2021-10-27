@@ -21,7 +21,9 @@ steps:
   id: 'collector-container-build'
   args:
     - 'run'
-    - '//service:collector_server_image_publish'
+    - '-c'
+    - 'opt'
+    - 'service:collector_server_image_publish'
     - '--stamp'
     - '--define'
     - 'VERSION=$_VERSION'
@@ -39,7 +41,9 @@ steps:
   id: 'aggregator-container-build'
   args:
     - 'run'
-    - '//service:aggregator_server_image_publish'
+    - '-c'
+    - 'opt'
+    - 'service:aggregator_server_image_publish'
     - '--stamp'
     - '--define'
     - 'VERSION=$_VERSION'
@@ -57,7 +61,9 @@ steps:
   id: 'browser-simulator-container-build'
   args:
     - 'run'
-    - '//service:browser_simulator_image_publish'
+    - '-c'
+    - 'opt'
+    - 'service:browser_simulator_image_publish'
     - '--stamp'
     - '--define'
     - 'VERSION=$_VERSION'

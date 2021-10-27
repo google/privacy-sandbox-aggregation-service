@@ -121,8 +121,9 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.Read(scope, allFiles)
-	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
+	lines := textio.ReadSdf(scope, allFiles)
+	reshuffledLines := beam.Reshuffle(scope, lines)
+	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, reshuffledLines)
 }
 
 // decryptPartialReportFn decrypts the StandardCiphertext and gets a PartialReportDpf with the private key from the helper server.
@@ -252,8 +253,9 @@ func (fn *parsePartialReportFn) ProcessElement(ctx context.Context, line string,
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.Read(scope, allFiles)
-	return beam.ParDo(scope, &parsePartialReportFn{}, lines)
+	lines := textio.ReadSdf(scope, allFiles)
+	reshuffledLines := beam.Reshuffle(scope, lines)
+	return beam.ParDo(scope, &parsePartialReportFn{}, reshuffledLines)
 }
 
 type formatPartialReportFn struct {
@@ -577,14 +579,12 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 	var decryptedReport beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 {
 		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
-		resharded := beam.Reshuffle(scope, encrypted)
-		decryptedReport = DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
+		decryptedReport = DecryptPartialReport(scope, encrypted, params.HelperPrivateKeys)
 		if !isFinalLevel {
 			writePartialReport(scope, decryptedReport, params.DecryptedReportURI, params.Shards)
 		}
 	} else {
-		decryptedOrig := ReadPartialReport(scope, params.PartialReportURI)
-		decryptedReport = beam.Reshuffle(scope, decryptedOrig)
+		decryptedReport = ReadPartialReport(scope, params.PartialReportURI)
 	}
 	evalCtx := CreateEvaluationContext(scope, decryptedReport, params.ExpandParams, params.DPFParams)
 	partialHistogram, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.DPFParams, params.CombineParams)

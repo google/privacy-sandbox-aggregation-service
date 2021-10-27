@@ -561,7 +561,19 @@ type AggregatePartialReportParams struct {
 }
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
-func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportParams) error {
+func AggregatePartialReport(ctx context.Context, scope beam.Scope, params *AggregatePartialReportParams, expandParametersURI string) error {
+	expandParams, err := ReadExpandParameters(ctx, expandParametersURI)
+	if err != nil {
+		return err
+	}
+
+	if expandParams.PreviousLevel == -1 {
+		if params.DecryptedReportURI == "" {
+			return fmt.Errorf("expect non-empty output decrypt report URI")
+		}
+	}
+	params.ExpandParams = expandParams
+
 	if err := incrementaldpf.CheckExpansionParameters(
 		params.DPFParams,
 		params.ExpandParams.Prefixes,

@@ -179,6 +179,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 		"--partial_report_uri="+decryptedReportURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
+		"--private_key_params_uri="+privateKeyURI,
 		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)
@@ -189,6 +190,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 		"--partial_report_uri="+decryptedReportURI2,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,
+		"--private_key_params_uri="+privateKeyURI,
 		"--key_bit_size="+strconv.Itoa(keyBitSize),
 	); err != nil {
 		t.Fatal(err)

@@ -409,7 +409,6 @@ go_binary(
     name = "dpf_aggregate_partial_report_pipeline",
     srcs = ["dpf_aggregate_partial_report_pipeline.go"],
     deps = [
-        ":crypto_go_proto",
         ":cryptoio",
         ":dpfaggregator",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",

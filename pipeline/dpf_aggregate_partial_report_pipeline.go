@@ -44,8 +44,6 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
 var (
@@ -72,22 +70,9 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	expandParams, err := dpfaggregator.ReadExpandParameters(ctx, *expandParametersURI)
+	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
 	if err != nil {
 		log.Exit(ctx, err)
-	}
-
-	var helperPrivKeys map[string]*pb.StandardPrivateKey
-	// Private keys are only needed when aggregating the partial reports for the first time.
-	// Otherwise partialReportURI should point to the decrypted reports.
-	if expandParams.PreviousLevel == -1 {
-		helperPrivKeys, err = cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
-		if err != nil {
-			log.Exit(ctx, err)
-		}
-		if *decryptedReportURI == "" {
-			log.Exitf(ctx, "expect non-empty output decrypt report URI")
-		}
 	}
 
 	// For the current design, we define hierarchies for all possible prefix lengths of the bucket ID.
@@ -101,13 +86,12 @@ func main() {
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
 	if err := dpfaggregator.AggregatePartialReport(
-		scope,
+		ctx, scope,
 		&dpfaggregator.AggregatePartialReportParams{
 			PartialReportURI:    *partialReportURI,
 			PartialHistogramURI: *partialHistogramURI,
 			DecryptedReportURI:  *decryptedReportURI,
 			HelperPrivateKeys:   helperPrivKeys,
-			ExpandParams:        expandParams,
 			DPFParams:           dpfParams,
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
@@ -116,7 +100,7 @@ func main() {
 				L1Sensitivity: *l1Sensitivity,
 			},
 			Shards: *fileShards,
-		}); err != nil {
+		}, *expandParametersURI); err != nil {
 		log.Exit(ctx, err)
 	}
 	if err := beamx.Run(ctx, pipeline); err != nil {

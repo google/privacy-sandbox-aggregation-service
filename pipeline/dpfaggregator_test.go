@@ -26,8 +26,8 @@ import (
 	"strings"
 	"testing"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	"github.com/apache/beam/sdks/go/pkg/beam"
-	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"github.com/google/go-cmp/cmp"
@@ -41,10 +41,10 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
-	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
+	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 )
 
 func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
@@ -207,18 +207,20 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 
 		wantResult := beam.CreateList(scope, want)
 
-		var intputBuckets []uint128.Uint128
+		var intputBuckets beam.PCollection
 		if withBucketIDs {
-			intputBuckets = bucketIDs
+			intputBuckets = beam.CreateList(scope, [][]uint128.Uint128{bucketIDs})
+		} else {
+			intputBuckets = beam.CreateList(scope, [][]uint128.Uint128{{}})
 		}
-		getResultSegment := segmentCombine(scope, inputVec, 1<<logN, 13, intputBuckets)
+		getResultSegment := segmentCombine(scope, inputVec, intputBuckets, 1<<logN, 13)
 		passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultSegment), wantResult)
 
-		getResultDirect := directCombine(scope, inputVec, 1<<logN, intputBuckets)
+		getResultDirect := directCombine(scope, inputVec, intputBuckets, 1<<logN)
 		passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultDirect), wantResult)
 
 		if err := ptest.Run(pipeline); err != nil {
-			t.Fatalf("pipeline failed: %s", err)
+			t.Fatalf("pipeline failed with input buckets %v: %s", withBucketIDs, err)
 		}
 	}
 }
@@ -278,8 +280,8 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 
 	expandParams := &ExpandParameters{
-		Levels:        []int32{7},
-		Prefixes:      [][]uint128.Uint128{{}},
+		Level:         7,
+		PrefixesCount: 0,
 		PreviousLevel: -1,
 	}
 	combineParams := &CombineParams{
@@ -290,11 +292,12 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams, ctxParams)
 	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams, ctxParams)
 
-	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, ctxParams, combineParams)
+	prefixes := beam.CreateList(scope, [][]uint128.Uint128{{}})
+	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, prefixes, expandParams, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, ctxParams, combineParams)
+	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, prefixes, expandParams, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,17 +337,18 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the first level.
 	expandParams0 := &ExpandParameters{
-		Prefixes:      [][]uint128.Uint128{{}},
-		Levels:        []int32{3},
+		PrefixesCount: 0,
+		Level:         3,
 		PreviousLevel: -1,
 	}
 	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, ctxParams)
 	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0, ctxParams)
-	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, ctxParams, combineParams)
+	prefixes0 := beam.Create(scope, []uint128.Uint128{})
+	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, prefixes0, expandParams0, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, ctxParams, combineParams)
+	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, prefixes0, expandParams0, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,17 +361,19 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the second level.
 	expandParams1 := &ExpandParameters{
-		Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
-		Levels:        []int32{7},
+		PrefixesCount: 1,
+		Level:         7,
 		PreviousLevel: 3,
 	}
 	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, ctxParams)
 	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1, ctxParams)
-	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, ctxParams, combineParams)
+
+	prefixes1 := beam.CreateList(scope, [][]uint128.Uint128{{uint128.From64(1)}})
+	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, prefixes1, expandParams1, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, ctxParams, combineParams)
+	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, prefixes1, expandParams1, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -606,8 +612,8 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	defer os.RemoveAll(baseDir)
 
 	wantExpandParams := &ExpandParameters{
-		Levels:        []int32{1, 2, 3},
-		Prefixes:      [][]uint128.Uint128{{}, {uint128.From64(1)}},
+		Level:         3,
+		PrefixesCount: 112,
 		PreviousLevel: -1,
 	}
 	expandPath := path.Join(baseDir, "expand.txt")
@@ -622,5 +628,29 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantExpandParams, gotExpandParams, protocmp.Transform()); diff != "" {
 		t.Errorf("Expand parameters read/write mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestReadWritePrefixes(t *testing.T) {
+	baseDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(baseDir)
+
+	wantPrefixes := []uint128.Uint128{uint128.From64(2), uint128.From64(3)}
+	prefixesPath := path.Join(baseDir, "prefixes")
+	ctx := context.Background()
+	if err := SavePrefixes(ctx, wantPrefixes, prefixesPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	want := beam.CreateList(scope, [][]uint128.Uint128{wantPrefixes})
+	got := ReadPrefixesSideInput(scope, prefixesPath)
+
+	passert.Equals(scope, got, want)
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
 	}
 }

@@ -179,7 +179,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 		outputDecryptedReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
 	}
 
-	expandParamsURI, err := query.GetRequestExpandParamsURI(ctx, config, request,
+	expandParamsURI, prefixesURI, err := query.GetRequestExpandParamsURI(ctx, config, request,
 		h.ServerCfg.WorkspaceURI,
 		h.SharedDir,
 		request.PartnerSharedInfo.SharedDir,
@@ -198,6 +198,7 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 
 	args := []string{
 		"--partial_report_uri=" + partialReportURI,
+		"--prefixes_uri=" + prefixesURI,
 		"--expand_parameters_uri=" + expandParamsURI,
 		"--partial_histogram_uri=" + outputResultURI,
 		"--decrypted_report_uri=" + outputDecryptedReportURI,

@@ -51,8 +51,8 @@ type ExpansionConfig struct {
 // PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
 type PrefixHistogramQuery struct {
 	QueryID                              string
-	Prefixes                             [][]uint128.Uint128
-	PrefixeLengths                       []int32
+	Prefixes                             []uint128.Uint128
+	PrefixeLength                        int32
 	PreviousPrefixLength                 int32
 	PartialReportURI1, PartialReportURI2 string
 	PartialAggregationDir                string
@@ -76,7 +76,7 @@ type HierarchicalResult struct {
 }
 
 type aggregateParams struct {
-	ExpandParamsURI                            string
+	ExpandParamsURI, PrefixesURI               string
 	PartialHistogramURI1, PartialHistogramURI2 string
 	Epsilon                                    float64
 }
@@ -104,7 +104,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			ExpandParametersUri:  params.ExpandParamsURI,
 			QueryId:              phq.QueryID,
 			PreviousPrefixLength: phq.PreviousPrefixLength,
-			PrefixLengths:        phq.PrefixeLengths,
+			PrefixLength:         phq.PrefixeLength,
 			KeyBitSize:           phq.KeyBitSize,
 			NumWorkers:           phq.NumWorkers,
 		})
@@ -134,7 +134,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			ExpandParametersUri:  params.ExpandParamsURI,
 			QueryId:              phq.QueryID,
 			PreviousPrefixLength: phq.PreviousPrefixLength,
-			PrefixLengths:        phq.PrefixeLengths,
+			PrefixLength:         phq.PrefixeLength,
 			KeyBitSize:           phq.KeyBitSize,
 			NumWorkers:           phq.NumWorkers,
 		})
@@ -150,15 +150,17 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 // getPrefixHistogram calls the RPC methods on both helpers and merges the generated partial aggregation results.
 func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfaggregator.CompleteHistogram, error) {
 	expandParams := &dpfaggregator.ExpandParameters{
+		Level:         phq.PrefixeLength - 1,
 		PreviousLevel: phq.PreviousPrefixLength - 1,
-		Prefixes:      phq.Prefixes,
-	}
-	for _, l := range phq.PrefixeLengths {
-		expandParams.Levels = append(expandParams.Levels, l-1)
+		PrefixesCount: uint64(len(phq.Prefixes)),
 	}
 
 	expandParamsURI := fmt.Sprintf("%s/expand_params%s.txt", phq.ParamsDir, phq.QueryID)
 	if err := dpfaggregator.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
+		return nil, err
+	}
+	prefixesURI := fmt.Sprintf("%s/prefixes%s.txt", phq.ParamsDir, phq.QueryID)
+	if err := dpfaggregator.SavePrefixes(ctx, phq.Prefixes, prefixesURI); err != nil {
 		return nil, err
 	}
 
@@ -167,6 +169,7 @@ func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfa
 
 	if err := phq.aggregateReports(ctx, aggregateParams{
 		ExpandParamsURI:      expandParamsURI,
+		PrefixesURI:          prefixesURI,
 		PartialHistogramURI1: tempPartialResultURI1,
 		PartialHistogramURI2: tempPartialResultURI2,
 	}); err != nil {
@@ -190,19 +193,17 @@ func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, ep
 
 	var results []HierarchicalResult
 	phq.PreviousPrefixLength = 0
-	phq.Prefixes = [][]uint128.Uint128{{}}
+	phq.Prefixes = []uint128.Uint128{}
 	for i, threshold := range config.ExpansionThresholdPerPrefix {
-		// The user is supposed to query one hierarchy at a time.
-		phq.PrefixeLengths = []int32{config.PrefixLengths[i]}
+		phq.PrefixeLength = config.PrefixLengths[i]
 		// Use naive composition by simply splitting the epsilon based on the privacy budget config.
 		phq.Epsilon = epsilon * config.PrivacyBudgetPerPrefix[i]
 		result, err := phq.getPrefixHistogram(ctx)
 		if err != nil {
 			return nil, err
 		}
-		phq.Prefixes = [][]uint128.Uint128{
-			getNextNonemptyPrefixes(result, threshold),
-		}
+		phq.Prefixes = getNextNonemptyPrefixes(result, threshold)
+
 		results = append(results, HierarchicalResult{PrefixLength: config.PrefixLengths[i], Histogram: result, ExpansionThreshold: threshold})
 		phq.PreviousPrefixLength = config.PrefixLengths[i]
 	}
@@ -256,6 +257,7 @@ func ReadExpansionConfigFile(ctx context.Context, filename string) (*ExpansionCo
 // Default basic file names.
 const (
 	DefaultExpandParamsFile    = "EXPANDPARAMS"
+	DefaultPrefixesFile        = "PREFIXES"
 	DefaultPartialResultFile   = "PARTIALRESULT"
 	DefaultDecryptedReportFile = "DECRYPTEDREPORT"
 )
@@ -281,7 +283,6 @@ type AggregateRequest struct {
 	ResultDir         string
 	// Dataflow Job Hints
 	NumWorkers int32
-
 }
 
 // GetRequestPartialResultURI returns the URI of the expected result file for a request.
@@ -295,10 +296,10 @@ func GetRequestDecryptedReportURI(workDir, queryID string) string {
 }
 
 // GetRequestExpandParamsURI calculates the expand parameters, saves it into a file and returns the URI.
-func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, request *AggregateRequest, workDir, sharedDir, partnerSharedDir string) (string, error) {
+func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, request *AggregateRequest, workDir, sharedDir, partnerSharedDir string) (string, string, error) {
 	finalLevel := int32(len(config.PrefixLengths)) - 1
 	if request.QueryLevel > finalLevel {
-		return "", fmt.Errorf("expect request level <= final level %d, got %d", finalLevel, request.QueryLevel)
+		return "", "", fmt.Errorf("expect request level <= final level %d, got %d", finalLevel, request.QueryLevel)
 	}
 
 	var (
@@ -309,30 +310,33 @@ func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, req
 	if request.QueryLevel > 0 {
 		partial1, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(sharedDir, request.QueryID, request.QueryLevel-1))
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		partial2, err := dpfaggregator.ReadPartialHistogram(ctx, GetRequestPartialResultURI(partnerSharedDir, request.QueryID, request.QueryLevel-1))
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		results, err = dpfaggregator.MergePartialResult(partial1, partial2)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
-	expandParams, err := getCurrentLevelParams(request.QueryLevel, results, config)
+	expandParams, prefixes, err := getCurrentLevelParams(request.QueryLevel, results, config)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	expandParamsURI := getRequestExpandParamsURI(workDir, request)
+	expandParamsURI, prefixesURI := getRequestExpandParamsURI(workDir, request)
 	if err := dpfaggregator.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
-		return "", err
+		return "", "", err
+	}
+	if err := dpfaggregator.SavePrefixes(ctx, prefixes, prefixesURI); err != nil {
+		return "", "", err
 	}
 
-	return expandParamsURI, nil
+	return expandParamsURI, prefixesURI, nil
 }
 
 func validateExpansionConfig(config *ExpansionConfig) error {
@@ -397,25 +401,25 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
-func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*dpfaggregator.ExpandParameters, error) {
+func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*dpfaggregator.ExpandParameters, []uint128.Uint128, error) {
 	expandParams := &dpfaggregator.ExpandParameters{
 		// The DPF levels correspond to the query prefix lengths.
-		Levels: []int32{config.PrefixLengths[queryLevel] - 1},
+		Level: config.PrefixLengths[queryLevel] - 1,
 	}
 	if previousResults == nil {
 		expandParams.PreviousLevel = -1
-		expandParams.Prefixes = [][]uint128.Uint128{{}}
-		return expandParams, nil
+		expandParams.PrefixesCount = 0
+		return expandParams, nil, nil
 	}
 
+	prefixes := getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1])
 	expandParams.PreviousLevel = config.PrefixLengths[queryLevel-1] - 1
-	expandParams.Prefixes = [][]uint128.Uint128{
-		getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1]),
-	}
+	expandParams.PrefixesCount = uint64(len(prefixes))
 
-	return expandParams, nil
+	return expandParams, prefixes, nil
 }
 
-func getRequestExpandParamsURI(workDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultExpandParamsFile, request.QueryLevel))
+func getRequestExpandParamsURI(workDir string, request *AggregateRequest) (string, string) {
+	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultExpandParamsFile, request.QueryLevel)),
+		ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultPrefixesFile, request.QueryLevel))
 }

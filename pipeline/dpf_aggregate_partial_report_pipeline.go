@@ -50,13 +50,14 @@ import (
 
 var (
 	partialReportURI    = flag.String("partial_report_uri", "", "Input partial reports. It may contain the original encrypted partial reports or evaluation context.")
+	prefixesURI         = flag.String("prefixes_uri", "", "Input prefixes. This is only required for aggregations that are not the first level.")
 	expandParametersURI = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
 	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
 	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output the decrypted partial reports so the helper won't need to do the decryption repeatedly.")
 	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
-	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
+	directCombine = flag.Bool("direct_combine", false, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
 
 	epsilon = flag.Float64("epsilon", 0.0, "Epsilon for the privacy budget.")
@@ -64,7 +65,7 @@ var (
 	// https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#privacy-budgeting
 	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
 
-	fileShards = flag.Int64("file_shards", 10, "The number of shards for the output file.")
+	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
 
 func main() {
@@ -104,6 +105,7 @@ func main() {
 		scope,
 		&dpfaggregator.AggregatePartialReportParams{
 			PartialReportURI:    *partialReportURI,
+			PrefixesURI:         *prefixesURI,
 			PartialHistogramURI: *partialHistogramURI,
 			DecryptedReportURI:  *decryptedReportURI,
 			HelperPrivateKeys:   helperPrivKeys,

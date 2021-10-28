@@ -150,29 +150,33 @@ func TestGetRequestExpandParams(t *testing.T) {
 		TotalEpsilon:    0.5,
 	}
 	type aggParams struct {
-		ExpandParamsURI string
-		ExpandParams    *dpfaggregator.ExpandParameters
+		ExpandParamsURI, PrefixesURI string
+		ExpandParams                 *dpfaggregator.ExpandParameters
+		Prefixes                     []uint128.Uint128
 	}
 	for _, want := range []*aggParams{
 		{
 			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 0)),
 			ExpandParams: &dpfaggregator.ExpandParameters{
-				Levels:        []int32{0},
-				Prefixes:      [][]uint128.Uint128{{}},
+				Level:         0,
+				PrefixesCount: 0,
 				PreviousLevel: -1,
 			},
+			PrefixesURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 0)),
 		},
 		{
 			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 1)),
 			ExpandParams: &dpfaggregator.ExpandParameters{
-				Levels:        []int32{1},
-				Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
+				Level:         1,
+				PrefixesCount: 1,
 				PreviousLevel: 0,
 			},
+			PrefixesURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultPrefixesFile, 1)),
+			Prefixes:    []uint128.Uint128{uint128.From64(1)},
 		},
 		{},
 	} {
-		gotExpandParamsFile, err := GetRequestExpandParamsURI(ctx, config, request, workspace, sharedDir1, sharedDir2)
+		gotExpandParamsFile, gotPrefixesFile, err := GetRequestExpandParamsURI(ctx, config, request, workspace, sharedDir1, sharedDir2)
 		if err != nil {
 			if err.Error() == "expect request level <= final level 1, got 2" {
 				continue
@@ -182,14 +186,23 @@ func TestGetRequestExpandParams(t *testing.T) {
 		if gotExpandParamsFile != want.ExpandParamsURI {
 			t.Fatalf("expect expand params URI %q, got %q", want.ExpandParamsURI, gotExpandParamsFile)
 		}
+		if gotPrefixesFile != want.PrefixesURI {
+			t.Fatalf("expect prefixes URI %q, got %q", want.PrefixesURI, gotPrefixesFile)
+		}
 
 		gotExpandParams, err := dpfaggregator.ReadExpandParameters(ctx, gotExpandParamsFile)
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		if diff := cmp.Diff(want.ExpandParams, gotExpandParams); diff != "" {
 			t.Errorf("expand params mismatch (-want +got):\n%s", diff)
+		}
+		gotPrefixes, err := dpfaggregator.ReadPrefixes(ctx, gotPrefixesFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(want.Prefixes, gotPrefixes); diff != "" {
+			t.Errorf("prefixes mismatch (-want +got):\n%s", diff)
 		}
 		request.QueryLevel++
 	}

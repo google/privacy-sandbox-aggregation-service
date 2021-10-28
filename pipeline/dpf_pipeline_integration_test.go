@@ -94,8 +94,8 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	expandParamsURI0 := path.Join(expandParamsDir, "expand_params0")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:        []int32{1},
-		Prefixes:      [][]uint128.Uint128{{}},
+		Level:         1,
+		PrefixesCount: 0,
 		PreviousLevel: -1,
 	}, expandParamsURI0); err != nil {
 		t.Fatal(err)
@@ -165,10 +165,16 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 
 	// Second-level aggregation: 5-bit prefixes.
+	prefixes1 := []uint128.Uint128{uint128.From64(2), uint128.From64(3)}
+	prefixesURI1 := path.Join(expandParamsDir, "prefixes1")
+	if err := dpfaggregator.SavePrefixes(ctx, prefixes1, prefixesURI1); err != nil {
+		t.Fatal(err)
+	}
+
 	expandParamsURI1 := path.Join(expandParamsDir, "expand_params1")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:        []int32{4},
-		Prefixes:      [][]uint128.Uint128{{uint128.From64(2), uint128.From64(3)}},
+		Level:         4,
+		PrefixesCount: 2,
 		PreviousLevel: 1,
 	}, expandParamsURI1); err != nil {
 		t.Fatal(err)
@@ -177,6 +183,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	partialHistogramURI11 := path.Join(partialResultDir1, "partial_histogram1")
 	if err := executeCommand(ctx, dpfAggregateBinary,
 		"--partial_report_uri="+decryptedReportURI1,
+		"--prefixes_uri="+prefixesURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI11,
 		"--key_bit_size="+strconv.Itoa(keyBitSize),
@@ -187,6 +194,7 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	partialHistogramURI12 := path.Join(partialResultDir2, "partial_histogram1")
 	if err := executeCommand(ctx, dpfAggregateBinary,
 		"--partial_report_uri="+decryptedReportURI2,
+		"--prefixes_uri="+prefixesURI1,
 		"--expand_parameters_uri="+expandParamsURI1,
 		"--partial_histogram_uri="+partialHistogramURI12,
 		"--key_bit_size="+strconv.Itoa(keyBitSize),

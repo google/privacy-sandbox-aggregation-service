@@ -204,7 +204,7 @@ container_pull(
     name = "base_image",
     registry = "gcr.io",
     repository = "distroless/cc-debian11",
-    tag = "latest-amd64",  #prod-image
-    #tag = "debug",  #debug-image
+    # tag = "latest-amd64",  #prod-image
+    tag = "debug",  #debug-image
 
 )

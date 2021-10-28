@@ -181,18 +181,19 @@ func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 		want := beam.CreateList(scope, testData.WantResults[i])
 
 		expandParams := &dpfaggregator.ExpandParameters{
-			Prefixes:      [][]uint128.Uint128{testData.Prefixes[i]},
-			Levels:        []int32{testData.SumParams.Params[i].LogDomainSize - 1},
+			PrefixesCount: uint64(len(testData.Prefixes[i])),
+			Level:         int32(testData.SumParams.Params[i].LogDomainSize - 1),
 			PreviousLevel: previousLevel,
 		}
 		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams, ctxParams)
 		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams, ctxParams)
 
-		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, ctxParams, combineParams)
+		prefixes := beam.Create(scope, testData.Prefixes[i])
+		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, prefixes, expandParams, ctxParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, ctxParams, combineParams)
+		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, prefixes, expandParams, ctxParams, combineParams)
 		if err != nil {
 			t.Fatal(err)
 		}

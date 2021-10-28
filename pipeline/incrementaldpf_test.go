@@ -16,7 +16,6 @@ package incrementaldpf
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -86,17 +85,13 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prefixes := [][]uint128.Uint128{
-		{},
-		{uint128.From64(0), uint128.From64(2)},
-	}
 	// First level of expansion for the first two bits.
-	expanded1, err := EvaluateNext64(prefixes[0], evalCtx1)
+	expanded1, err := EvaluateNext64(nil, evalCtx1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expanded2, err := EvaluateNext64(prefixes[0], evalCtx2)
+	expanded2, err := EvaluateNext64(nil, evalCtx2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,18 +107,19 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	// Second level of expansion for all four bits of two prefixes: 0 (00**) and 2 (10**).
-	expanded1, err = EvaluateNext64(prefixes[1], evalCtx1)
+	prefixes := []uint128.Uint128{uint128.From64(0), uint128.From64(2)}
+	expanded1, err = EvaluateNext64(prefixes, evalCtx1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expanded2, err = EvaluateNext64(prefixes[1], evalCtx2)
+	expanded2, err = EvaluateNext64(prefixes, evalCtx2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)
-	ids, err := CalculateBucketID(params, prefixes, []int32{0, 1}, -1)
+	ids, err := CalculateBucketID(params, prefixes, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,9 +200,7 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)
-	ids, err := CalculateBucketID(params, [][]uint128.Uint128{
-		prefixes[1],
-	}, []int32{2}, 0)
+	ids, err := CalculateBucketID(params, prefixes[1], 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,10 +227,7 @@ func TestCalculateBucketID(t *testing.T) {
 		{LogDomainSize: 4, ElementBitsize: 64},
 	}
 
-	got, err := CalculateBucketID(params, [][]uint128.Uint128{
-		{},
-		{uint128.From64(1), uint128.From64(3)},
-	}, []int32{0, 1}, -1)
+	got, err := CalculateBucketID(params, []uint128.Uint128{uint128.From64(1), uint128.From64(3)}, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,10 +240,7 @@ func TestCalculateBucketID(t *testing.T) {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}
 
-	got, err = CalculateBucketID(params, [][]uint128.Uint128{
-		{uint128.From64(1), uint128.From64(3)},
-		{uint128.From64(2), uint128.From64(3), uint128.From64(6)},
-	}, []int32{1, 2}, 0)
+	got, err = CalculateBucketID(params, []uint128.Uint128{uint128.From64(2), uint128.From64(3), uint128.From64(6)}, 2, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,15 +253,5 @@ func TestCalculateBucketID(t *testing.T) {
 		uint128.From64(13),
 	}, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
-	}
-}
-
-func TestValidateLevels(t *testing.T) {
-	if err := validateLevels([]int32{1, 2, 3}); err != nil {
-		t.Fatal(err)
-	}
-	levels := []int32{1, 3, 2}
-	if err := validateLevels(levels); !strings.Contains(err.Error(), "expect levels in ascending order") {
-		t.Fatalf("failure in checking ascending levels in %v", levels)
 	}
 }

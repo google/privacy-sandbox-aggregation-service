@@ -310,3 +310,14 @@ go_test(
     srcs = ["utils_test.go"],
     embed = [":utils"],
 )
+
+go_binary(
+    name = "exam_data",
+    srcs = ["exam_data.go"],
+    deps = [
+        ":query",
+        "//pipeline:dpfdataconverter",
+        "//pipeline:ioutils",
+        "@com_github_golang_glog//:go_default_library",
+    ],
+)

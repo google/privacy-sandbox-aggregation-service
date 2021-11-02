@@ -227,31 +227,24 @@ func EvaluateUntil64(hierarchyLevel int, prefixes []uint128.Uint128, evalCtx *dp
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
 // If previousLevel = 1, the DPF key has not been evaluated yet:
 // http://github.com/google/distributed_point_functions/dpf/distributed_point_function.cc?l=730&rcl=396584858
-func CalculateBucketID(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) ([]uint128.Uint128, error) {
-	if err := CheckExpansionParameters(params, prefixes, levels, previousLevel); err != nil {
+func CalculateBucketID(params []*dpfpb.DpfParameters, prefixes []uint128.Uint128, level int32, previousLevel int32) ([]uint128.Uint128, error) {
+	if err := CheckExpansionParameters(params, prefixes, level, previousLevel); err != nil {
 		return nil, err
 	}
 
 	// For direct expansion, return empty slice to avoid generating extra data.
 	// Because in this case, the bucket ID equals the vector index.
-	if len(levels) == 1 && previousLevel == -1 {
+	if previousLevel == -1 || (previousLevel >= 0 && len(prefixes) == (1<<params[previousLevel].GetLogDomainSize())) {
 		return nil, nil
 	}
 
-	var prefixBitSize int32
-	if len(levels) > 1 {
-		prefixBitSize = params[levels[len(levels)-2]].GetLogDomainSize()
-	} else {
-		prefixBitSize = params[previousLevel].GetLogDomainSize()
-	}
-	finalBitSize := params[levels[len(levels)-1]].GetLogDomainSize()
-	finalPrefixes := prefixes[len(prefixes)-1]
-
+	prefixBitSize := params[previousLevel].GetLogDomainSize()
+	finalBitSize := params[level].GetLogDomainSize()
 	expansionBits := finalBitSize - prefixBitSize
 	expansionSize := uint64(1) << expansionBits
-	ids := make([]uint128.Uint128, uint64(len(finalPrefixes))*expansionSize)
+	ids := make([]uint128.Uint128, uint64(len(prefixes))*expansionSize)
 	i := uint64(0)
-	for _, p := range finalPrefixes {
+	for _, p := range prefixes {
 		prefix := p.Lsh(uint(expansionBits))
 		for j := uint64(0); j < expansionSize; j++ {
 			ids[i] = prefix.Or(uint128.From64(j))
@@ -261,56 +254,40 @@ func CalculateBucketID(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint1
 	return ids, nil
 }
 
-func validateLevels(levels []int32) error {
-	if len(levels) == 0 {
-		return errors.New("expect non-empty levels")
-	}
-	level := levels[0]
-	if level < 0 {
-		return fmt.Errorf("expect non-negative level, got %d", level)
-	}
-	for i := 1; i < len(levels); i++ {
-		if levels[i] <= level {
-			return fmt.Errorf("expect levels in ascending order, got %v", levels)
-		}
-		level = levels[i]
-	}
-	return nil
-}
-
 // CheckExpansionParameters checks if the DPF parameters and prefixes are valid for the hierarchical expansion.
-func CheckExpansionParameters(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) error {
+func CheckExpansionParameters(params []*dpfpb.DpfParameters, prefixes []uint128.Uint128, level, previousLevel int32) error {
 	paramsLen := len(params)
 	if paramsLen == 0 {
 		return errors.New("empty dpf parameters")
 	}
 
-	if err := validateLevels(levels); err != nil {
-		return err
+	if level < 0 {
+		return fmt.Errorf("expect a non-negative level, got %d", level)
 	}
 	if previousLevel < -1 {
 		return fmt.Errorf("expect previousLevel >= -1, got %d", previousLevel)
 	}
-	if previousLevel >= levels[0] {
-		return fmt.Errorf("expect previousLevel < levels[0] = %d, got %d", levels[0], previousLevel)
+	if previousLevel >= level {
+		return fmt.Errorf("expect previousLevel < level = %d, got %d", level, previousLevel)
 	}
 
-	prefixesLen := len(prefixes)
-	if prefixesLen != len(levels) {
-		return fmt.Errorf("expansion level size should equal prefixes size %d, got %d", prefixesLen, len(levels))
-	}
-	if paramsLen < prefixesLen {
-		return fmt.Errorf("expect prefixes size <= DPF parameter size %d, got %d", paramsLen, prefixesLen)
+	if previousLevel == -1 && len(prefixes) != 0 {
+		return fmt.Errorf("prefixes should be empty for the first level expansion, got %+v", prefixes)
 	}
 
-	for i, p := range prefixes {
-		if i == 0 && previousLevel < 0 && len(p) != 0 {
-			return fmt.Errorf("prefixes should be empty for the first level expansion, got %+v", prefixes)
-		}
-
-		if !(i == 0 && previousLevel < 0) && len(p) == 0 {
-			return fmt.Errorf("prefix cannot be empty except for the first level expansion, got %s with previous level %+v", prefixes, previousLevel)
-		}
+	if previousLevel > -1 && len(prefixes) == 0 {
+		return fmt.Errorf("prefix cannot be empty except for the first level expansion, got %s for previous level %d", prefixes, previousLevel)
 	}
 	return nil
+}
+
+// GetVectorLength calculates the length of expanded DPF keys.
+func GetVectorLength(params []*dpfpb.DpfParameters, prefixesCount uint64, level, previousLevel int32) uint64 {
+	finalBitSize := params[level].GetLogDomainSize()
+	if previousLevel == -1 {
+		return uint64(1) << finalBitSize
+	}
+	prefixBitSize := params[previousLevel].GetLogDomainSize()
+	expansionBits := finalBitSize - prefixBitSize
+	return prefixesCount * (uint64(1) << expansionBits)
 }

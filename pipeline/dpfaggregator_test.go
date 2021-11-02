@@ -278,8 +278,8 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 
 	expandParams := &ExpandParameters{
-		Levels:        []int32{7},
-		Prefixes:      [][]uint128.Uint128{{}},
+		Level:         7,
+		Prefixes:      []uint128.Uint128{},
 		PreviousLevel: -1,
 	}
 	combineParams := &CombineParams{
@@ -334,8 +334,8 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the first level.
 	expandParams0 := &ExpandParameters{
-		Prefixes:      [][]uint128.Uint128{{}},
-		Levels:        []int32{3},
+		Prefixes:      []uint128.Uint128{},
+		Level:         3,
 		PreviousLevel: -1,
 	}
 	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, ctxParams)
@@ -357,8 +357,8 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the second level.
 	expandParams1 := &ExpandParameters{
-		Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
-		Levels:        []int32{7},
+		Prefixes:      []uint128.Uint128{uint128.From64(1)},
+		Level:         7,
 		PreviousLevel: 3,
 	}
 	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, ctxParams)
@@ -606,8 +606,8 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	defer os.RemoveAll(baseDir)
 
 	wantExpandParams := &ExpandParameters{
-		Levels:        []int32{1, 2, 3},
-		Prefixes:      [][]uint128.Uint128{{}, {uint128.From64(1)}},
+		Level:         3,
+		Prefixes:      []uint128.Uint128{uint128.From64(1)},
 		PreviousLevel: -1,
 	}
 	expandPath := path.Join(baseDir, "expand.txt")

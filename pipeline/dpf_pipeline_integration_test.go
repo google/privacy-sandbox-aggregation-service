@@ -94,8 +94,8 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	expandParamsURI0 := path.Join(expandParamsDir, "expand_params0")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:        []int32{1},
-		Prefixes:      [][]uint128.Uint128{{}},
+		Level:         1,
+		Prefixes:      []uint128.Uint128{},
 		PreviousLevel: -1,
 	}, expandParamsURI0); err != nil {
 		t.Fatal(err)
@@ -167,8 +167,8 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	// Second-level aggregation: 5-bit prefixes.
 	expandParamsURI1 := path.Join(expandParamsDir, "expand_params1")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:        []int32{4},
-		Prefixes:      [][]uint128.Uint128{{uint128.From64(2), uint128.From64(3)}},
+		Level:         4,
+		Prefixes:      []uint128.Uint128{uint128.From64(2), uint128.From64(3)},
 		PreviousLevel: 1,
 	}, expandParamsURI1); err != nil {
 		t.Fatal(err)

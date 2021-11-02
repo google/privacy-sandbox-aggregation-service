@@ -88,8 +88,8 @@ func init() {
 
 // ExpandParameters contains required parameters for expanding the DPF keys.
 type ExpandParameters struct {
-	Levels        []int32
-	Prefixes      [][]uint128.Uint128
+	Level         int32
+	Prefixes      []uint128.Uint128
 	PreviousLevel int32
 }
 
@@ -121,8 +121,9 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.Read(scope, allFiles)
-	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
+	lines := textio.ReadSdf(scope, allFiles)
+	reshuffledLines := beam.Reshuffle(scope, lines)
+	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, reshuffledLines)
 }
 
 // decryptPartialReportFn decrypts the StandardCiphertext and gets a PartialReportDpf with the private key from the helper server.
@@ -252,8 +253,9 @@ func (fn *parsePartialReportFn) ProcessElement(ctx context.Context, line string,
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.Read(scope, allFiles)
-	return beam.ParDo(scope, &parsePartialReportFn{}, lines)
+	lines := textio.ReadSdf(scope, allFiles)
+	reshuffledLines := beam.Reshuffle(scope, lines)
+	return beam.ParDo(scope, &parsePartialReportFn{}, reshuffledLines)
 }
 
 type formatPartialReportFn struct {
@@ -297,20 +299,13 @@ func (fn *expandDpfKeyFn) Setup() {
 }
 
 func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec)) error {
-	if int32(fn.ExpandParams.Levels[0]) <= evalCtx.PreviousHierarchyLevel {
-		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Levels[0])
+	if int32(fn.ExpandParams.Level) <= evalCtx.PreviousHierarchyLevel {
+		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Level)
 	}
 
-	var (
-		vecSum []uint64
-		err    error
-	)
-
-	for i, level := range fn.ExpandParams.Levels {
-		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), fn.ExpandParams.Prefixes[i], evalCtx)
-		if err != nil {
-			return err
-		}
+	vecSum, err := incrementaldpf.EvaluateUntil64(int(fn.ExpandParams.Level), fn.ExpandParams.Prefixes, evalCtx)
+	if err != nil {
+		return err
 	}
 
 	emitVec(&expandedVec{SumVec: vecSum})
@@ -515,7 +510,7 @@ type CombineParams struct {
 
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
 func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *ExpandParameters, dpfParams []*dpfpb.DpfParameters, combineParams *CombineParams) (beam.PCollection, error) {
-	bucketIDs, err := incrementaldpf.CalculateBucketID(dpfParams, expandParams.Prefixes, expandParams.Levels, expandParams.PreviousLevel)
+	bucketIDs, err := incrementaldpf.CalculateBucketID(dpfParams, expandParams.Prefixes, expandParams.Level, expandParams.PreviousLevel)
 	if err != nil {
 		return beam.PCollection{}, err
 	}
@@ -525,9 +520,8 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 	}, evaluationContext)
 
 	vectorLength := uint64(len(bucketIDs))
-	if bucketIDs == nil {
-		finalLevel := expandParams.Levels[len(expandParams.Levels)-1]
-		vectorLength = uint64(1) << dpfParams[finalLevel].LogDomainSize
+	if len(bucketIDs) == 0 {
+		vectorLength = uint64(1) << dpfParams[expandParams.Level].LogDomainSize
 	}
 
 	var rawResult beam.PCollection
@@ -565,7 +559,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 	if err := incrementaldpf.CheckExpansionParameters(
 		params.DPFParams,
 		params.ExpandParams.Prefixes,
-		params.ExpandParams.Levels,
+		params.ExpandParams.Level,
 		params.ExpandParams.PreviousLevel,
 	); err != nil {
 		return err
@@ -573,18 +567,16 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(params.DPFParams)-1)
+	isFinalLevel := params.ExpandParams.Level == int32(len(params.DPFParams)-1)
 	var decryptedReport beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 {
 		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
-		resharded := beam.Reshuffle(scope, encrypted)
-		decryptedReport = DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
+		decryptedReport = DecryptPartialReport(scope, encrypted, params.HelperPrivateKeys)
 		if !isFinalLevel {
 			writePartialReport(scope, decryptedReport, params.DecryptedReportURI, params.Shards)
 		}
 	} else {
-		decryptedOrig := ReadPartialReport(scope, params.PartialReportURI)
-		decryptedReport = beam.Reshuffle(scope, decryptedOrig)
+		decryptedReport = ReadPartialReport(scope, params.PartialReportURI)
 	}
 	evalCtx := CreateEvaluationContext(scope, decryptedReport, params.ExpandParams, params.DPFParams)
 	partialHistogram, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.DPFParams, params.CombineParams)

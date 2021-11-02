@@ -181,8 +181,8 @@ func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 		want := beam.CreateList(scope, testData.WantResults[i])
 
 		expandParams := &dpfaggregator.ExpandParameters{
-			Prefixes:      [][]uint128.Uint128{testData.Prefixes[i]},
-			Levels:        []int32{testData.SumParams.Params[i].LogDomainSize - 1},
+			Prefixes:      testData.Prefixes[i],
+			Level:         testData.SumParams.Params[i].LogDomainSize - 1,
 			PreviousLevel: previousLevel,
 		}
 		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams, ctxParams)

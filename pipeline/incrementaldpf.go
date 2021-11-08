@@ -224,6 +224,51 @@ func EvaluateUntil64(hierarchyLevel int, prefixes []uint128.Uint128, evalCtx *dp
 	return expanded, nil
 }
 
+// CreateCPrefixesUnsafe copies the Go prefixes to C.
+func CreateCPrefixesUnsafe(prefixes []uint128.Uint128) (unsafe.Pointer, int64) {
+	return unsafe.Pointer(createCUInt128s(prefixes)), int64(len(prefixes))
+}
+
+// FreeCPrefixes frees the prefixes in C.
+func FreeCPrefixes(cPrefixes unsafe.Pointer) {
+	C.free(cPrefixes)
+}
+
+// EvaluateUntil64Unsafe evaluates the given DPF key in the evaluation context to a certain level of hierarchy.
+func EvaluateUntil64Unsafe(hierarchyLevel int, prefixesPtr unsafe.Pointer, prefixesLength int64, evalCtx *dpfpb.EvaluationContext) ([]uint64, error) {
+
+	bEvalCtx, err := proto.Marshal(evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	cEvalCtx := C.struct_CBytes{c: (*C.char)(C.CBytes(bEvalCtx)), l: C.int(len(bEvalCtx))}
+	outExpanded := C.struct_CUInt64Vec{}
+	errStr := C.struct_CBytes{}
+	status := C.CEvaluateUntil64(C.int(hierarchyLevel), (*C.struct_CUInt128)(prefixesPtr), C.int64_t(prefixesLength), &cEvalCtx, &outExpanded, &errStr)
+	defer freeCBytes(cEvalCtx)
+	defer C.free(unsafe.Pointer(outExpanded.vec))
+	defer freeCBytes(errStr)
+	if status != 0 {
+		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
+	}
+
+	if err := proto.Unmarshal(C.GoBytes(unsafe.Pointer(cEvalCtx.c), cEvalCtx.l), evalCtx); err != nil {
+		return nil, err
+	}
+
+	const maxLen = 1 << 30
+	vecLen := uint64(outExpanded.vec_size)
+	if vecLen > maxLen {
+		return nil, fmt.Errorf("vector length %d should not exceed %d", vecLen, maxLen)
+	}
+	es := (*[maxLen]C.uint64_t)(unsafe.Pointer(outExpanded.vec))[:vecLen:vecLen]
+	expanded := make([]uint64, vecLen)
+	for i := uint64(0); i < uint64(vecLen); i++ {
+		expanded[i] = uint64(es[i])
+	}
+	return expanded, nil
+}
+
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
 // If previousLevel = 1, the DPF key has not been evaluated yet:
 // http://github.com/google/distributed_point_functions/dpf/distributed_point_function.cc?l=730&rcl=396584858
@@ -313,4 +358,27 @@ func CheckExpansionParameters(params []*dpfpb.DpfParameters, prefixes [][]uint12
 		}
 	}
 	return nil
+}
+
+// GetVectorLength calculates the length of expanded vectors.
+func GetVectorLength(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) (uint64, error) {
+	// For direct expansion, return empty slice to avoid generating extra data.
+	// Because in this case, the bucket ID equals the vector index.
+	if len(levels) == 1 && previousLevel == -1 {
+		finalLevel := levels[len(levels)-1]
+		return uint64(1) << params[finalLevel].LogDomainSize, nil
+	}
+
+	var prefixBitSize int32
+	if len(levels) > 1 {
+		prefixBitSize = params[levels[len(levels)-2]].GetLogDomainSize()
+	} else {
+		prefixBitSize = params[previousLevel].GetLogDomainSize()
+	}
+	finalBitSize := params[levels[len(levels)-1]].GetLogDomainSize()
+	finalPrefixes := prefixes[len(prefixes)-1]
+
+	expansionBits := finalBitSize - prefixBitSize
+	expansionSize := uint64(1) << expansionBits
+	return uint64(len(finalPrefixes)) * expansionSize, nil
 }

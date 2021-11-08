@@ -56,7 +56,7 @@ var (
 	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
-	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
+	directCombine = flag.Bool("direct_combine", false, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
 
 	epsilon = flag.Float64("epsilon", 0.0, "Epsilon for the privacy budget.")
@@ -100,6 +100,8 @@ func main() {
 
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
+	//prefixes := dpfaggregator.ReadPrefixesFromExpandParams(scope, *expandParametersURI)
+	prefixes := beam.CreateList(scope, expandParams.Prefixes)
 	if err := dpfaggregator.AggregatePartialReport(
 		scope,
 		&dpfaggregator.AggregatePartialReportParams{
@@ -116,7 +118,7 @@ func main() {
 				L1Sensitivity: *l1Sensitivity,
 			},
 			Shards: *fileShards,
-		}); err != nil {
+		}, prefixes); err != nil {
 		log.Exit(ctx, err)
 	}
 	if err := beamx.Run(ctx, pipeline); err != nil {

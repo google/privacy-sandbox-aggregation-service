@@ -1,1 +1,2 @@
 build --define GCR_PROJECT=dummy_project --define VERSION="dummy-version"
+build --cxxopt=-std=c++14

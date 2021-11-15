@@ -39,6 +39,7 @@ var (
 	epsilon            = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
 	keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	resultDir          = flag.String("result_dir", "", "The directory where the final results will be saved. Helpers should only have writing permissions to this directory.")
+	isHierarchical     = flag.Bool("is_hierarchical", false, "Whether to do the aggregation hierarchically.")
 
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
@@ -113,6 +114,7 @@ func main() {
 		ResultDir:         *resultDir,
 		KeyBitSize:        int32(*keyBitSize),
 		NumWorkers:        int32(*numWorkers),
+		IsHierarchical:    *isHierarchical,
 	}); err != nil {
 		log.Exit(err)
 	}
@@ -127,6 +129,7 @@ func main() {
 		ResultDir:         *resultDir,
 		KeyBitSize:        int32(*keyBitSize),
 		NumWorkers:        int32(*numWorkers),
+		IsHierarchical:    *isHierarchical,
 	}); err != nil {
 		log.Exit(err)
 	}

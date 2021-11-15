@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unsafe"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
@@ -74,6 +75,7 @@ func init() {
 	beam.RegisterType(reflect.TypeOf((*combineVectorSegmentFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*createEvalCtxFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*expandDpfKeyFn)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*expandDpfKeyAtFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*decryptPartialReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*formatCompleteHistogramFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*formatPartialReportFn)(nil)).Elem())
@@ -121,8 +123,9 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.Read(scope, allFiles)
-	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, lines)
+	lines := textio.ReadSdf(scope, allFiles)
+	reshuffledLines := beam.Reshuffle(scope, lines)
+	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, reshuffledLines)
 }
 
 // decryptPartialReportFn decrypts the StandardCiphertext and gets a PartialReportDpf with the private key from the helper server.
@@ -194,8 +197,9 @@ func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
 
 type createEvalCtxFn struct {
 	PreviousLevel int32
-	DPFParams     []*dpfpb.DpfParameters
-	ctxCounter    beam.Counter
+	// DPFParams     []*dpfpb.DpfParameters
+	KeyBitSize int
+	ctxCounter beam.Counter
 }
 
 func (fn *createEvalCtxFn) Setup() {
@@ -203,9 +207,14 @@ func (fn *createEvalCtxFn) Setup() {
 }
 
 func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(*dpfpb.EvaluationContext)) error {
+	params, err := GetDefaultDPFParameters(fn.KeyBitSize)
+	if err != nil {
+		return err
+	}
+
 	sumCtx := &dpfpb.EvaluationContext{}
 	sumCtx.Key = partialReport.SumKey
-	sumCtx.Parameters = fn.DPFParams
+	sumCtx.Parameters = params
 	sumCtx.PreviousHierarchyLevel = fn.PreviousLevel
 
 	emit(sumCtx)
@@ -218,7 +227,8 @@ func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb
 func CreateEvaluationContext(s beam.Scope, decryptedReport beam.PCollection, expandParams *ExpandParameters, dpfParams []*dpfpb.DpfParameters) beam.PCollection {
 	s = s.Scope("CreateEvaluationContext")
 	return beam.ParDo(s, &createEvalCtxFn{
-		DPFParams:     dpfParams,
+		// DPFParams:     dpfParams,
+		KeyBitSize:    len(dpfParams),
 		PreviousLevel: expandParams.PreviousLevel,
 	}, decryptedReport)
 }
@@ -252,8 +262,9 @@ func (fn *parsePartialReportFn) ProcessElement(ctx context.Context, line string,
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadPartialReport")
 	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
-	lines := textio.Read(scope, allFiles)
-	return beam.ParDo(scope, &parsePartialReportFn{}, lines)
+	lines := textio.ReadSdf(scope, allFiles)
+	reshuffledLines := beam.Reshuffle(scope, lines)
+	return beam.ParDo(scope, &parsePartialReportFn{}, reshuffledLines)
 }
 
 type formatPartialReportFn struct {
@@ -315,6 +326,39 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 
 	emitVec(&expandedVec{SumVec: vecSum})
 
+	fn.vecCounter.Inc(ctx, 1)
+	return nil
+}
+
+// expandDpfKeyAtFn expands the DPF keys at a list of bucket IDs.
+type expandDpfKeyAtFn struct {
+	ExpandParams *ExpandParameters
+	vecCounter   beam.Counter
+
+	cBuckets       unsafe.Pointer
+	cBucketsLength int64
+}
+
+func (fn *expandDpfKeyAtFn) Setup() {
+	fn.vecCounter = beam.NewCounter("aggregation", "expandDpfFn-vec-count")
+
+	fn.cBuckets, fn.cBucketsLength = incrementaldpf.CreateCUint128ArrayUnsafe(fn.ExpandParams.Prefixes[0])
+}
+
+func (fn *expandDpfKeyAtFn) Teardown() {
+	incrementaldpf.FreeUnsafePointer(fn.cBuckets)
+}
+
+func (fn *expandDpfKeyAtFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec)) error {
+	if int32(fn.ExpandParams.Levels[0]) <= evalCtx.PreviousHierarchyLevel {
+		return fmt.Errorf("expect current level higher than the previous level %d, got %+v", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Levels)
+	}
+
+	vecSum, err := incrementaldpf.EvaluateAt64Unsafe(evalCtx.Parameters, int(fn.ExpandParams.Levels[0]), fn.cBuckets, fn.cBucketsLength, evalCtx.Key)
+	if err != nil {
+		return err
+	}
+	emitVec(&expandedVec{SumVec: vecSum})
 	fn.vecCounter.Inc(ctx, 1)
 	return nil
 }
@@ -543,6 +587,26 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 	return rawResult, nil
 }
 
+// ExpandAtAndCombineHistogram calculates histograms from the DPF keys and combines them.
+func ExpandAtAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *ExpandParameters, dpfParams []*dpfpb.DpfParameters, combineParams *CombineParams) beam.PCollection {
+	expanded := beam.ParDo(scope, &expandDpfKeyAtFn{
+		ExpandParams: expandParams,
+	}, evaluationContext)
+
+	vectorLength := uint64(len(expandParams.Prefixes[0]))
+	var rawResult beam.PCollection
+	if combineParams.DirectCombine {
+		rawResult = directCombine(scope, expanded, vectorLength, expandParams.Prefixes[0])
+	} else {
+		rawResult = segmentCombine(scope, expanded, vectorLength, combineParams.SegmentLength, expandParams.Prefixes[0])
+	}
+
+	if combineParams.Epsilon > 0 {
+		return addNoise(scope, rawResult, combineParams.Epsilon, combineParams.L1Sensitivity)
+	}
+	return rawResult
+}
+
 // AggregatePartialReportParams contains necessary parameters for function AggregatePartialReport().
 type AggregatePartialReportParams struct {
 	// Input partial report file path, each line contains an encrypted PartialReportDpf.
@@ -594,6 +658,19 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	writeHistogram(scope, partialHistogram, params.PartialHistogramURI)
 	return nil
+}
+
+// AggregatePartialReportDirect reads the partial report and calculates partial aggregation results from it.
+func AggregatePartialReportDirect(scope beam.Scope, params *AggregatePartialReportParams) {
+	scope = scope.Scope("AggregatePartialreportDpfDirect")
+
+	encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
+	resharded := beam.Reshuffle(scope, encrypted)
+	decryptedReport := DecryptPartialReport(scope, resharded, params.HelperPrivateKeys)
+	evalCtx := CreateEvaluationContext(scope, decryptedReport, params.ExpandParams, params.DPFParams)
+	partialHistogram := ExpandAtAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.DPFParams, params.CombineParams)
+
+	writeHistogram(scope, partialHistogram, params.PartialHistogramURI)
 }
 
 // formatHistogramFn converts the partial aggregation results into a string with bucket ID and wire-formatted PartialAggregationDpf.

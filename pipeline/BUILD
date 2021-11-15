@@ -151,6 +151,7 @@ cc_library(
     name = "distributed_point_function_c_bridge",
     srcs = ["distributed_point_function_c_bridge.cc"],
     hdrs = ["distributed_point_function_c_bridge.h"],
+    copts = ["-std=c++14"],
     deps = [
         ":cbytes",
         ":cbytes_utils",

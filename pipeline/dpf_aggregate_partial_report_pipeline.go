@@ -55,6 +55,7 @@ var (
 	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output the decrypted partial reports so the helper won't need to do the decryption repeatedly.")
 	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
+	hierarchicalExpand  = flag.Bool("hierarchical_expand", true, "Aggregate the input reports for hierarchical query model.")
 
 	directCombine = flag.Bool("direct_combine", true, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
@@ -85,7 +86,7 @@ func main() {
 		if err != nil {
 			log.Exit(ctx, err)
 		}
-		if *decryptedReportURI == "" {
+		if *decryptedReportURI == "" && *hierarchicalExpand {
 			log.Exitf(ctx, "expect non-empty output decrypt report URI")
 		}
 	}
@@ -98,26 +99,30 @@ func main() {
 
 	log.Infof(ctx, "Output data written to %v file shards", *fileShards)
 
+	aggParams := &dpfaggregator.AggregatePartialReportParams{
+		PartialReportURI:    *partialReportURI,
+		PartialHistogramURI: *partialHistogramURI,
+		DecryptedReportURI:  *decryptedReportURI,
+		HelperPrivateKeys:   helperPrivKeys,
+		ExpandParams:        expandParams,
+		DPFParams:           dpfParams,
+		CombineParams: &dpfaggregator.CombineParams{
+			DirectCombine: *directCombine,
+			SegmentLength: *segmentLength,
+			Epsilon:       *epsilon,
+			L1Sensitivity: *l1Sensitivity,
+		},
+		Shards: *fileShards,
+	}
+
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()
-	if err := dpfaggregator.AggregatePartialReport(
-		scope,
-		&dpfaggregator.AggregatePartialReportParams{
-			PartialReportURI:    *partialReportURI,
-			PartialHistogramURI: *partialHistogramURI,
-			DecryptedReportURI:  *decryptedReportURI,
-			HelperPrivateKeys:   helperPrivKeys,
-			ExpandParams:        expandParams,
-			DPFParams:           dpfParams,
-			CombineParams: &dpfaggregator.CombineParams{
-				DirectCombine: *directCombine,
-				SegmentLength: *segmentLength,
-				Epsilon:       *epsilon,
-				L1Sensitivity: *l1Sensitivity,
-			},
-			Shards: *fileShards,
-		}); err != nil {
-		log.Exit(ctx, err)
+	if *hierarchicalExpand {
+		if err := dpfaggregator.AggregatePartialReport(scope, aggParams); err != nil {
+			log.Exit(ctx, err)
+		}
+	} else {
+		dpfaggregator.AggregatePartialReportDirect(scope, aggParams)
 	}
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)

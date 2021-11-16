@@ -147,9 +147,18 @@ http_archive(
     ],
 )
 
+http_archive(
+    name = "com_github_google_iree",
+    sha256 = "aa369b29a5c45ae9d7aa8bf49ea1308221d1711277222f0755df6e0a575f6879",
+    strip_prefix = "iree-7e6012468cbaafaaf30302748a2943771b40e2c3",
+    urls = [
+        "https://github.com/google/iree/archive/7e6012468cbaafaaf30302748a2943771b40e2c3.zip",
+    ],
+)
+
 git_repository(
     name = "com_github_google_distributed_point_functions",
-    commit = "ea175a91e6eda5b22392fdae82080eb9709cd0eb",
+    commit = "375cd56988ff8a7c5da5dd5f6816a5403566c763",
     remote = "https://github.com/google/distributed_point_functions.git",
 )
 

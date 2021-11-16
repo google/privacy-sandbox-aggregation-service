@@ -3,6 +3,7 @@
 #include <sys/param.h>
 
 #include <cstdlib>
+#include <limits>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -197,4 +198,53 @@ TEST(DistributedPointFunctionBridge, TestReturnError) {
   free(error.c);
   free(b_params.c);
 }
+
+TEST(DistributedPointFunctionBridge, TestEvaluateAt64) {
+  DpfParameters param;
+  param.set_log_domain_size(128);
+  param.set_element_bitsize(64);
+
+  CBytes b_param;
+  ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&
+              param.SerializePartialToArray(b_param.c, b_param.l));
+
+  CUInt128 alpha = {.lo = 8, .hi = 0};
+  uint64_t beta = 123;
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateKeys(&b_param, /*params_size=*/1, &alpha, &beta,
+                          /*betas_size=*/1, &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  constexpr int kNumEvaluationPoints = 4;
+  CUInt128 evaluation_points[kNumEvaluationPoints] = {
+      alpha,
+      {.lo = 0, .hi = 0},
+      {.lo = 1, .hi = 0},
+      {.lo = std::numeric_limits<uint64_t>::max(),
+       .hi = std::numeric_limits<uint64_t>::max()}};
+
+  CUInt64Vec vec1;
+  EXPECT_EQ(
+      CEvaluateAt64(&b_param, /*params_size=*/1, &b_key1, /*hierarchy_level=*/0,
+                    evaluation_points, kNumEvaluationPoints, &vec1, &error),
+      static_cast<int>(absl::StatusCode::kOk));
+  CUInt64Vec vec2;
+  EXPECT_EQ(
+      CEvaluateAt64(&b_param, /*params_size=*/1, &b_key2, /*hierarchy_level=*/0,
+                    evaluation_points, kNumEvaluationPoints, &vec2, &error),
+      static_cast<int>(absl::StatusCode::kOk));
+
+  EXPECT_EQ(vec1.vec[0] + vec2.vec[0], beta);
+  for (int i = 1; i < kNumEvaluationPoints; ++i) {
+    EXPECT_EQ(vec1.vec[i] + vec2.vec[i], 0);
+  }
+
+  free(b_param.c);
+  free(b_key1.c);
+  free(b_key2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
 }  // namespace

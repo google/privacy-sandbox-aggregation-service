@@ -226,6 +226,49 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 }
 
+func TestEvaluateAt64(t *testing.T) {
+	os.Setenv("GODEBUG", "cgocheck=2")
+	params := []*dpfpb.DpfParameters{
+		{LogDomainSize: 128, ValueType: &dpfpb.ValueType{Type: &dpfpb.ValueType_Integer_{Integer: &dpfpb.ValueType_Integer{Bitsize: 64}}}},
+	}
+	alpha, beta := uint128.From64(16), uint64(1)
+	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evaluationPoints := []uint128.Uint128{
+		alpha, uint128.From64(0), uint128.From64(1), uint128.Max}
+
+	evaluated1, err := EvaluateAt64(params, 0, evaluationPoints, k1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluated2, err := EvaluateAt64(params, 0, evaluationPoints, k2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evaluated1) != len(evaluated2) {
+		t.Fatalf("Evaluated arrays have different lengths")
+	}
+	if len(evaluated1) != len(evaluationPoints) {
+		t.Fatalf("Size of evaluated array differs from the number of evaluation points")
+	}
+
+	for i := range evaluated1 {
+		var expected uint64
+		if evaluationPoints[i] == alpha {
+			expected = beta
+		} else {
+			expected = 0
+		}
+		if evaluated1[i]+evaluated2[i] != expected {
+			t.Fatalf("Expected %d, got %d", expected, evaluated1[i]+evaluated2[i])
+		}
+	}
+
+}
+
 func TestCalculateBucketID(t *testing.T) {
 	params := []*dpfpb.DpfParameters{
 		{LogDomainSize: 2, ElementBitsize: 64},

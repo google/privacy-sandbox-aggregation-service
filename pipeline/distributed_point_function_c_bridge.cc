@@ -181,3 +181,44 @@ int CEvaluateUntil64(int hierarchy_level, const struct CUInt128* prefixes,
   return Evaluate64(true, hierarchy_level, prefixes, prefixes_size,
                     mutable_context, out_vec, out_error);
 }
+
+int CEvaluateAt64(const struct CBytes* params, int64_t params_size,
+                  const struct CBytes* key, int hierarchy_level,
+                  const struct CUInt128* evaluation_points,
+                  int64_t evaluation_points_size, struct CUInt64Vec* out_vec,
+                  struct CBytes* out_error) {
+  absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
+      CreateIncrementalDpf(params, params_size);
+  if (!dpf.ok()) {
+    StrToCBytes(dpf.status().message(), out_error);
+    return dpf.status().raw_code();
+  }
+
+  DpfKey dpf_key;
+  if (!dpf_key.ParseFromArray(key->c, key->l)) {
+    StrToCBytes("fail to parse DpfKey", out_error);
+    return static_cast<int>(absl::StatusCode::kInvalidArgument);
+  }
+
+  std::vector<absl::uint128> evaluation_points_128(evaluation_points_size);
+  for (int i = 0; i < evaluation_points_size; i++) {
+    evaluation_points_128[i] = ConvertCUInt128(&evaluation_points[i]);
+  }
+
+  absl::StatusOr<std::vector<uint64_t>> result = (*dpf)->EvaluateAt<uint64_t>(
+      dpf_key, hierarchy_level, evaluation_points_128);
+  if (!result.ok()) {
+    StrToCBytes(result.status().message(), out_error);
+    return result.status().raw_code();
+  }
+
+  int size = result->size();
+  out_vec->vec_size = size;
+  out_vec->vec = (uint64_t*)calloc(size, sizeof(uint64_t));
+  if (out_vec->vec == nullptr) {
+    StrToCBytes("fail to allocate memory for expanded vector", out_error);
+    return static_cast<int>(absl::StatusCode::kInternal);
+  }
+  std::copy(result->begin(), result->end(), out_vec->vec);
+  return static_cast<int>(absl::StatusCode::kOk);
+}

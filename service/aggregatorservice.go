@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,10 +37,12 @@ import (
 
 // DataflowCfg contains parameters necessary for running pipelines on Dataflow.
 type DataflowCfg struct {
-	Project         string
-	Region          string
-	TempLocation    string
-	StagingLocation string
+	Project           string
+	Region            string
+	TempLocation      string
+	StagingLocation   string
+	WorkerMachineType string
+	MaxNumWorkers     int
 }
 
 // ServerCfg contains file URIs necessary for the service.
@@ -134,7 +137,13 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 			msg.Nack()
 			return
 		}
-		if err := h.aggregatePartialReportHierarchy(ctx, request); err != nil {
+
+		if request.IsHierarchical {
+			err = h.aggregatePartialReportHierarchy(ctx, request)
+		} else {
+			err = h.aggregatePartialReportDirect(ctx, request)
+		}
+		if err != nil {
 			log.Error(err)
 			msg.Nack()
 			return
@@ -217,6 +226,8 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
 			"--num_workers="+fmt.Sprint(request.NumWorkers),
 			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
+			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
 		)
 	}
 
@@ -250,6 +261,55 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 		return err
 	}
 	return utils.PublishRequest(ctx, h.PubSubTopicClient, topic, request)
+}
+
+func (h *QueryHandler) aggregatePartialReportDirect(ctx context.Context, request *query.AggregateRequest) error {
+	outputResultURI := getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
+	args := []string{
+		"--partial_report_uri=" + request.PartialReportURI,
+		"--expand_parameters_uri=" + request.ExpandConfigURI,
+		"--partial_histogram_uri=" + outputResultURI,
+		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon),
+		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+		"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
+		"--hierarchical_expand=false",
+		"--runner=" + h.PipelineRunner,
+	}
+
+	if h.PipelineRunner == "dataflow" {
+		args = append(args,
+			"--project="+h.DataflowCfg.Project,
+			"--region="+h.DataflowCfg.Region,
+			"--temp_location="+h.DataflowCfg.TempLocation,
+			"--staging_location="+h.DataflowCfg.StagingLocation,
+			// set jobname to queryID-level-origin
+			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
+			"--num_workers="+fmt.Sprint(request.NumWorkers),
+			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
+			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
+		)
+	}
+
+	str := h.ServerCfg.DpfAggregatePartialReportBinary
+	for _, s := range args {
+		str = fmt.Sprintf("%s\n%s", str, s)
+	}
+	log.Infof("Running command\n%s", str)
+
+	cmd := exec.CommandContext(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		log.Errorf("%s: %s", err, stderr.String())
+		log.Infof("output of cmd: %s", out.String())
+		return err
+	}
+
+	log.Infof("query %q complete", request.QueryID)
+	return nil
 }
 
 // ReadHelperSharedInfo reads the helper shared info from a URL.

@@ -151,6 +151,7 @@ cc_library(
     name = "distributed_point_function_c_bridge",
     srcs = ["distributed_point_function_c_bridge.cc"],
     hdrs = ["distributed_point_function_c_bridge.h"],
+    copts = ["-std=c++14"],
     deps = [
         ":cbytes",
         ":cbytes_utils",
@@ -468,16 +469,29 @@ go_test(
     data = [":dpf_test_conversion_data.csv"],
     embed = [":dpfdataconverter"],
     deps = [
-        ":crypto_go_proto",
         ":cryptoio",
         ":dpfaggregator",
-        ":ioutils",
         ":reporttypes",
         "@com_github_apache_beam//sdks/go/pkg/beam:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/io/textio:go_default_library",
-        "@com_github_apache_beam//sdks/go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam//sdks/go/pkg/beam/testing/ptest:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "dpf_pipeline_benchmark_test",
+    size = "small",
+    srcs = ["dpf_pipeline_benchmark_test.go"],
+    data = [
+        "dpf_test_conversion_data.csv",
+        "//pipeline:create_hybrid_key_pair",
+        "//pipeline:dpf_aggregate_partial_report_pipeline",
+        "//pipeline:generate_test_data_pipeline",
+    ],
+    deps = [
+        ":dpfaggregator",
+        ":ioutils",
         "@com_lukechampine_uint128//:go_default_library",
     ],
 )

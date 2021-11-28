@@ -276,12 +276,12 @@ type AggregateRequest struct {
 	QueryLevel       int32
 	TotalEpsilon     float64
 	KeyBitSize       int32
+	IsHierarchical   bool
 
 	PartnerSharedInfo *HelperSharedInfo
 	ResultDir         string
 	// Dataflow Job Hints
 	NumWorkers int32
-
 }
 
 // GetRequestPartialResultURI returns the URI of the expected result file for a request.

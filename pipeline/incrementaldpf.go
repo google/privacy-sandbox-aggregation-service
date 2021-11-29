@@ -245,6 +245,8 @@ func EvaluateAt64(params []*dpfpb.DpfParameters, hierarchyLevel int, evaluationP
 	cResult := C.struct_CUInt64Vec{}
 	errStr := C.struct_CBytes{}
 	status := C.CEvaluateAt64(cParams, cParamsSize, &cDpfKey, C.int(hierarchyLevel), cEaluationPointsPointer, cEvaluationPointsSize, &cResult, &errStr)
+	defer C.free(unsafe.Pointer(cResult.vec))
+	defer freeCBytes(errStr)
 	if status != 0 {
 		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
 	}

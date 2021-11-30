@@ -287,8 +287,8 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
-	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams, ctxParams)
-	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams, ctxParams)
+	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams, keyBitSize)
+	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams, keyBitSize)
 
 	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, ctxParams, combineParams)
 	if err != nil {
@@ -338,8 +338,8 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 		Levels:        []int32{3},
 		PreviousLevel: -1,
 	}
-	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, ctxParams)
-	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0, ctxParams)
+	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, keyBitSize)
+	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0, keyBitSize)
 	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)
@@ -361,8 +361,8 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 		Levels:        []int32{7},
 		PreviousLevel: 3,
 	}
-	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, ctxParams)
-	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1, ctxParams)
+	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, keyBitSize)
+	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1, keyBitSize)
 	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, ctxParams, combineParams)
 	if err != nil {
 		t.Fatal(err)

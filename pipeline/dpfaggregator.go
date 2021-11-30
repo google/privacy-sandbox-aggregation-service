@@ -195,18 +195,23 @@ func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
 
 type createEvalCtxFn struct {
 	PreviousLevel int32
-	DPFParams     []*dpfpb.DpfParameters
-	ctxCounter    beam.Counter
+	KeyBitSize    int
+
+	dpfParams  []*dpfpb.DpfParameters
+	ctxCounter beam.Counter
 }
 
-func (fn *createEvalCtxFn) Setup() {
+func (fn *createEvalCtxFn) Setup() error {
 	fn.ctxCounter = beam.NewCounter("aggregation", "createEvalCtxFn-ctx-count")
+	var err error
+	fn.dpfParams, err = GetDefaultDPFParameters(fn.KeyBitSize)
+	return err
 }
 
 func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(*dpfpb.EvaluationContext)) error {
 	sumCtx := &dpfpb.EvaluationContext{}
 	sumCtx.Key = partialReport.SumKey
-	sumCtx.Parameters = fn.DPFParams
+	sumCtx.Parameters = fn.dpfParams
 	sumCtx.PreviousHierarchyLevel = fn.PreviousLevel
 
 	emit(sumCtx)
@@ -216,10 +221,10 @@ func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb
 }
 
 // CreateEvaluationContext creates the DPF evaluation context from the decrypted keys.
-func CreateEvaluationContext(s beam.Scope, decryptedReport beam.PCollection, expandParams *ExpandParameters, dpfParams []*dpfpb.DpfParameters) beam.PCollection {
+func CreateEvaluationContext(s beam.Scope, decryptedReport beam.PCollection, expandParams *ExpandParameters, keyBitSize int) beam.PCollection {
 	s = s.Scope("CreateEvaluationContext")
 	return beam.ParDo(s, &createEvalCtxFn{
-		DPFParams:     dpfParams,
+		KeyBitSize:    keyBitSize,
 		PreviousLevel: expandParams.PreviousLevel,
 	}, decryptedReport)
 }
@@ -557,15 +562,20 @@ type AggregatePartialReportParams struct {
 	Shards int64
 	// The private keys for the standard encryption from the helper server.
 	HelperPrivateKeys map[string]*pb.StandardPrivateKey
-	DPFParams         []*dpfpb.DpfParameters
+	KeyBitSize        int
 	ExpandParams      *ExpandParameters
 	CombineParams     *CombineParams
 }
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
 func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportParams) error {
+	dpfParams, err := GetDefaultDPFParameters(params.KeyBitSize)
+	if err != nil {
+		return err
+	}
+
 	if err := incrementaldpf.CheckExpansionParameters(
-		params.DPFParams,
+		dpfParams,
 		params.ExpandParams.Prefixes,
 		params.ExpandParams.Levels,
 		params.ExpandParams.PreviousLevel,
@@ -575,7 +585,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(params.DPFParams)-1)
+	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(dpfParams)-1)
 	var decryptedReport beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 {
 		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
@@ -586,8 +596,8 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 	} else {
 		decryptedReport = ReadPartialReport(scope, params.PartialReportURI)
 	}
-	evalCtx := CreateEvaluationContext(scope, decryptedReport, params.ExpandParams, params.DPFParams)
-	partialHistogram, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, params.DPFParams, params.CombineParams)
+	evalCtx := CreateEvaluationContext(scope, decryptedReport, params.ExpandParams, params.KeyBitSize)
+	partialHistogram, err := ExpandAndCombineHistogram(scope, evalCtx, params.ExpandParams, dpfParams, params.CombineParams)
 	if err != nil {
 		return err
 	}

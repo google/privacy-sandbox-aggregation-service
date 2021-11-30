@@ -90,12 +90,6 @@ func main() {
 		}
 	}
 
-	// For the current design, we define hierarchies for all possible prefix lengths of the bucket ID.
-	dpfParams, err := dpfaggregator.GetDefaultDPFParameters(*keyBitSize)
-	if err != nil {
-		log.Exit(ctx, err)
-	}
-
 	log.Infof(ctx, "Output data written to %v file shards", *fileShards)
 
 	pipeline := beam.NewPipeline()
@@ -108,7 +102,7 @@ func main() {
 			DecryptedReportURI:  *decryptedReportURI,
 			HelperPrivateKeys:   helperPrivKeys,
 			ExpandParams:        expandParams,
-			DPFParams:           dpfParams,
+			KeyBitSize:          *keyBitSize,
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
 				SegmentLength: *segmentLength,

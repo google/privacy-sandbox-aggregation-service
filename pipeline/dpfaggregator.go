@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unsafe"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
@@ -297,10 +298,24 @@ type expandedVec struct {
 type expandDpfKeyFn struct {
 	ExpandParams *ExpandParameters
 	vecCounter   beam.Counter
+
+	cPrefixes       []unsafe.Pointer
+	cPrefixesLength []int64
 }
 
 func (fn *expandDpfKeyFn) Setup() {
 	fn.vecCounter = beam.NewCounter("aggregation", "expandDpfFn-vec-count")
+	for _, prefixes := range fn.ExpandParams.Prefixes {
+		p, l := incrementaldpf.CreateCUint128ArrayUnsafe(prefixes)
+		fn.cPrefixes = append(fn.cPrefixes, p)
+		fn.cPrefixesLength = append(fn.cPrefixesLength, l)
+	}
+}
+
+func (fn *expandDpfKeyFn) Teardown() {
+	for _, p := range fn.cPrefixes {
+		incrementaldpf.FreeUnsafePointer(p)
+	}
 }
 
 func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec)) error {
@@ -314,7 +329,7 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 	)
 
 	for i, level := range fn.ExpandParams.Levels {
-		vecSum, err = incrementaldpf.EvaluateUntil64(int(level), fn.ExpandParams.Prefixes[i], evalCtx)
+		vecSum, err = incrementaldpf.EvaluateUntil64Unsafe(int(level), fn.cPrefixes[i], fn.cPrefixesLength[i], evalCtx)
 		if err != nil {
 			return err
 		}

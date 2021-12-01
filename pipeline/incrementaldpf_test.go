@@ -144,6 +144,11 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 }
 
 func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
+	testHierarchicalGenEvalFunctions(t, false /*unSafe*/)
+	testHierarchicalGenEvalFunctions(t, true /*unSafe*/)
+}
+
+func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
 	os.Setenv("GODEBUG", "cgocheck=2")
 	params := []*dpfpb.DpfParameters{
 		{LogDomainSize: 2, ElementBitsize: 64},
@@ -171,16 +176,33 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 		{uint128.From64(0), uint128.From64(2)},
 		{uint128.From64(1)},
 	}
-	// First level of expansion for the first two bits.
-	expanded1, err := EvaluateUntil64(0, prefixes[0], evalCtx1)
-	if err != nil {
-		t.Fatal(err)
+
+	var expanded1, expanded2 []uint64
+	if useSafe {
+		expanded1, err = EvaluateUntil64(0, prefixes[0], evalCtx1)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expanded2, err = EvaluateUntil64(0, prefixes[0], evalCtx2)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		prefixes0, prefixesLength0 := CreateCUint128ArrayUnsafe(prefixes[0])
+		expanded1, err = EvaluateUntil64Unsafe(0, prefixes0, prefixesLength0, evalCtx1)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expanded2, err = EvaluateUntil64Unsafe(0, prefixes0, prefixesLength0, evalCtx2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		FreeUnsafePointer(prefixes0)
 	}
 
-	expanded2, err := EvaluateUntil64(0, prefixes[0], evalCtx2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// First level of expansion for the first two bits.
 
 	got := make([]uint64, len(expanded1))
 	for i := range expanded1 {
@@ -193,14 +215,28 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	// The next level of expansion for all five bits of two prefixes: 0 (00***) and 2 (10***).
-	expanded1, err = EvaluateUntil64(2, prefixes[1], evalCtx1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	if useSafe {
+		expanded1, err = EvaluateUntil64(2, prefixes[1], evalCtx1)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	expanded2, err = EvaluateUntil64(2, prefixes[1], evalCtx2)
-	if err != nil {
-		t.Fatal(err)
+		expanded2, err = EvaluateUntil64(2, prefixes[1], evalCtx2)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		prefixes1, prefixesLength1 := CreateCUint128ArrayUnsafe(prefixes[1])
+		expanded1, err = EvaluateUntil64Unsafe(2, prefixes1, prefixesLength1, evalCtx1)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expanded2, err = EvaluateUntil64Unsafe(2, prefixes1, prefixesLength1, evalCtx2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		FreeUnsafePointer(prefixes1)
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)

@@ -269,44 +269,44 @@ func EvaluateUntil64Unsafe(hierarchyLevel int, prefixesPtr unsafe.Pointer, prefi
 }
 
 // EvaluateAt64 evaluates the given DPF key on the given evaluationPoints at hierarchyLevel, using a DPF with the given parameters.
-func EvaluateAt64(params []*dpfpb.DpfParameters, hierarchyLevel int, evaluationPoints []uint128.Uint128, dpfKey *dpfpb.DpfKey) ([]uint64, error) {
-	cParamsSize := C.int64_t(len(params))
-	cParams, cParamPointers, err := createCParams(params)
-	defer freeCParams(cParams, cParamPointers)
-	if err != nil {
-		return nil, err
-	}
+// func EvaluateAt64(params []*dpfpb.DpfParameters, hierarchyLevel int, evaluationPoints []uint128.Uint128, dpfKey *dpfpb.DpfKey) ([]uint64, error) {
+// 	cParamsSize := C.int64_t(len(params))
+// 	cParams, cParamPointers, err := createCParams(params)
+// 	defer freeCParams(cParams, cParamPointers)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	cEvaluationPointsSize := C.int64_t(len(evaluationPoints))
-	cEaluationPointsPointer := createCUInt128s(evaluationPoints)
-	defer C.free(unsafe.Pointer(cEaluationPointsPointer))
+// 	cEvaluationPointsSize := C.int64_t(len(evaluationPoints))
+// 	cEaluationPointsPointer := createCUInt128s(evaluationPoints)
+// 	defer C.free(unsafe.Pointer(cEaluationPointsPointer))
 
-	bDpfKey, err := proto.Marshal(dpfKey)
-	if err != nil {
-		return nil, err
-	}
-	cDpfKey := C.struct_CBytes{c: (*C.char)(C.CBytes(bDpfKey)), l: C.int(len(bDpfKey))}
-	cResult := C.struct_CUInt64Vec{}
-	errStr := C.struct_CBytes{}
-	status := C.CEvaluateAt64(cParams, cParamsSize, &cDpfKey, C.int(hierarchyLevel), cEaluationPointsPointer, cEvaluationPointsSize, &cResult, &errStr)
-	defer C.free(unsafe.Pointer(cResult.vec))
-	defer freeCBytes(errStr)
-	if status != 0 {
-		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
-	}
+// 	bDpfKey, err := proto.Marshal(dpfKey)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	cDpfKey := C.struct_CBytes{c: (*C.char)(C.CBytes(bDpfKey)), l: C.int(len(bDpfKey))}
+// 	cResult := C.struct_CUInt64Vec{}
+// 	errStr := C.struct_CBytes{}
+// 	status := C.CEvaluateAt64(cParams, cParamsSize, &cDpfKey, C.int(hierarchyLevel), cEaluationPointsPointer, cEvaluationPointsSize, &cResult, &errStr)
+// 	defer C.free(unsafe.Pointer(cResult.vec))
+// 	defer freeCBytes(errStr)
+// 	if status != 0 {
+// 		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
+// 	}
 
-	const maxLen = 1 << 30
-	vecLen := uint64(cResult.vec_size)
-	if vecLen > maxLen {
-		return nil, fmt.Errorf("vector length %d should not exceed %d", vecLen, maxLen)
-	}
-	es := (*[maxLen]C.uint64_t)(unsafe.Pointer(cResult.vec))[:vecLen:vecLen]
-	expanded := make([]uint64, vecLen)
-	for i := uint64(0); i < uint64(vecLen); i++ {
-		expanded[i] = uint64(es[i])
-	}
-	return expanded, nil
-}
+// 	const maxLen = 1 << 30
+// 	vecLen := uint64(cResult.vec_size)
+// 	if vecLen > maxLen {
+// 		return nil, fmt.Errorf("vector length %d should not exceed %d", vecLen, maxLen)
+// 	}
+// 	es := (*[maxLen]C.uint64_t)(unsafe.Pointer(cResult.vec))[:vecLen:vecLen]
+// 	expanded := make([]uint64, vecLen)
+// 	for i := uint64(0); i < uint64(vecLen); i++ {
+// 		expanded[i] = uint64(es[i])
+// 	}
+// 	return expanded, nil
+// }
 
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
 // If previousLevel = 1, the DPF key has not been evaluated yet:
@@ -397,4 +397,27 @@ func CheckExpansionParameters(params []*dpfpb.DpfParameters, prefixes [][]uint12
 		}
 	}
 	return nil
+}
+
+// GetVectorLength calculates the length of expanded vectors.
+func GetVectorLength(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) (uint64, error) {
+	// For direct expansion, return empty slice to avoid generating extra data.
+	// Because in this case, the bucket ID equals the vector index.
+	if len(levels) == 1 && previousLevel == -1 {
+		finalLevel := levels[len(levels)-1]
+		return uint64(1) << params[finalLevel].LogDomainSize, nil
+	}
+
+	var prefixBitSize int32
+	if len(levels) > 1 {
+		prefixBitSize = params[levels[len(levels)-2]].GetLogDomainSize()
+	} else {
+		prefixBitSize = params[previousLevel].GetLogDomainSize()
+	}
+	finalBitSize := params[levels[len(levels)-1]].GetLogDomainSize()
+	finalPrefixes := prefixes[len(prefixes)-1]
+
+	expansionBits := finalBitSize - prefixBitSize
+	expansionSize := uint64(1) << expansionBits
+	return uint64(len(finalPrefixes)) * expansionSize, nil
 }

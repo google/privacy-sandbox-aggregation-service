@@ -44,11 +44,14 @@ var (
 	origin             = flag.String("origin", "", "Origin of the helper.")
 	sharedDir          = flag.String("shared_dir", "", "Shared directory for the intermediate results, where other helper can read them.")
 
-	pipelineRunner          = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
-	dataflowProject         = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")
-	dataflowRegion          = flag.String("dataflow_region", "", "Region of Dataflow workers.")
-	dataflowTempLocation    = flag.String("dataflow_temp_location", "", "TempLocation for the Dataflow pipeline.")
-	dataflowStagingLocation = flag.String("dataflow_staging_location", "", "StagingLocation for the Dataflow pipeline.")
+	pipelineRunner            = flag.String("pipeline_runner", "direct", "Runner for the Beam pipeline: direct or dataflow.")
+	dataflowProject           = flag.String("dataflow_project", "", "GCP project of the Dataflow service.")
+	dataflowRegion            = flag.String("dataflow_region", "", "Region of Dataflow workers.")
+	dataflowZone              = flag.String("dataflow_zone", "", "Zone of Dataflow workers.")
+	dataflowTempLocation      = flag.String("dataflow_temp_location", "", "TempLocation for the Dataflow pipeline.")
+	dataflowStagingLocation   = flag.String("dataflow_staging_location", "", "StagingLocation for the Dataflow pipeline.")
+	dataflowMaxNumWorkers     = flag.Int("dataflow_max_num_workers", 500, "Maximum number of Dataflow workers.")
+	dataflowWorkerMachineType = flag.String("dataflow_worker_machine_type", "e2-standard-2", "Dataflow worker machine type.")
 
 	version string // set by linker -X
 	build   string // set by linker -X
@@ -95,10 +98,13 @@ func main() {
 		},
 		PipelineRunner: *pipelineRunner,
 		DataflowCfg: aggregatorservice.DataflowCfg{
-			Project:         *dataflowProject,
-			Region:          *dataflowRegion,
-			TempLocation:    *dataflowTempLocation,
-			StagingLocation: *dataflowStagingLocation,
+			Project:           *dataflowProject,
+			Region:            *dataflowRegion,
+			Zone:              *dataflowZone,
+			TempLocation:      *dataflowTempLocation,
+			StagingLocation:   *dataflowStagingLocation,
+			MaxNumWorkers:     *dataflowMaxNumWorkers,
+			WorkerMachineType: *dataflowWorkerMachineType,
 		},
 		Origin:                    *origin,
 		SharedDir:                 *sharedDir,

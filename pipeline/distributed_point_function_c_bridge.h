@@ -50,14 +50,6 @@ int CEvaluateUntil64(int hierarchy_level, const struct CUInt128 *prefixes,
                      int64_t prefixes_size, struct CBytes *mutable_context,
                      struct CUInt64Vec *out_vec, struct CBytes *out_error);
 
-// CEvaluateAt64 wraps EvaluateAt<uint64_t>() in C:
-// http://google3/dpf/distributed_point_function.h;l=331;rcl=408308420
-int CEvaluateAt64(const struct CBytes *params, int64_t params_size,
-                  const struct CBytes *key, int hierarchy_level,
-                  const struct CUInt128 *evaluation_points,
-                  int64_t evaluation_points_size, struct CUInt64Vec *out_vec,
-                  struct CBytes *out_error);
-
 #ifdef __cplusplus
 }
 #endif

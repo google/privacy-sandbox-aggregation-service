@@ -18,24 +18,24 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
 )
 
-func TestExpansionConfigReadWrite(t *testing.T) {
+func TestHierarchicalConfigReadWrite(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "test-config")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %s", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	config := &ExpansionConfig{
+	config := &HierarchicalConfig{
 		PrefixLengths:               []int32{1, 2, 3},
 		PrivacyBudgetPerPrefix:      []float64{0.2, 0.5, 0.3},
 		ExpansionThresholdPerPrefix: []uint64{4, 5, 6},
 	}
 	ctx := context.Background()
 	configFile := path.Join(tmpDir, "config_file")
-	if err := WriteExpansionConfigFile(ctx, config, configFile); err != nil {
+	if err := WriteHierarchicalConfigFile(ctx, config, configFile); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadExpansionConfigFile(ctx, configFile)
+	got, err := ReadHierarchicalConfigFile(ctx, configFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func writePartialHistogram(ctx context.Context, filename string, results map[uin
 }
 
 func TestGetRequestExpandParams(t *testing.T) {
-	config := &ExpansionConfig{
+	config := &HierarchicalConfig{
 		PrefixLengths:               []int32{1, 2},
 		PrivacyBudgetPerPrefix:      []float64{0.6, 0.4},
 		ExpansionThresholdPerPrefix: []uint64{2, 5},
@@ -130,7 +130,7 @@ func TestGetRequestExpandParams(t *testing.T) {
 
 	ctx := context.Background()
 	expandConfigURI := path.Join(tmpDir, "expand_config_file.json")
-	if err := WriteExpansionConfigFile(ctx, config, expandConfigURI); err != nil {
+	if err := WriteHierarchicalConfigFile(ctx, config, expandConfigURI); err != nil {
 		t.Fatal(err)
 	}
 

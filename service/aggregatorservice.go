@@ -148,7 +148,7 @@ func getFinalPartialResultURI(resultDir, queryID, origin string) string {
 }
 
 func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, request *query.AggregateRequest) error {
-	config, err := query.ReadExpansionConfigFile(ctx, request.ExpandConfigURI)
+	config, err := query.ReadHierarchicalConfigFile(ctx, request.ExpandConfigURI)
 	if err != nil {
 		return nil
 	}

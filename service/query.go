@@ -41,8 +41,8 @@ import (
 
 const elementBitSize = 64
 
-// ExpansionConfig contains the parameters that define the hierarchy for how the DPF key will be expanded.
-type ExpansionConfig struct {
+// HierarchicalConfig contains the parameters for the hierarchical query model.
+type HierarchicalConfig struct {
 	PrefixLengths               []int32
 	PrivacyBudgetPerPrefix      []float64
 	ExpansionThresholdPerPrefix []uint64
@@ -185,7 +185,7 @@ func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfa
 }
 
 // HierarchicalAggregation queries the hierarchical aggregation results.
-func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, epsilon float64, config *ExpansionConfig) ([]HierarchicalResult, error) {
+func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, epsilon float64, config *HierarchicalConfig) ([]HierarchicalResult, error) {
 	phq.QueryID = uuid.New()
 
 	var results []HierarchicalResult
@@ -231,8 +231,8 @@ func ReadHierarchicalResultsFile(ctx context.Context, filename string) ([]Hierar
 	return results, nil
 }
 
-// WriteExpansionConfigFile writes the ExpansionConfig into a file.
-func WriteExpansionConfigFile(ctx context.Context, config *ExpansionConfig, filename string) error {
+// WriteHierarchicalConfigFile writes the HierarchicalConfig into a file.
+func WriteHierarchicalConfigFile(ctx context.Context, config *HierarchicalConfig, filename string) error {
 	bc, err := json.Marshal(config)
 	if err != nil {
 		return err
@@ -240,17 +240,17 @@ func WriteExpansionConfigFile(ctx context.Context, config *ExpansionConfig, file
 	return ioutils.WriteBytes(ctx, bc, filename)
 }
 
-// ReadExpansionConfigFile reads the ExpansionConfig from a file and validate it.
-func ReadExpansionConfigFile(ctx context.Context, filename string) (*ExpansionConfig, error) {
+// ReadHierarchicalConfigFile reads the HierarchicalConfig from a file and validate it.
+func ReadHierarchicalConfigFile(ctx context.Context, filename string) (*HierarchicalConfig, error) {
 	bc, err := ioutils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
-	config := &ExpansionConfig{}
+	config := &HierarchicalConfig{}
 	if err := json.Unmarshal(bc, config); err != nil {
 		return nil, err
 	}
-	return config, validateExpansionConfig(config)
+	return config, validateHierarchicalConfig(config)
 }
 
 // Default basic file names.
@@ -281,7 +281,6 @@ type AggregateRequest struct {
 	ResultDir         string
 	// Dataflow Job Hints
 	NumWorkers int32
-
 }
 
 // GetRequestPartialResultURI returns the URI of the expected result file for a request.
@@ -295,7 +294,7 @@ func GetRequestDecryptedReportURI(workDir, queryID string) string {
 }
 
 // GetRequestExpandParamsURI calculates the expand parameters, saves it into a file and returns the URI.
-func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, request *AggregateRequest, workDir, sharedDir, partnerSharedDir string) (string, error) {
+func GetRequestExpandParamsURI(ctx context.Context, config *HierarchicalConfig, request *AggregateRequest, workDir, sharedDir, partnerSharedDir string) (string, error) {
 	finalLevel := int32(len(config.PrefixLengths)) - 1
 	if request.QueryLevel > finalLevel {
 		return "", fmt.Errorf("expect request level <= final level %d, got %d", finalLevel, request.QueryLevel)
@@ -335,7 +334,7 @@ func GetRequestExpandParamsURI(ctx context.Context, config *ExpansionConfig, req
 	return expandParamsURI, nil
 }
 
-func validateExpansionConfig(config *ExpansionConfig) error {
+func validateHierarchicalConfig(config *HierarchicalConfig) error {
 	if len(config.PrefixLengths) == 0 {
 		return errors.New("expect nonempty PrefixLengths")
 	}
@@ -397,7 +396,7 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
-func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *ExpansionConfig) (*dpfaggregator.ExpandParameters, error) {
+func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *HierarchicalConfig) (*dpfaggregator.ExpandParameters, error) {
 	expandParams := &dpfaggregator.ExpandParameters{
 		// The DPF levels correspond to the query prefix lengths.
 		Levels: []int32{config.PrefixLengths[queryLevel] - 1},

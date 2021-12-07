@@ -41,7 +41,7 @@ var (
 	partialAggregationDir    = flag.String("partial_aggregation_dir", "", "Output directory for the partial aggregation files.")
 
 	epsilon    = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
-  keyBitSize = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
+	keyBitSize = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 
 	numWorkers = flag.Int("num_workers", 1, "Initial number of workers for Dataflow job")
 )
@@ -50,7 +50,7 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	expansionConfig, err := query.ReadExpansionConfigFile(ctx, *expansionConfigURI)
+	expansionConfig, err := query.ReadHierarchicalConfigFile(ctx, *expansionConfigURI)
 	if err != nil {
 		log.Exit(err)
 	}

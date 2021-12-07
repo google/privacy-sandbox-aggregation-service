@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,10 +37,13 @@ import (
 
 // DataflowCfg contains parameters necessary for running pipelines on Dataflow.
 type DataflowCfg struct {
-	Project         string
-	Region          string
-	TempLocation    string
-	StagingLocation string
+	Project           string
+	Region            string
+	Zone              string
+	TempLocation      string
+	StagingLocation   string
+	WorkerMachineType string
+	MaxNumWorkers     int
 }
 
 // ServerCfg contains file URIs necessary for the service.
@@ -211,12 +215,15 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 		args = append(args,
 			"--project="+h.DataflowCfg.Project,
 			"--region="+h.DataflowCfg.Region,
+			"--zone="+h.DataflowCfg.Zone,
 			"--temp_location="+h.DataflowCfg.TempLocation,
 			"--staging_location="+h.DataflowCfg.StagingLocation,
 			// set jobname to queryID-level-origin
 			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
 			"--num_workers="+fmt.Sprint(request.NumWorkers),
 			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
+			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
 		)
 	}
 

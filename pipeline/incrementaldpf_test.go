@@ -356,3 +356,33 @@ func TestValidateLevels(t *testing.T) {
 		t.Fatalf("failure in checking ascending levels in %v", levels)
 	}
 }
+
+func TestGetVectorLength(t *testing.T) {
+	params := []*dpfpb.DpfParameters{
+		{LogDomainSize: 2, ElementBitsize: 64},
+		{LogDomainSize: 3, ElementBitsize: 64},
+		{LogDomainSize: 4, ElementBitsize: 64},
+	}
+
+	got, err := GetVectorLength(params, [][]uint128.Uint128{
+		{},
+		{uint128.From64(1), uint128.From64(3)},
+	}, []int32{0, 1}, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := uint64(4); got != want {
+		t.Fatalf("expect vector length %d, got %d\n", want, got)
+	}
+
+	got, err = GetVectorLength(params, [][]uint128.Uint128{
+		{uint128.From64(1), uint128.From64(3)},
+		{uint128.From64(2), uint128.From64(3), uint128.From64(6)},
+	}, []int32{1, 2}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := uint64(6); got != want {
+		t.Fatalf("expect vector length %d, got %d\n", want, got)
+	}
+}

@@ -207,18 +207,20 @@ func TestDirectAndSegmentCombineVector(t *testing.T) {
 
 		wantResult := beam.CreateList(scope, want)
 
-		var intputBuckets []uint128.Uint128
+		var intputBuckets beam.PCollection
 		if withBucketIDs {
-			intputBuckets = bucketIDs
+			intputBuckets = beam.CreateList(scope, [][]uint128.Uint128{bucketIDs})
+		} else {
+			intputBuckets = beam.CreateList(scope, [][]uint128.Uint128{{}})
 		}
-		getResultSegment := segmentCombine(scope, inputVec, 1<<logN, 13, intputBuckets)
+		getResultSegment := segmentCombine(scope, inputVec, intputBuckets, 1<<logN, 13)
 		passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultSegment), wantResult)
 
-		getResultDirect := directCombine(scope, inputVec, 1<<logN, intputBuckets)
+		getResultDirect := directCombine(scope, inputVec, intputBuckets, 1<<logN)
 		passert.Equals(scope, beam.ParDo(scope, convertIDPartialAggregationFn, getResultDirect), wantResult)
 
 		if err := ptest.Run(pipeline); err != nil {
-			t.Fatalf("pipeline failed: %s", err)
+			t.Fatalf("pipeline failed with input buckets %v: %s", withBucketIDs, err)
 		}
 	}
 }
@@ -290,11 +292,11 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams, keyBitSize)
 	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams, keyBitSize)
 
-	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, ctxParams, combineParams)
+	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, ctxParams, combineParams, keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, ctxParams, combineParams)
+	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, ctxParams, combineParams, keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,11 +342,11 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	}
 	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, keyBitSize)
 	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0, keyBitSize)
-	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, ctxParams, combineParams)
+	partialResult01, err := ExpandAndCombineHistogram(scope, evalCtx01, expandParams0, ctxParams, combineParams, keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, ctxParams, combineParams)
+	partialResult02, err := ExpandAndCombineHistogram(scope, evalCtx02, expandParams0, ctxParams, combineParams, keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,11 +365,11 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	}
 	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, keyBitSize)
 	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1, keyBitSize)
-	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, ctxParams, combineParams)
+	partialResult11, err := ExpandAndCombineHistogram(scope, evalCtx11, expandParams1, ctxParams, combineParams, keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, ctxParams, combineParams)
+	partialResult12, err := ExpandAndCombineHistogram(scope, evalCtx12, expandParams1, ctxParams, combineParams, keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}

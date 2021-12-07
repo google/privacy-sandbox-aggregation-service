@@ -398,3 +398,26 @@ func CheckExpansionParameters(params []*dpfpb.DpfParameters, prefixes [][]uint12
 	}
 	return nil
 }
+
+// GetVectorLength calculates the length of expanded vectors.
+func GetVectorLength(params []*dpfpb.DpfParameters, prefixes [][]uint128.Uint128, levels []int32, previousLevel int32) (uint64, error) {
+	// For direct expansion, return empty slice to avoid generating extra data.
+	// Because in this case, the bucket ID equals the vector index.
+	if len(levels) == 1 && previousLevel == -1 {
+		finalLevel := levels[len(levels)-1]
+		return uint64(1) << params[finalLevel].LogDomainSize, nil
+	}
+
+	var prefixBitSize int32
+	if len(levels) > 1 {
+		prefixBitSize = params[levels[len(levels)-2]].GetLogDomainSize()
+	} else {
+		prefixBitSize = params[previousLevel].GetLogDomainSize()
+	}
+	finalBitSize := params[levels[len(levels)-1]].GetLogDomainSize()
+	finalPrefixes := prefixes[len(prefixes)-1]
+
+	expansionBits := finalBitSize - prefixBitSize
+	expansionSize := uint64(1) << expansionBits
+	return uint64(len(finalPrefixes)) * expansionSize, nil
+}

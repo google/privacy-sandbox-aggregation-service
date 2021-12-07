@@ -188,11 +188,11 @@ func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 		ctx1 := dpfaggregator.CreateEvaluationContext(scope, pr1, expandParams, keyBitSize)
 		ctx2 := dpfaggregator.CreateEvaluationContext(scope, pr2, expandParams, keyBitSize)
 
-		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, ctxParams, combineParams)
+		ph1, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx1, expandParams, ctxParams, combineParams, keyBitSize)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, ctxParams, combineParams)
+		ph2, err := dpfaggregator.ExpandAndCombineHistogram(scope, ctx2, expandParams, ctxParams, combineParams, keyBitSize)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -35,7 +35,7 @@ var (
 	helperAddress2     = flag.String("helper_address2", "", "Address of helper 2.")
 	partialReportURI1  = flag.String("partial_report_uri1", "", "Input partial report for helper 1.")
 	partialReportURI2  = flag.String("partial_report_uri2", "", "Input partial report for helper 2.")
-	expansionConfigURI = flag.String("expansion_config_uri", "", "URI for the expansion configurations that defines the query hierarchy.")
+	expansionConfigURI = flag.String("expansion_config_uri", "", "URI for the expansion configurations with type query.HierarchicalConfig or query.DirectConfig.")
 	epsilon            = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
 	keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	resultDir          = flag.String("result_dir", "", "The directory where the final results will be saved. Helpers should only have writing permissions to this directory.")

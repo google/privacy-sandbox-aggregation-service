@@ -37,6 +37,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -90,9 +91,10 @@ func init() {
 
 // ExpandParameters contains required parameters for expanding the DPF keys.
 type ExpandParameters struct {
-	Levels        []int32
-	Prefixes      [][]uint128.Uint128
-	PreviousLevel int32
+	Levels          []int32
+	Prefixes        [][]uint128.Uint128
+	PreviousLevel   int32
+	DirectExpansion bool
 }
 
 // parseEncryptedPartialReportFn parses each line of the input partial report and gets a StandardCiphertext, which represents a encrypted PartialReportDpf.
@@ -329,11 +331,19 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 		err    error
 	)
 
-	for i, level := range fn.ExpandParams.Levels {
-		vecSum, err = incrementaldpf.EvaluateUntil64Unsafe(int(level), fn.cPrefixes[i], fn.cPrefixesLength[i], evalCtx)
+	if fn.ExpandParams.DirectExpansion {
+		vecSum, err = incrementaldpf.EvaluateAt64Unsafe(evalCtx.Parameters, int(fn.ExpandParams.Levels[0]), fn.cPrefixes[0], fn.cPrefixesLength[0], evalCtx.Key)
 		if err != nil {
 			return err
 		}
+	} else {
+		for i, level := range fn.ExpandParams.Levels {
+			vecSum, err = incrementaldpf.EvaluateUntil64Unsafe(int(level), fn.cPrefixes[i], fn.cPrefixesLength[i], evalCtx)
+			if err != nil {
+				return err
+			}
+		}
+
 	}
 
 	emitVec(&expandedVec{SumVec: vecSum})
@@ -568,16 +578,28 @@ func (fn *getBucketIDsFn) ProcessElement(ctx context.Context, prefixes []uint128
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
 func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *ExpandParameters, dpfParams []*dpfpb.DpfParameters, combineParams *CombineParams, keyBitSize int) (beam.PCollection, error) {
 	prefixes := beam.Create(scope, expandParams.Prefixes[0])
-	bucketIDs := beam.ParDo(scope, &getBucketIDsFn{Level: expandParams.Levels[0], PreviousLevel: expandParams.PreviousLevel, KeyBitSize: keyBitSize}, prefixes)
+	var (
+		bucketIDs    beam.PCollection
+		vectorLength uint64
+		err          error
+	)
+	if expandParams.DirectExpansion {
+		bucketIDs = prefixes
+		vectorLength = uint64(len(expandParams.Prefixes[0]))
+		if vectorLength == 0 {
+			return beam.PCollection{}, errors.New("expect nonempty bucket IDs for direct query")
+		}
+	} else {
+		bucketIDs = beam.ParDo(scope, &getBucketIDsFn{Level: expandParams.Levels[0], PreviousLevel: expandParams.PreviousLevel, KeyBitSize: keyBitSize}, prefixes)
+		vectorLength, err = incrementaldpf.GetVectorLength(dpfParams, expandParams.Prefixes, expandParams.Levels, expandParams.PreviousLevel)
+		if err != nil {
+			return beam.PCollection{}, err
+		}
+	}
 
 	expanded := beam.ParDo(scope, &expandDpfKeyFn{
 		ExpandParams: expandParams,
 	}, evaluationContext)
-
-	vectorLength, err := incrementaldpf.GetVectorLength(dpfParams, expandParams.Prefixes, expandParams.Levels, expandParams.PreviousLevel)
-	if err != nil {
-		return beam.PCollection{}, err
-	}
 
 	var rawResult beam.PCollection
 	if combineParams.DirectCombine {
@@ -616,12 +638,15 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 		return err
 	}
 
-	if err := incrementaldpf.CheckExpansionParameters(
-		dpfParams,
-		params.ExpandParams.Prefixes,
-		params.ExpandParams.Levels,
-		params.ExpandParams.PreviousLevel,
-	); err != nil {
+	if !params.ExpandParams.DirectExpansion {
+		err = incrementaldpf.CheckExpansionParameters(
+			dpfParams,
+			params.ExpandParams.Prefixes,
+			params.ExpandParams.Levels,
+			params.ExpandParams.PreviousLevel,
+		)
+	}
+	if err != nil {
 		return err
 	}
 
@@ -632,7 +657,7 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 	if params.ExpandParams.PreviousLevel < 0 {
 		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
 		decryptedReport = DecryptPartialReport(scope, encrypted, params.HelperPrivateKeys)
-		if !isFinalLevel {
+		if !isFinalLevel && !params.ExpandParams.DirectExpansion {
 			writePartialReport(scope, decryptedReport, params.DecryptedReportURI, params.Shards)
 		}
 	} else {

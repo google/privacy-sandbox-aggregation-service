@@ -308,6 +308,42 @@ func EvaluateAt64(params []*dpfpb.DpfParameters, hierarchyLevel int, evaluationP
 	return expanded, nil
 }
 
+// EvaluateAt64Unsafe evaluates the DPF keys the same with EvaluateAt64, except it takes a unsafe pointer which the user is responsible of freeing after calling it.
+func EvaluateAt64Unsafe(params []*dpfpb.DpfParameters, hierarchyLevel int, bukcetsPtr unsafe.Pointer, bukcetsLength int64, dpfKey *dpfpb.DpfKey) ([]uint64, error) {
+	cParamsSize := C.int64_t(len(params))
+	cParams, cParamPointers, err := createCParams(params)
+	defer freeCParams(cParams, cParamPointers)
+	if err != nil {
+		return nil, err
+	}
+
+	bDpfKey, err := proto.Marshal(dpfKey)
+	if err != nil {
+		return nil, err
+	}
+	cDpfKey := C.struct_CBytes{c: (*C.char)(C.CBytes(bDpfKey)), l: C.int(len(bDpfKey))}
+	cResult := C.struct_CUInt64Vec{}
+	errStr := C.struct_CBytes{}
+	status := C.CEvaluateAt64(cParams, cParamsSize, &cDpfKey, C.int(hierarchyLevel), (*C.struct_CUInt128)(bukcetsPtr), C.int64_t(bukcetsLength), &cResult, &errStr)
+	defer C.free(unsafe.Pointer(cResult.vec))
+	defer freeCBytes(errStr)
+	if status != 0 {
+		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
+	}
+
+	const maxLen = 1 << 30
+	vecLen := uint64(cResult.vec_size)
+	if vecLen > maxLen {
+		return nil, fmt.Errorf("vector length %d should not exceed %d", vecLen, maxLen)
+	}
+	es := (*[maxLen]C.uint64_t)(unsafe.Pointer(cResult.vec))[:vecLen:vecLen]
+	expanded := make([]uint64, vecLen)
+	for i := uint64(0); i < uint64(vecLen); i++ {
+		expanded[i] = uint64(es[i])
+	}
+	return expanded, nil
+}
+
 // CalculateBucketID gets the bucket ID for values in the expanded vectors for certain level of hierarchy.
 // If previousLevel = 1, the DPF key has not been evaluated yet:
 // http://github.com/google/distributed_point_functions/dpf/distributed_point_function.cc?l=730&rcl=396584858

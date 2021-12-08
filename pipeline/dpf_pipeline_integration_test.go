@@ -25,11 +25,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestPipeline(t *testing.T) {
-	testPipeline(t, false /*encryptOutput*/)
-	testPipeline(t, true /*encryptOutput*/)
+	testHierarchicalPipeline(t, false /*encryptOutput*/)
+	testHierarchicalPipeline(t, true /*encryptOutput*/)
+	testDirectPipeline(t, false /*encryptOutput*/)
+	testDirectPipeline(t, true /*encryptOutput*/)
 }
 
-func testPipeline(t testing.TB, encryptOutput bool) {
+func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
 
 	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
@@ -94,9 +96,10 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	}
 	expandParamsURI0 := path.Join(expandParamsDir, "expand_params0")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:        []int32{1},
-		Prefixes:      [][]uint128.Uint128{{}},
-		PreviousLevel: -1,
+		Levels:          []int32{1},
+		Prefixes:        [][]uint128.Uint128{{}},
+		PreviousLevel:   -1,
+		DirectExpansion: false,
 	}, expandParamsURI0); err != nil {
 		t.Fatal(err)
 	}
@@ -167,9 +170,10 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 	// Second-level aggregation: 5-bit prefixes.
 	expandParamsURI1 := path.Join(expandParamsDir, "expand_params1")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:        []int32{4},
-		Prefixes:      [][]uint128.Uint128{{uint128.From64(2), uint128.From64(3)}},
-		PreviousLevel: 1,
+		Levels:          []int32{4},
+		Prefixes:        [][]uint128.Uint128{{uint128.From64(2), uint128.From64(3)}},
+		PreviousLevel:   1,
+		DirectExpansion: false,
 	}, expandParamsURI1); err != nil {
 		t.Fatal(err)
 	}
@@ -224,6 +228,129 @@ func testPipeline(t testing.TB, encryptOutput bool) {
 		{Bucket: uint128.From64(30), Sum: 0},
 		{Bucket: uint128.From64(31), Sum: 0},
 	}, gotResult1, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Bucket.Cmp(b.Bucket) == -1 })); diff != "" {
+		t.Errorf("results mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func testDirectPipeline(t testing.TB, encryptOutput bool) {
+	ctx := context.Background()
+
+	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createKeyBinary, err := ioutils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generateTestDataBinary, err := ioutils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dpfAggregateBinary, err := ioutils.RunfilesPath("pipeline/dpf_aggregate_partial_report_pipeline", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	encryptionKeyDir := path.Join(tmpDir, "encryption_key_dir")
+	if err := os.MkdirAll(encryptionKeyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	privateKeyURI := path.Join(encryptionKeyDir, "private_key")
+	publicKeyURI := path.Join(encryptionKeyDir, "public_key")
+	if err := executeCommand(ctx, createKeyBinary,
+		"--private_key_dir="+encryptionKeyDir,
+		"--private_key_info_file="+privateKeyURI,
+		"--public_key_info_file="+publicKeyURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	partialReportDir := path.Join(tmpDir, "partial_report_dir")
+	if err := os.MkdirAll(partialReportDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	partialReportURI1 := path.Join(partialReportDir, "encrypted_partial_report1")
+	partialReportURI2 := path.Join(partialReportDir, "encrypted_partial_report2")
+	if err := executeCommand(ctx, generateTestDataBinary,
+		"--conversion_uri="+testFile,
+		"--encrypted_report_uri1="+partialReportURI1,
+		"--encrypted_report_uri2="+partialReportURI2,
+		"--public_keys_uri1="+publicKeyURI,
+		"--public_keys_uri2="+publicKeyURI,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
+		"--encrypt_output="+strconv.FormatBool(encryptOutput),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	expandParamsDir := path.Join(tmpDir, "expand_params_dir")
+	if err := os.MkdirAll(expandParamsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	expandParamsURI := path.Join(expandParamsDir, "expand_params")
+	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
+		Levels:          []int32{4},
+		Prefixes:        [][]uint128.Uint128{{uint128.From64(16), uint128.From64(22)}},
+		PreviousLevel:   -1,
+		DirectExpansion: true,
+	}, expandParamsURI); err != nil {
+		t.Fatal(err)
+	}
+
+	partialResultDir1 := path.Join(tmpDir, "partial_result_dir1")
+	if err := os.MkdirAll(partialResultDir1, 0755); err != nil {
+		t.Fatal(err)
+	}
+	partialResultDir2 := path.Join(tmpDir, "partial_result_dir2")
+	if err := os.MkdirAll(partialResultDir2, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	partialHistogramURI1 := path.Join(partialResultDir1, "partial_histogram1")
+	if err := executeCommand(ctx, dpfAggregateBinary,
+		"--partial_report_uri="+partialReportURI1,
+		"--expand_parameters_uri="+expandParamsURI,
+		"--partial_histogram_uri="+partialHistogramURI1,
+		"--private_key_params_uri="+privateKeyURI,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	partialHistogramURI2 := path.Join(partialResultDir2, "partial_histogram2")
+	if err := executeCommand(ctx, dpfAggregateBinary,
+		"--partial_report_uri="+partialReportURI2,
+		"--expand_parameters_uri="+expandParamsURI,
+		"--partial_histogram_uri="+partialHistogramURI2,
+		"--private_key_params_uri="+privateKeyURI,
+		"--key_bit_size="+strconv.Itoa(keyBitSize),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	result1, err := dpfaggregator.ReadPartialHistogram(ctx, partialHistogramURI1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result2, err := dpfaggregator.ReadPartialHistogram(ctx, partialHistogramURI2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotResult, err := dpfaggregator.MergePartialResult(result1, result2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]dpfaggregator.CompleteHistogram{
+		{Bucket: uint128.From64(16), Sum: 256},
+		{Bucket: uint128.From64(22), Sum: 0},
+	}, gotResult, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Bucket.Cmp(b.Bucket) == -1 })); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 }

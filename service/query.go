@@ -48,6 +48,11 @@ type HierarchicalConfig struct {
 	ExpansionThresholdPerPrefix []uint64
 }
 
+// DirectConfig contains the parameters for the direct query model.
+type DirectConfig struct {
+	BucketIDs []uint128.Uint128
+}
+
 // PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
 type PrefixHistogramQuery struct {
 	QueryID                              string
@@ -253,6 +258,19 @@ func ReadHierarchicalConfigFile(ctx context.Context, filename string) (*Hierarch
 	return config, validateHierarchicalConfig(config)
 }
 
+// ReadDirectConfigFile reads the DirectConfig from a file and validate it.
+func ReadDirectConfigFile(ctx context.Context, filename string) (*DirectConfig, error) {
+	bc, err := ioutils.ReadBytes(ctx, filename)
+	if err != nil {
+		return nil, err
+	}
+	config := &DirectConfig{}
+	if err := json.Unmarshal(bc, config); err != nil {
+		return nil, err
+	}
+	return config, validateDirectConfig(config)
+}
+
 // Default basic file names.
 const (
 	DefaultExpandParamsFile    = "EXPANDPARAMS"
@@ -369,6 +387,13 @@ func validateHierarchicalConfig(config *HierarchicalConfig) error {
 	return nil
 }
 
+func validateDirectConfig(config *DirectConfig) error {
+	if len(config.BucketIDs) == 0 {
+		return errors.New("expect nonempty bucket IDs")
+	}
+	return nil
+}
+
 func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold uint64) []uint128.Uint128 {
 	var prefixes []uint128.Uint128
 	for _, r := range result {
@@ -399,7 +424,8 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *HierarchicalConfig) (*dpfaggregator.ExpandParameters, error) {
 	expandParams := &dpfaggregator.ExpandParameters{
 		// The DPF levels correspond to the query prefix lengths.
-		Levels: []int32{config.PrefixLengths[queryLevel] - 1},
+		Levels:          []int32{config.PrefixLengths[queryLevel] - 1},
+		DirectExpansion: false,
 	}
 	if previousResults == nil {
 		expandParams.PreviousLevel = -1

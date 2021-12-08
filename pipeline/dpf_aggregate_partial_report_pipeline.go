@@ -51,8 +51,8 @@ import (
 var (
 	partialReportURI    = flag.String("partial_report_uri", "", "Input partial reports. It may contain the original encrypted partial reports or evaluation context.")
 	expandParametersURI = flag.String("expand_parameters_uri", "", "Input URI of the expansion parameter file.")
-	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output partial aggregation.")
-	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output the decrypted partial reports so the helper won't need to do the decryption repeatedly.")
+	partialHistogramURI = flag.String("partial_histogram_uri", "", "Output location of partial aggregation.")
+	decryptedReportURI  = flag.String("decrypted_report_uri", "", "Output location of the decrypted partial reports for hierarchical query so the helper won't need to do the decryption repeatedly.")
 	keyBitSize          = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
 
@@ -85,7 +85,7 @@ func main() {
 		if err != nil {
 			log.Exit(ctx, err)
 		}
-		if *decryptedReportURI == "" {
+		if *decryptedReportURI == "" && !expandParams.DirectExpansion {
 			log.Exitf(ctx, "expect non-empty output decrypt report URI")
 		}
 	}

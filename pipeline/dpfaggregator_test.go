@@ -260,7 +260,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 
 const keyBitSize = 8
 
-func TestDirectAggregationAndMerge(t *testing.T) {
+func TestAggregationAndMerge(t *testing.T) {
 	want := []CompleteHistogram{
 		{Bucket: uint128.From64(1), Sum: 10},
 	}
@@ -280,9 +280,10 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	}
 
 	expandParams := &ExpandParameters{
-		Levels:        []int32{7},
-		Prefixes:      [][]uint128.Uint128{{}},
-		PreviousLevel: -1,
+		Levels:          []int32{7},
+		Prefixes:        [][]uint128.Uint128{{}},
+		PreviousLevel:   -1,
+		DirectExpansion: false,
 	}
 	combineParams := &CombineParams{
 		DirectCombine: true,
@@ -336,9 +337,10 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the first level.
 	expandParams0 := &ExpandParameters{
-		Prefixes:      [][]uint128.Uint128{{}},
-		Levels:        []int32{3},
-		PreviousLevel: -1,
+		Prefixes:        [][]uint128.Uint128{{}},
+		Levels:          []int32{3},
+		PreviousLevel:   -1,
+		DirectExpansion: false,
 	}
 	evalCtx01 := CreateEvaluationContext(scope, partialReport1, expandParams0, keyBitSize)
 	evalCtx02 := CreateEvaluationContext(scope, partialReport2, expandParams0, keyBitSize)
@@ -359,9 +361,10 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the second level.
 	expandParams1 := &ExpandParameters{
-		Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
-		Levels:        []int32{7},
-		PreviousLevel: 3,
+		Prefixes:        [][]uint128.Uint128{{uint128.From64(1)}},
+		Levels:          []int32{7},
+		PreviousLevel:   3,
+		DirectExpansion: false,
 	}
 	evalCtx11 := CreateEvaluationContext(scope, partialReport1, expandParams1, keyBitSize)
 	evalCtx12 := CreateEvaluationContext(scope, partialReport2, expandParams1, keyBitSize)
@@ -377,6 +380,56 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	joined1 := beam.CoGroupByKey(scope, partialResult11, partialResult12)
 	got1 := beam.ParDo(scope, &mergeHistogramFn{}, joined1)
 	passert.Equals(scope, got1, beam.CreateList(scope, want))
+
+	if err := ptest.Run(pipeline); err != nil {
+		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func TestDirectAggregationAndMerge(t *testing.T) {
+	want := []CompleteHistogram{
+		{Bucket: uint128.From64(16), Sum: 10},
+	}
+	var reports []rawConversion
+	for _, h := range want {
+		for i := uint64(0); i < h.Sum; i++ {
+			reports = append(reports, rawConversion{Index: h.Bucket, Value: 1})
+		}
+	}
+	combineParams := &CombineParams{
+		DirectCombine: true,
+	}
+	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipeline, scope := beam.NewPipelineWithRoot()
+	conversions := beam.CreateList(scope, reports)
+
+	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
+	expandParams := &ExpandParameters{
+		Prefixes:        [][]uint128.Uint128{{uint128.From64(16), uint128.From64(17)}},
+		Levels:          []int32{7},
+		PreviousLevel:   -1,
+		DirectExpansion: true,
+	}
+	evalCtx1 := CreateEvaluationContext(scope, partialReport1, expandParams, keyBitSize)
+	evalCtx2 := CreateEvaluationContext(scope, partialReport2, expandParams, keyBitSize)
+	partialResult1, err := ExpandAndCombineHistogram(scope, evalCtx1, expandParams, ctxParams, combineParams, keyBitSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialResult2, err := ExpandAndCombineHistogram(scope, evalCtx2, expandParams, ctxParams, combineParams, keyBitSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined := beam.CoGroupByKey(scope, partialResult1, partialResult2)
+	got := beam.ParDo(scope, &mergeHistogramFn{}, joined)
+	passert.Equals(scope, got, beam.CreateList(scope, []CompleteHistogram{
+		{Bucket: uint128.From64(16), Sum: 10},
+	}))
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
@@ -608,9 +661,10 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	defer os.RemoveAll(baseDir)
 
 	wantExpandParams := &ExpandParameters{
-		Levels:        []int32{1, 2, 3},
-		Prefixes:      [][]uint128.Uint128{{}, {uint128.From64(1)}},
-		PreviousLevel: -1,
+		Levels:          []int32{1, 2, 3},
+		Prefixes:        [][]uint128.Uint128{{}, {uint128.From64(1)}},
+		PreviousLevel:   -1,
+		DirectExpansion: false,
 	}
 	expandPath := path.Join(baseDir, "expand.txt")
 

@@ -30,6 +30,8 @@ import (
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/storage"
+	"lukechampine.com/uint128"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
 	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
@@ -138,8 +140,18 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 			msg.Nack()
 			return
 		}
-		if err := h.aggregatePartialReportHierarchy(ctx, request); err != nil {
-			log.Error(err)
+
+		var aggErr error
+		if hierarchicalConfig, err := query.ReadHierarchicalConfigFile(ctx, request.ExpandConfigURI); err == nil {
+			aggErr = h.aggregatePartialReportHierarchical(ctx, request, hierarchicalConfig)
+		} else if directConfig, err := query.ReadDirectConfigFile(ctx, request.ExpandConfigURI); err == nil {
+			aggErr = h.aggregatePartialReportDirect(ctx, request, directConfig)
+		} else {
+			log.Errorf("invalid expansion configuration in URI %s", request.ExpandConfigURI)
+		}
+
+		if aggErr != nil {
+			log.Error(aggErr)
 			msg.Nack()
 			return
 		}
@@ -151,12 +163,7 @@ func getFinalPartialResultURI(resultDir, queryID, origin string) string {
 	return ioutils.JoinPath(resultDir, fmt.Sprintf("%s_%s", queryID, strings.ReplaceAll(origin, ".", "_")))
 }
 
-func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, request *query.AggregateRequest) error {
-	config, err := query.ReadHierarchicalConfigFile(ctx, request.ExpandConfigURI)
-	if err != nil {
-		return nil
-	}
-
+func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, request *query.AggregateRequest, config *query.HierarchicalConfig) error {
 	finalLevel := int32(len(config.PrefixLengths)) - 1
 	if request.QueryLevel > finalLevel {
 		return fmt.Errorf("expect request level <= finalLevel %d, got %d", finalLevel, request.QueryLevel)
@@ -257,6 +264,64 @@ func (h *QueryHandler) aggregatePartialReportHierarchy(ctx context.Context, requ
 		return err
 	}
 	return utils.PublishRequest(ctx, h.PubSubTopicClient, topic, request)
+}
+
+func (h *QueryHandler) aggregatePartialReportDirect(ctx context.Context, request *query.AggregateRequest, config *query.DirectConfig) error {
+	expandParamsURI := ioutils.JoinPath(h.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s", request.QueryID, query.DefaultExpandParamsFile))
+	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
+		Levels:          []int32{request.KeyBitSize - 1},
+		Prefixes:        [][]uint128.Uint128{config.BucketIDs},
+		DirectExpansion: true,
+		PreviousLevel:   -1,
+	}, expandParamsURI); err != nil {
+		return err
+	}
+
+	outputResultURI := getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
+	args := []string{
+		"--partial_report_uri=" + request.PartialReportURI,
+		"--expand_parameters_uri=" + expandParamsURI,
+		"--partial_histogram_uri=" + outputResultURI,
+		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon),
+		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+		"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
+		"--runner=" + h.PipelineRunner,
+	}
+
+	if h.PipelineRunner == "dataflow" {
+		args = append(args,
+			"--project="+h.DataflowCfg.Project,
+			"--region="+h.DataflowCfg.Region,
+			"--zone="+h.DataflowCfg.Zone,
+			"--temp_location="+h.DataflowCfg.TempLocation,
+			"--staging_location="+h.DataflowCfg.StagingLocation,
+			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
+			"--num_workers="+fmt.Sprint(request.NumWorkers),
+			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
+			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
+		)
+	}
+
+	str := h.ServerCfg.DpfAggregatePartialReportBinary
+	for _, s := range args {
+		str = fmt.Sprintf("%s\n%s", str, s)
+	}
+	log.Infof("Running command\n%s", str)
+
+	cmd := exec.CommandContext(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		log.Errorf("%s: %s", err, stderr.String())
+		log.Infof("output of cmd: %s", out.String())
+		return err
+	}
+
+	log.Infof("query %q complete", request.QueryID)
+	return nil
 }
 
 // ReadHelperSharedInfo reads the helper shared info from a URL.

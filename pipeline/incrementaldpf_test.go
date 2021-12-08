@@ -263,6 +263,11 @@ func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
 }
 
 func TestEvaluateAt64(t *testing.T) {
+	testEvaluateAt64(t, true /*useSafe*/)
+	testEvaluateAt64(t, false /*useSafe*/)
+}
+
+func testEvaluateAt64(t *testing.T, useSafe bool) {
 	os.Setenv("GODEBUG", "cgocheck=2")
 	params := []*dpfpb.DpfParameters{
 		{LogDomainSize: 128, ValueType: &dpfpb.ValueType{Type: &dpfpb.ValueType_Integer_{Integer: &dpfpb.ValueType_Integer{Bitsize: 64}}}},
@@ -276,14 +281,29 @@ func TestEvaluateAt64(t *testing.T) {
 	evaluationPoints := []uint128.Uint128{
 		alpha, uint128.From64(0), uint128.From64(1), uint128.Max}
 
-	evaluated1, err := EvaluateAt64(params, 0, evaluationPoints, k1)
-	if err != nil {
-		t.Fatal(err)
+	var evaluated1, evaluated2 []uint64
+	if useSafe {
+		evaluated1, err = EvaluateAt64(params, 0, evaluationPoints, k1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		evaluated2, err = EvaluateAt64(params, 0, evaluationPoints, k2)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		bucketIDs, bucketIDlength := CreateCUint128ArrayUnsafe(evaluationPoints)
+		defer FreeUnsafePointer(bucketIDs)
+		evaluated1, err = EvaluateAt64Unsafe(params, 0, bucketIDs, bucketIDlength, k1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		evaluated2, err = EvaluateAt64Unsafe(params, 0, bucketIDs, bucketIDlength, k2)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-	evaluated2, err := EvaluateAt64(params, 0, evaluationPoints, k2)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	if len(evaluated1) != len(evaluated2) {
 		t.Fatalf("Evaluated arrays have different lengths")
 	}

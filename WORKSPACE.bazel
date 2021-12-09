@@ -41,11 +41,22 @@ load("//:deps.bzl", "go_dependencies")
 go_dependencies()
 gazelle_dependencies(go_repository_default_config = "@//:WORKSPACE.bazel")
 
-git_repository(
+http_archive(
     name = "com_google_absl",
-    commit = "0f3bb466b868b523cf1dc9b2aaaed65c77b28862",
-    remote = "https://github.com/abseil/abseil-cpp.git",
-    shallow_since = "1603283562 -0400",
+    sha256 = "368be019fc8d69a566ac2cf7a75262d5ba8f6409e3ef3cdbcf0106bdeb32e91c",
+    strip_prefix = "abseil-cpp-9336be04a242237cd41a525bedfcf3be1bb55377",
+    urls = [
+        "https://github.com/abseil/abseil-cpp/archive/9336be04a242237cd41a525bedfcf3be1bb55377.zip",
+    ],
+)
+
+http_archive(
+    name = "boringssl",
+    sha256 = "8410719cd36c41a96f375a2b868fc24378d86112dcb2be022ffcb2fbfec2432a",
+    strip_prefix = "boringssl-4fb158925f7753d80fb858cb0239dff893ef9f15",
+    urls = [
+        "https://github.com/google/boringssl/archive/4fb158925f7753d80fb858cb0239dff893ef9f15.zip",
+    ],
 )
 
 git_repository(
@@ -158,7 +169,7 @@ http_archive(
 
 git_repository(
     name = "com_github_google_distributed_point_functions",
-    commit = "375cd56988ff8a7c5da5dd5f6816a5403566c763",
+    commit = "99bfe651ae126242c7223f69570a2d00ccac0f5f",
     remote = "https://github.com/google/distributed_point_functions.git",
 )
 

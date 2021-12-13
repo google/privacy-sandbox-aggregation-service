@@ -333,10 +333,17 @@ func CalculatePrefixes(root *PrefixNode) ([][]uint128.Uint128, []uint64) {
 // 'prefixBitSizes' defines the domain sizes for the DPF key expansion on different hierarchies; and 'logN' defines the total size of domain for the final histogram.
 func CalculateParameters(prefixBitSizes []uint64, logN, elementBitSizeSum int32) *pb.IncrementalDpfParameters {
 	var sumParams []*dpfpb.DpfParameters
-	for _, p := range prefixBitSizes {
-		sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: int32(p), ElementBitsize: elementBitSizeSum})
+	var valueType = &dpfpb.ValueType{
+		Type: &dpfpb.ValueType_Integer_{
+			Integer: &dpfpb.ValueType_Integer{
+				Bitsize: elementBitSizeSum,
+			},
+		},
 	}
-	sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: logN, ElementBitsize: elementBitSizeSum})
+	for _, p := range prefixBitSizes {
+		sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: int32(p), ValueType: valueType})
+	}
+	sumParams = append(sumParams, &dpfpb.DpfParameters{LogDomainSize: logN, ValueType: valueType})
 	return &pb.IncrementalDpfParameters{Params: sumParams}
 }
 

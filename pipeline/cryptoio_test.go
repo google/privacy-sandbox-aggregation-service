@@ -87,8 +87,24 @@ func TestReadWriteDPFparameters(t *testing.T) {
 
 	wantParams := &pb.IncrementalDpfParameters{
 		Params: []*dpfpb.DpfParameters{
-			{LogDomainSize: 111, ElementBitsize: 121},
-			{LogDomainSize: 222, ElementBitsize: 212},
+			{LogDomainSize: 111,
+				ValueType: &dpfpb.ValueType{
+					Type: &dpfpb.ValueType_Integer_{
+						Integer: &dpfpb.ValueType_Integer{
+							Bitsize: 121,
+						},
+					},
+				},
+			},
+			{LogDomainSize: 222,
+				ValueType: &dpfpb.ValueType{
+					Type: &dpfpb.ValueType_Integer_{
+						Integer: &dpfpb.ValueType_Integer{
+							Bitsize: 212,
+						},
+					},
+				},
+			},
 		},
 	}
 	paramsPath := path.Join(baseDir, "params.txt")

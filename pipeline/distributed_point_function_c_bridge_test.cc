@@ -22,9 +22,9 @@ using ::distributed_point_functions::DpfParameters;
 TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
   DpfParameters param0, param1;
   param0.set_log_domain_size(2);
-  param0.set_element_bitsize(64);
+  param0.mutable_value_type()->mutable_integer()->set_bitsize(64);
   param1.set_log_domain_size(4);
-  param1.set_element_bitsize(64);
+  param1.mutable_value_type()->mutable_integer()->set_bitsize(64);
 
   CBytes b_param0, b_param1;
   ASSERT_TRUE(AllocateCBytes(param0.ByteSizeLong(), &b_param0) &&
@@ -89,11 +89,11 @@ TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
 TEST(DistributedPointFunctionBridge, TestMultiLevelKeyGenEval) {
   DpfParameters param0, param1, param2;
   param0.set_log_domain_size(2);
-  param0.set_element_bitsize(64);
+  param0.mutable_value_type()->mutable_integer()->set_bitsize(64);
   param1.set_log_domain_size(4);
-  param1.set_element_bitsize(64);
+  param1.mutable_value_type()->mutable_integer()->set_bitsize(64);
   param2.set_log_domain_size(5);
-  param2.set_element_bitsize(64);
+  param2.mutable_value_type()->mutable_integer()->set_bitsize(64);
 
   CBytes b_param0, b_param1, b_param2;
   ASSERT_TRUE(AllocateCBytes(param0.ByteSizeLong(), &b_param0) &&
@@ -178,7 +178,7 @@ TEST(DistributedPointFunctionBridge, TestMultiLevelKeyGenEval) {
 
 TEST(DistributedPointFunctionBridge, TestReturnError) {
   DpfParameters param;
-  param.set_element_bitsize(-1);
+  param.mutable_value_type()->mutable_integer()->set_bitsize(-1);
   param.set_log_domain_size(-1);
 
   CBytes b_params;
@@ -202,7 +202,7 @@ TEST(DistributedPointFunctionBridge, TestReturnError) {
 TEST(DistributedPointFunctionBridge, TestEvaluateAt64) {
   DpfParameters param;
   param.set_log_domain_size(128);
-  param.set_element_bitsize(64);
+  param.mutable_value_type()->mutable_integer()->set_bitsize(64);
 
   CBytes b_param;
   ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&

@@ -190,8 +190,14 @@ func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
 	allParams := make([]*dpfpb.DpfParameters, keyBitSize)
 	for i := int32(1); i <= int32(keyBitSize); i++ {
 		allParams[i-1] = &dpfpb.DpfParameters{
-			LogDomainSize:  i,
-			ElementBitsize: incrementaldpf.DefaultElementBitSize,
+			LogDomainSize: i,
+			ValueType: &dpfpb.ValueType{
+				Type: &dpfpb.ValueType_Integer_{
+					Integer: &dpfpb.ValueType_Integer{
+						Bitsize: incrementaldpf.DefaultElementBitSize,
+					},
+				},
+			},
 		}
 	}
 	return allParams, nil

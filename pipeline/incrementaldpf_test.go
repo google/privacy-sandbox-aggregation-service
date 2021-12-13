@@ -25,10 +25,18 @@ import (
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 )
 
+var defaultValueType = &dpfpb.ValueType{
+	Type: &dpfpb.ValueType_Integer_{
+		Integer: &dpfpb.ValueType_Integer{
+			Bitsize: DefaultElementBitSize,
+		},
+	},
+}
+
 func TestDpfGenEvalFunctions(t *testing.T) {
 	os.Setenv("GODEBUG", "cgocheck=2")
 	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 20, ElementBitsize: 64},
+		{LogDomainSize: 20, ValueType: defaultValueType},
 	}
 	k1, k2, err := GenerateKeys(params, uint128.Uint128{}, []uint64{1})
 	if err != nil {
@@ -67,8 +75,8 @@ func TestDpfGenEvalFunctions(t *testing.T) {
 func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	os.Setenv("GODEBUG", "cgocheck=2")
 	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 2, ElementBitsize: 64},
-		{LogDomainSize: 4, ElementBitsize: 64},
+		{LogDomainSize: 2, ValueType: defaultValueType},
+		{LogDomainSize: 4, ValueType: defaultValueType},
 	}
 	alpha, beta := uint128.From64(8), uint64(1)
 	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta, beta})
@@ -151,9 +159,9 @@ func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
 func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
 	os.Setenv("GODEBUG", "cgocheck=2")
 	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 2, ElementBitsize: 64},
-		{LogDomainSize: 4, ElementBitsize: 64},
-		{LogDomainSize: 5, ElementBitsize: 64},
+		{LogDomainSize: 2, ValueType: defaultValueType},
+		{LogDomainSize: 4, ValueType: defaultValueType},
+		{LogDomainSize: 5, ValueType: defaultValueType},
 	}
 	alpha, beta := uint128.From64(16), uint64(1)
 	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta, beta, beta})
@@ -327,9 +335,9 @@ func testEvaluateAt64(t *testing.T, useSafe bool) {
 
 func TestCalculateBucketID(t *testing.T) {
 	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 2, ElementBitsize: 64},
-		{LogDomainSize: 3, ElementBitsize: 64},
-		{LogDomainSize: 4, ElementBitsize: 64},
+		{LogDomainSize: 2, ValueType: defaultValueType},
+		{LogDomainSize: 3, ValueType: defaultValueType},
+		{LogDomainSize: 4, ValueType: defaultValueType},
 	}
 
 	got, err := CalculateBucketID(params, [][]uint128.Uint128{
@@ -379,9 +387,9 @@ func TestValidateLevels(t *testing.T) {
 
 func TestGetVectorLength(t *testing.T) {
 	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 2, ElementBitsize: 64},
-		{LogDomainSize: 3, ElementBitsize: 64},
-		{LogDomainSize: 4, ElementBitsize: 64},
+		{LogDomainSize: 2, ValueType: defaultValueType},
+		{LogDomainSize: 3, ValueType: defaultValueType},
+		{LogDomainSize: 4, ValueType: defaultValueType},
 	}
 
 	got, err := GetVectorLength(params, [][]uint128.Uint128{

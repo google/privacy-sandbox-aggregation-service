@@ -406,8 +406,14 @@ func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold
 
 func extendPrefixDomains(sumParams *cryptopb.IncrementalDpfParameters, prefixLength int32) {
 	sumParams.Params = append(sumParams.Params, &dpfpb.DpfParameters{
-		LogDomainSize:  prefixLength,
-		ElementBitsize: elementBitSize,
+		LogDomainSize: prefixLength,
+		ValueType: &dpfpb.ValueType{
+			Type: &dpfpb.ValueType_Integer_{
+				Integer: &dpfpb.ValueType_Integer{
+					Bitsize: elementBitSize,
+				},
+			},
+		},
 	})
 }
 

@@ -19,7 +19,7 @@
 // The pipeline can be executed in two ways:
 //
 // 1. Directly on local
-// /path/to/test_data_generat \
+// /path/to/generate_test_data_pipeline \
 // --conversion_file=/path/to/conversion_data.csv \
 // --partial_report_file1=/path/to/partial_report_1.txt \
 // --partial_report_file2=/path/to/partial_report_2.txt \
@@ -28,7 +28,7 @@
 // --runner=direct
 //
 // 2. Dataflow on cloud
-// /path/to/generate_partial_report \
+// /path/to/generate_test_data_pipeline \
 // --conversion_file=gs://<browser bucket>/conversion_data.csv \
 // --partial_report_file1=gs://<helper bucket>/partial_report_1.txt \
 // --partial_report_file2=gs://<helper bucket>/partial_report_2.txt \
@@ -38,7 +38,7 @@
 // --project=<GCP project> \
 // --temp_location=gs://<dataflow temp dir> \
 // --staging_location=gs://<dataflow temp dir> \
-// --worker_binary=/path/to/generate_partial_report
+// --worker_binary=/path/to/generate_test_data_pipeline
 
 package main
 

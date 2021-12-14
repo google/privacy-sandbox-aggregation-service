@@ -31,7 +31,7 @@
 // --project=<GCP project> \
 // --temp_location=gs://<dataflow temp dir> \
 // --staging_location=gs://<dataflow temp dir> \
-// --worker_binary=/path/to/dpf_merge_partial_aggregation
+// --worker_binary=/path/to/dpf_merge_partial_aggregation_pipeline
 
 package main
 

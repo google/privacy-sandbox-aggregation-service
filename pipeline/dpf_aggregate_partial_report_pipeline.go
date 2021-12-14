@@ -12,26 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This binary aggregates the partial report for each aggregation ID, which is calculated from the exponentiated conversion keys from the other helper.
+// This binary aggregates the partial report for the bucket ID(or prefixes) specified by the expand parameters.
 // The pipeline can be executed in two ways:
 //
-// 1. Directly on local
-// /path/to/dpf_aggregate_partial_report \
-// --partial_report_file=/path/to/partial_report_file.txt \
-// --partial_histogram_file=/path/to/partial_histogram_file.txt \
-// --private_key_dir=/path/to/private_key_dir \
-// --runner=direct
+// 1. Directly on local with flag '--runner=direct'
 //
-// 2. Dataflow on cloud
-// /path/to/dpf_aggregate_partial_report \
-// --partial_report_file=gs://<helper bucket>/partial_report_file.txt \
-// --partial_histogram_file=gs://<helper bucket>/partial_histogram_file.txt \
-// --private_key_dir=/path/to/private_key_dir \
-// --runner=dataflow \
-// --project=<GCP project> \
-// --temp_location=gs://<dataflow temp dir> \
-// --staging_location=gs://<dataflow temp dir> \
-// --worker_binary=/path/to/dpf_aggregate_partial_report
+// 2. Dataflow on cloud with flag '--runner=dataflow', and the following flags need to be set:
+// --project=<GCP project>
+// --region=<worker region>
+// --temp_location=gs://<dataflow temp dir>
+// --staging_location=gs://<dataflow temp dir>
+// --worker_binary=/path/to/dpf_aggregate_partial_report_pipeline/binary
+// --zone=<worker zone> (optional)
+// --max_num_workers=<number> (optional)
+// --worker_machine_type=<GCE instance type> (optional)
+// --job_name=<unique ongoing job name> (optional)
 package main
 
 import (

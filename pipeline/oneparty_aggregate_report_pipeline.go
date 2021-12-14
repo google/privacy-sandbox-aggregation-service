@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This binary decrypts the encrypted reports and aggregates them.
+// This binary decrypts the encrypted reports generated for the one-party service design and aggregates them.
 package main
 
 import (

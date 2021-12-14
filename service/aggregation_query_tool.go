@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This binary queries the hierarchical aggregation results by publishing the requests on certain PubSub topics.
+// This binary queries the aggregation results by publishing the requests on certain PubSub topics.
 package main
 
 import (

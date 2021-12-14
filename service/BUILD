@@ -241,8 +241,8 @@ go_test(
 )
 
 go_binary(
-    name = "simulate_reporter_hierarchical_aggregation_pubsub",
-    srcs = ["simulate_reporter_hierarchical_aggregation_pubsub.go"],
+    name = "aggregation_query_tool",
+    srcs = ["aggregation_query_tool.go"],
     deps = [
         ":aggregatorservice",
         ":query",

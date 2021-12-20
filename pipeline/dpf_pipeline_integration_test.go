@@ -89,15 +89,14 @@ func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 		t.Fatal(err)
 	}
 
-	// First-level aggregation: 2-bit prefixes.
+	// First-hierarchy aggregation: 2-bit prefixes.
 	expandParamsDir := path.Join(tmpDir, "expand_params_dir")
 	if err := os.MkdirAll(expandParamsDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	expandParamsURI0 := path.Join(expandParamsDir, "expand_params0")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:          []int32{1},
-		Prefixes:        [][]uint128.Uint128{{}},
+		Level:           1,
 		PreviousLevel:   -1,
 		DirectExpansion: false,
 	}, expandParamsURI0); err != nil {
@@ -167,11 +166,11 @@ func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 
-	// Second-level aggregation: 5-bit prefixes.
+	// Second-hierarchy aggregation: 5-bit prefixes.
 	expandParamsURI1 := path.Join(expandParamsDir, "expand_params1")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:          []int32{4},
-		Prefixes:        [][]uint128.Uint128{{uint128.From64(2), uint128.From64(3)}},
+		Level:           4,
+		Prefixes:        []uint128.Uint128{uint128.From64(2), uint128.From64(3)},
 		PreviousLevel:   1,
 		DirectExpansion: false,
 	}, expandParamsURI1); err != nil {
@@ -296,8 +295,8 @@ func testDirectPipeline(t testing.TB, encryptOutput bool) {
 	}
 	expandParamsURI := path.Join(expandParamsDir, "expand_params")
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:          []int32{4},
-		Prefixes:        [][]uint128.Uint128{{uint128.From64(16), uint128.From64(22)}},
+		Level:           4,
+		Prefixes:        []uint128.Uint128{uint128.From64(16), uint128.From64(22)},
 		PreviousLevel:   -1,
 		DirectExpansion: true,
 	}, expandParamsURI); err != nil {

@@ -281,7 +281,6 @@ go_library(
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",
-        "@com_lukechampine_uint128//:go_default_library",
     ],
 )
 

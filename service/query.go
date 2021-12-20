@@ -56,8 +56,8 @@ type DirectConfig struct {
 // PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
 type PrefixHistogramQuery struct {
 	QueryID                              string
-	Prefixes                             [][]uint128.Uint128
-	PrefixeLengths                       []int32
+	Prefixes                             []uint128.Uint128
+	PrefixeLength                        int32
 	PreviousPrefixLength                 int32
 	PartialReportURI1, PartialReportURI2 string
 	PartialAggregationDir                string
@@ -109,7 +109,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			ExpandParametersUri:  params.ExpandParamsURI,
 			QueryId:              phq.QueryID,
 			PreviousPrefixLength: phq.PreviousPrefixLength,
-			PrefixLengths:        phq.PrefixeLengths,
+			PrefixLength:         phq.PrefixeLength,
 			KeyBitSize:           phq.KeyBitSize,
 			NumWorkers:           phq.NumWorkers,
 		})
@@ -139,7 +139,7 @@ func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params ag
 			ExpandParametersUri:  params.ExpandParamsURI,
 			QueryId:              phq.QueryID,
 			PreviousPrefixLength: phq.PreviousPrefixLength,
-			PrefixLengths:        phq.PrefixeLengths,
+			PrefixLength:         phq.PrefixeLength,
 			KeyBitSize:           phq.KeyBitSize,
 			NumWorkers:           phq.NumWorkers,
 		})
@@ -158,9 +158,7 @@ func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfa
 		PreviousLevel: phq.PreviousPrefixLength - 1,
 		Prefixes:      phq.Prefixes,
 	}
-	for _, l := range phq.PrefixeLengths {
-		expandParams.Levels = append(expandParams.Levels, l-1)
-	}
+	expandParams.Level = phq.PrefixeLength - 1
 
 	expandParamsURI := fmt.Sprintf("%s/expand_params%s.txt", phq.ParamsDir, phq.QueryID)
 	if err := dpfaggregator.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
@@ -195,19 +193,16 @@ func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, ep
 
 	var results []HierarchicalResult
 	phq.PreviousPrefixLength = 0
-	phq.Prefixes = [][]uint128.Uint128{{}}
+	phq.Prefixes = []uint128.Uint128{}
 	for i, threshold := range config.ExpansionThresholdPerPrefix {
-		// The user is supposed to query one hierarchy at a time.
-		phq.PrefixeLengths = []int32{config.PrefixLengths[i]}
+		phq.PrefixeLength = config.PrefixLengths[i]
 		// Use naive composition by simply splitting the epsilon based on the privacy budget config.
 		phq.Epsilon = epsilon * config.PrivacyBudgetPerPrefix[i]
 		result, err := phq.getPrefixHistogram(ctx)
 		if err != nil {
 			return nil, err
 		}
-		phq.Prefixes = [][]uint128.Uint128{
-			getNextNonemptyPrefixes(result, threshold),
-		}
+		phq.Prefixes = getNextNonemptyPrefixes(result, threshold)
 		results = append(results, HierarchicalResult{PrefixLength: config.PrefixLengths[i], Histogram: result, ExpansionThreshold: threshold})
 		phq.PreviousPrefixLength = config.PrefixLengths[i]
 	}
@@ -430,19 +425,16 @@ func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAc
 func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *HierarchicalConfig) (*dpfaggregator.ExpandParameters, error) {
 	expandParams := &dpfaggregator.ExpandParameters{
 		// The DPF levels correspond to the query prefix lengths.
-		Levels:          []int32{config.PrefixLengths[queryLevel] - 1},
+		Level:           config.PrefixLengths[queryLevel] - 1,
 		DirectExpansion: false,
 	}
 	if previousResults == nil {
 		expandParams.PreviousLevel = -1
-		expandParams.Prefixes = [][]uint128.Uint128{{}}
 		return expandParams, nil
 	}
 
 	expandParams.PreviousLevel = config.PrefixLengths[queryLevel-1] - 1
-	expandParams.Prefixes = [][]uint128.Uint128{
-		getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1]),
-	}
+	expandParams.Prefixes = getNextNonemptyPrefixes(previousResults, config.ExpansionThresholdPerPrefix[queryLevel-1])
 
 	return expandParams, nil
 }

@@ -30,7 +30,6 @@ import (
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/storage"
-	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
@@ -269,8 +268,8 @@ func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, r
 func (h *QueryHandler) aggregatePartialReportDirect(ctx context.Context, request *query.AggregateRequest, config *query.DirectConfig) error {
 	expandParamsURI := ioutils.JoinPath(h.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s", request.QueryID, query.DefaultExpandParamsFile))
 	if err := dpfaggregator.SaveExpandParameters(ctx, &dpfaggregator.ExpandParameters{
-		Levels:          []int32{request.KeyBitSize - 1},
-		Prefixes:        [][]uint128.Uint128{config.BucketIDs},
+		Level:           request.KeyBitSize - 1,
+		Prefixes:        config.BucketIDs,
 		DirectExpansion: true,
 		PreviousLevel:   -1,
 	}, expandParamsURI); err != nil {

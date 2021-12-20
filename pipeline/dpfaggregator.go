@@ -91,8 +91,8 @@ func init() {
 
 // ExpandParameters contains required parameters for expanding the DPF keys.
 type ExpandParameters struct {
-	Levels          []int32
-	Prefixes        [][]uint128.Uint128
+	Level           int32
+	Prefixes        []uint128.Uint128
 	PreviousLevel   int32
 	DirectExpansion bool
 }
@@ -308,28 +308,22 @@ type expandDpfKeyFn struct {
 	ExpandParams *ExpandParameters
 	vecCounter   beam.Counter
 
-	cPrefixes       []unsafe.Pointer
-	cPrefixesLength []int64
+	cPrefixes       unsafe.Pointer
+	cPrefixesLength int64
 }
 
 func (fn *expandDpfKeyFn) Setup() {
 	fn.vecCounter = beam.NewCounter("aggregation", "expandDpfFn-vec-count")
-	for _, prefixes := range fn.ExpandParams.Prefixes {
-		p, l := incrementaldpf.CreateCUint128ArrayUnsafe(prefixes)
-		fn.cPrefixes = append(fn.cPrefixes, p)
-		fn.cPrefixesLength = append(fn.cPrefixesLength, l)
-	}
+	fn.cPrefixes, fn.cPrefixesLength = incrementaldpf.CreateCUint128ArrayUnsafe(fn.ExpandParams.Prefixes)
 }
 
 func (fn *expandDpfKeyFn) Teardown() {
-	for _, p := range fn.cPrefixes {
-		incrementaldpf.FreeUnsafePointer(p)
-	}
+	incrementaldpf.FreeUnsafePointer(fn.cPrefixes)
 }
 
 func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.EvaluationContext, emitVec func(*expandedVec)) error {
-	if int32(fn.ExpandParams.Levels[0]) <= evalCtx.PreviousHierarchyLevel {
-		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Levels[0])
+	if int32(fn.ExpandParams.Level) <= evalCtx.PreviousHierarchyLevel {
+		return fmt.Errorf("expect current level higher than the previous level %d, got %d", evalCtx.PreviousHierarchyLevel, fn.ExpandParams.Level)
 	}
 
 	var (
@@ -338,18 +332,12 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 	)
 
 	if fn.ExpandParams.DirectExpansion {
-		vecSum, err = incrementaldpf.EvaluateAt64Unsafe(evalCtx.Parameters, int(fn.ExpandParams.Levels[0]), fn.cPrefixes[0], fn.cPrefixesLength[0], evalCtx.Key)
-		if err != nil {
-			return err
-		}
+		vecSum, err = incrementaldpf.EvaluateAt64Unsafe(evalCtx.Parameters, int(fn.ExpandParams.Level), fn.cPrefixes, fn.cPrefixesLength, evalCtx.Key)
 	} else {
-		for i, level := range fn.ExpandParams.Levels {
-			vecSum, err = incrementaldpf.EvaluateUntil64Unsafe(int(level), fn.cPrefixes[i], fn.cPrefixesLength[i], evalCtx)
-			if err != nil {
-				return err
-			}
-		}
-
+		vecSum, err = incrementaldpf.EvaluateUntil64Unsafe(int(fn.ExpandParams.Level), fn.cPrefixes, fn.cPrefixesLength, evalCtx)
+	}
+	if err != nil {
+		return err
 	}
 
 	emitVec(&expandedVec{SumVec: vecSum})
@@ -572,7 +560,7 @@ func (fn *getBucketIDsFn) Setup() error {
 }
 
 func (fn *getBucketIDsFn) ProcessElement(ctx context.Context, prefixes []uint128.Uint128, emit func([]uint128.Uint128)) error {
-	bucketIDs, err := incrementaldpf.CalculateBucketID(fn.dpfParams, [][]uint128.Uint128{prefixes}, []int32{fn.Level}, fn.PreviousLevel)
+	bucketIDs, err := incrementaldpf.CalculateBucketID(fn.dpfParams, prefixes, fn.Level, fn.PreviousLevel)
 	if err != nil {
 		return err
 	}
@@ -583,7 +571,7 @@ func (fn *getBucketIDsFn) ProcessElement(ctx context.Context, prefixes []uint128
 
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
 func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollection, expandParams *ExpandParameters, dpfParams []*dpfpb.DpfParameters, combineParams *CombineParams, keyBitSize int) (beam.PCollection, error) {
-	prefixes := beam.Create(scope, expandParams.Prefixes[0])
+	prefixes := beam.Create(scope, expandParams.Prefixes)
 	var (
 		bucketIDs    beam.PCollection
 		vectorLength uint64
@@ -591,13 +579,13 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 	)
 	if expandParams.DirectExpansion {
 		bucketIDs = prefixes
-		vectorLength = uint64(len(expandParams.Prefixes[0]))
+		vectorLength = uint64(len(expandParams.Prefixes))
 		if vectorLength == 0 {
 			return beam.PCollection{}, errors.New("expect nonempty bucket IDs for direct query")
 		}
 	} else {
-		bucketIDs = beam.ParDo(scope, &getBucketIDsFn{Level: expandParams.Levels[0], PreviousLevel: expandParams.PreviousLevel, KeyBitSize: keyBitSize}, prefixes)
-		vectorLength, err = incrementaldpf.GetVectorLength(dpfParams, expandParams.Prefixes, expandParams.Levels, expandParams.PreviousLevel)
+		bucketIDs = beam.ParDo(scope, &getBucketIDsFn{Level: expandParams.Level, PreviousLevel: expandParams.PreviousLevel, KeyBitSize: keyBitSize}, prefixes)
+		vectorLength, err = incrementaldpf.GetVectorLength(dpfParams, expandParams.Prefixes, expandParams.Level, expandParams.PreviousLevel)
 		if err != nil {
 			return beam.PCollection{}, err
 		}
@@ -644,21 +632,13 @@ func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportPara
 		return err
 	}
 
-	if !params.ExpandParams.DirectExpansion {
-		err = incrementaldpf.CheckExpansionParameters(
-			dpfParams,
-			params.ExpandParams.Prefixes,
-			params.ExpandParams.Levels,
-			params.ExpandParams.PreviousLevel,
-		)
-	}
-	if err != nil {
+	if err := CheckExpansionParameters(dpfParams, params.ExpandParams); err != nil {
 		return err
 	}
 
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	isFinalLevel := params.ExpandParams.Levels[len(params.ExpandParams.Levels)-1] == int32(len(dpfParams)-1)
+	isFinalLevel := params.ExpandParams.Level == int32(len(dpfParams)-1)
 	var decryptedReport beam.PCollection
 	if params.ExpandParams.PreviousLevel < 0 {
 		encrypted := ReadEncryptedPartialReport(scope, params.PartialReportURI)
@@ -892,4 +872,25 @@ func ReadExpandParameters(ctx context.Context, uri string) (*ExpandParameters, e
 		return nil, err
 	}
 	return params, nil
+}
+
+// CheckExpansionParameters checks if the DPF parameters and prefixes are valid for the hierarchical expansion.
+func CheckExpansionParameters(dpfParams []*dpfpb.DpfParameters, expandParams *ExpandParameters) error {
+	if err := incrementaldpf.CheckLevels(dpfParams, expandParams.Level, expandParams.PreviousLevel); err != nil {
+		return err
+	}
+
+	if expandParams.DirectExpansion && expandParams.PreviousLevel != -1 {
+		return fmt.Errorf("expect PreviousLevel = -1 for direct expansion, got %d", expandParams.PreviousLevel)
+	}
+
+	if !expandParams.DirectExpansion {
+		if expandParams.PreviousLevel == -1 && len(expandParams.Prefixes) != 0 {
+			return fmt.Errorf("prefixes should be empty for the first level hierarchical expansion, got %+v", expandParams.Prefixes)
+		}
+		if expandParams.PreviousLevel > -1 && len(expandParams.Prefixes) == 0 {
+			return fmt.Errorf("prefix cannot be empty for previous level %d", expandParams.PreviousLevel)
+		}
+	}
+	return nil
 }

@@ -56,10 +56,7 @@ func New(serverCfg ServerCfg, runner string, dataflowCfg DataflowCfg) grpcpb.Agg
 }
 
 func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.AggregateDpfPartialReportRequest) (*pb.AggregateDpfPartialReportResponse, error) {
-	if len(in.PrefixLengths) == 0 {
-		return nil, fmt.Errorf("empty prefix lengths found in query %q", in.String())
-	}
-	outputEvaluationContextURI := ioutils.JoinPath(s.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s_%d", defaultEvaluationContextFile, in.QueryId, in.PrefixLengths[len(in.PrefixLengths)-1]))
+	outputEvaluationContextURI := ioutils.JoinPath(s.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s_%d", defaultEvaluationContextFile, in.QueryId, in.PrefixLength))
 
 	inputPartialReportURI := in.PartialReportUri
 	if in.PreviousPrefixLength >= 0 {

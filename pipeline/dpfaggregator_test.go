@@ -280,8 +280,7 @@ func TestAggregationAndMerge(t *testing.T) {
 	}
 
 	expandParams := &ExpandParameters{
-		Levels:          []int32{7},
-		Prefixes:        [][]uint128.Uint128{{}},
+		Level:           7,
 		PreviousLevel:   -1,
 		DirectExpansion: false,
 	}
@@ -337,8 +336,7 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the first level.
 	expandParams0 := &ExpandParameters{
-		Prefixes:        [][]uint128.Uint128{{}},
-		Levels:          []int32{3},
+		Level:           3,
 		PreviousLevel:   -1,
 		DirectExpansion: false,
 	}
@@ -361,8 +359,8 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 
 	// For the second level.
 	expandParams1 := &ExpandParameters{
-		Prefixes:        [][]uint128.Uint128{{uint128.From64(1)}},
-		Levels:          []int32{7},
+		Prefixes:        []uint128.Uint128{uint128.From64(1)},
+		Level:           7,
 		PreviousLevel:   3,
 		DirectExpansion: false,
 	}
@@ -409,8 +407,8 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 
 	partialReport1, partialReport2 := beam.ParDo2(scope, &splitConversionFn{KeyBitSize: keyBitSize}, conversions)
 	expandParams := &ExpandParameters{
-		Prefixes:        [][]uint128.Uint128{{uint128.From64(16), uint128.From64(17)}},
-		Levels:          []int32{7},
+		Prefixes:        []uint128.Uint128{uint128.From64(16), uint128.From64(17)},
+		Level:           7,
 		PreviousLevel:   -1,
 		DirectExpansion: true,
 	}
@@ -661,8 +659,8 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	defer os.RemoveAll(baseDir)
 
 	wantExpandParams := &ExpandParameters{
-		Levels:          []int32{1, 2, 3},
-		Prefixes:        [][]uint128.Uint128{{}, {uint128.From64(1)}},
+		Level:           3,
+		Prefixes:        []uint128.Uint128{uint128.From64(1)},
 		PreviousLevel:   -1,
 		DirectExpansion: false,
 	}

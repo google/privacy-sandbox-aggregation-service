@@ -157,16 +157,15 @@ func TestGetRequestExpandParams(t *testing.T) {
 		{
 			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 0)),
 			ExpandParams: &dpfaggregator.ExpandParameters{
-				Levels:        []int32{0},
-				Prefixes:      [][]uint128.Uint128{{}},
+				Level:         0,
 				PreviousLevel: -1,
 			},
 		},
 		{
 			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 1)),
 			ExpandParams: &dpfaggregator.ExpandParameters{
-				Levels:        []int32{1},
-				Prefixes:      [][]uint128.Uint128{{uint128.From64(1)}},
+				Level:         1,
+				Prefixes:      []uint128.Uint128{uint128.From64(1)},
 				PreviousLevel: 0,
 			},
 		},

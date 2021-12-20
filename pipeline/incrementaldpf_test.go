@@ -16,7 +16,6 @@ package incrementaldpf
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -131,7 +130,7 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)
-	ids, err := CalculateBucketID(params, prefixes, []int32{0, 1}, -1)
+	ids, err := CalculateBucketID(params, prefixes[1], 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,9 +247,7 @@ func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)
-	ids, err := CalculateBucketID(params, [][]uint128.Uint128{
-		prefixes[1],
-	}, []int32{2}, 0)
+	ids, err := CalculateBucketID(params, prefixes[1], 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,10 +337,7 @@ func TestCalculateBucketID(t *testing.T) {
 		{LogDomainSize: 4, ValueType: defaultValueType},
 	}
 
-	got, err := CalculateBucketID(params, [][]uint128.Uint128{
-		{},
-		{uint128.From64(1), uint128.From64(3)},
-	}, []int32{0, 1}, -1)
+	got, err := CalculateBucketID(params, []uint128.Uint128{uint128.From64(1), uint128.From64(3)}, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,10 +350,7 @@ func TestCalculateBucketID(t *testing.T) {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}
 
-	got, err = CalculateBucketID(params, [][]uint128.Uint128{
-		{uint128.From64(1), uint128.From64(3)},
-		{uint128.From64(2), uint128.From64(3), uint128.From64(6)},
-	}, []int32{1, 2}, 0)
+	got, err = CalculateBucketID(params, []uint128.Uint128{uint128.From64(2), uint128.From64(3), uint128.From64(6)}, 2, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,16 +366,6 @@ func TestCalculateBucketID(t *testing.T) {
 	}
 }
 
-func TestValidateLevels(t *testing.T) {
-	if err := validateLevels([]int32{1, 2, 3}); err != nil {
-		t.Fatal(err)
-	}
-	levels := []int32{1, 3, 2}
-	if err := validateLevels(levels); !strings.Contains(err.Error(), "expect levels in ascending order") {
-		t.Fatalf("failure in checking ascending levels in %v", levels)
-	}
-}
-
 func TestGetVectorLength(t *testing.T) {
 	params := []*dpfpb.DpfParameters{
 		{LogDomainSize: 2, ValueType: defaultValueType},
@@ -392,10 +373,7 @@ func TestGetVectorLength(t *testing.T) {
 		{LogDomainSize: 4, ValueType: defaultValueType},
 	}
 
-	got, err := GetVectorLength(params, [][]uint128.Uint128{
-		{},
-		{uint128.From64(1), uint128.From64(3)},
-	}, []int32{0, 1}, -1)
+	got, err := GetVectorLength(params, []uint128.Uint128{uint128.From64(1), uint128.From64(3)}, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,10 +381,7 @@ func TestGetVectorLength(t *testing.T) {
 		t.Fatalf("expect vector length %d, got %d\n", want, got)
 	}
 
-	got, err = GetVectorLength(params, [][]uint128.Uint128{
-		{uint128.From64(1), uint128.From64(3)},
-		{uint128.From64(2), uint128.From64(3), uint128.From64(6)},
-	}, []int32{1, 2}, 0)
+	got, err = GetVectorLength(params, []uint128.Uint128{uint128.From64(2), uint128.From64(3), uint128.From64(6)}, 2, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

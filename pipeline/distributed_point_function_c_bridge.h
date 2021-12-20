@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+// The largest prime that fits in uint64_t (2**64 - 59).
+const uint64_t reach_module = 18446744073709551557llu;
+
 struct CUInt64Vec {
   uint64_t *vec;
   int64_t vec_size;
@@ -19,6 +22,18 @@ struct CUInt128 {
   uint64_t hi;
 };
 
+struct CReachTuple {
+  uint64_t c;
+  uint64_t rf;
+  uint64_t r;
+  uint64_t qf;
+  uint64_t q;
+};
+
+struct CReachTupleVec {
+  struct CReachTuple *vec;
+  int64_t vec_size;
+};
 // The following C wrappers for functions in
 // go/incremental-dpf-code/distributed_point_function.h will be called in the Go
 // code. Callers are responsible for freeing all the memory pointed by
@@ -57,6 +72,28 @@ int CEvaluateAt64(const struct CBytes *params, int64_t params_size,
                   const struct CUInt128 *evaluation_points,
                   int64_t evaluation_points_size, struct CUInt64Vec *out_vec,
                   struct CBytes *out_error);
+
+// CGenerateReachTupleKeys also wraps GenerateKeys() in C, specifically for
+// generating keys for the Reach tuples:
+// http://google3/dpf/distributed_point_function.h?l=149&rcl=385165251
+int CGenerateReachTupleKeys(const struct CBytes *params,
+                            const struct CUInt128 *alpha,
+                            const struct CReachTuple *betas,
+                            struct CBytes *out_key1, struct CBytes *out_key2,
+                            struct CBytes *out_error);
+
+// CEvaluateReachTuple wraps EvaluateNext<uint64_t>() in C:
+// http://google3/dpf/distributed_point_function.h?l=276&rcl=385165251
+int CEvaluateReachTuple(const struct CBytes *in_context,
+                        struct CReachTupleVec *out_vec,
+                        struct CBytes *out_error);
+
+void CCreateReachIntModNTuple(struct CReachTuple *tuple);
+
+void CAddReachIntModNTuple(struct CReachTuple *tuple_a,
+                           const struct CReachTuple *tuple_b);
+
+uint64_t GetReachModule();
 
 #ifdef __cplusplus
 }

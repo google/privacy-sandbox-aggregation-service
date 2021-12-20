@@ -154,8 +154,10 @@ cc_library(
     deps = [
         ":cbytes",
         ":cbytes_utils",
+        "//third_party/distributed_point_functions/dpf:int_mod_n",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
+        "@com_github_google_distributed_point_functions//dpf:tuple",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

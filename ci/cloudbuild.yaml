@@ -16,7 +16,7 @@ steps:
 ###########################################################
 # Step 1: Build Collector Container
 ###########################################################
-- name: 'gcr.io/cloud-builders/bazel'
+- name: 'gcr.io/privacyaggregate/bazel-cloud-build-image:20220103_01'
   entrypoint: 'bazel'
   id: 'collector-container-build'
   args:
@@ -36,7 +36,7 @@ steps:
 ###########################################################
 # Step 2: Build Aggregator Container
 ###########################################################
-- name: 'gcr.io/cloud-builders/bazel'
+- name: 'gcr.io/privacyaggregate/bazel-cloud-build-image:20220103_01'
   entrypoint: 'bazel'
   id: 'aggregator-container-build'
   args:
@@ -54,9 +54,28 @@ steps:
 
 
 ###########################################################
+# Step 2.b: Build Aggregator Debug Container
+###########################################################
+- name: 'gcr.io/privacyaggregate/bazel-cloud-build-image:20220103_01'
+  entrypoint: 'bazel'
+  id: 'aggregator-container-debug-build'
+  args:
+    - 'run'
+    - '-c'
+    - 'opt'
+    - 'service:aggregator_server_debug_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$_VERSION'
+    - '--define'
+    - 'GCR_PROJECT=$PROJECT_ID'
+    - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
+    - '--google_default_credentials'
+
+###########################################################
 # Step 3: Build Browser Simulator Container
 ###########################################################
-- name: 'gcr.io/cloud-builders/bazel'
+- name: 'gcr.io/privacyaggregate/bazel-cloud-build-image:20220103_01'
   entrypoint: 'bazel'
   id: 'browser-simulator-container-build'
   args:
@@ -150,6 +169,7 @@ steps:
     '--image','gcr.io/$PROJECT_ID/aggregator_server:${_VERSION}',
     '--region','us-central1',
     '--no-cpu-throttling',
+    '--memory','2Gi',
     '--platform=managed',
     '--no-allow-unauthenticated',
     '--port','8080',
@@ -171,6 +191,7 @@ steps:
     '--image','gcr.io/$PROJECT_ID/aggregator_server:${_VERSION}',
     '--region','us-central1',
     '--no-cpu-throttling',
+    '--memory','2Gi',
     '--platform=managed',
     '--no-allow-unauthenticated',
     '--port','8080',

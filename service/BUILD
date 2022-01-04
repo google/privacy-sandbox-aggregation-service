@@ -305,6 +305,27 @@ container_push(
     tag = "$(VERSION)",
 )
 
+container_image(
+    name = "aggregator_server_debug_image",
+    base = "@base_debug_image//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/aggregator_server"],
+    files = [
+        ":aggregator_server",
+        "//pipeline:dpf_aggregate_partial_report_pipeline",
+    ],
+    stamp = True,
+)
+
+container_push(
+    name = "aggregator_server_debug_image_publish",
+    format = "Docker",
+    image = ":aggregator_server_debug_image",
+    registry = "gcr.io",
+    repository = "$(GCR_PROJECT)/aggregator_server",
+    tag = "$(VERSION)-debug",
+)
+
 go_test(
     name = "utils_test",
     size = "small",

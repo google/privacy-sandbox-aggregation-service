@@ -134,7 +134,11 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			report1, report2, err := dpfdataconverter.GenerateEncryptedReports(c, *keyBitSize, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
+			key1, key2, err := dpfdataconverter.GenerateDPFKeys(c, *keyBitSize)
+			if err != nil {
+				log.Exit(err)
+			}
+			report1, report2, err := dpfdataconverter.EncryptPartialReports(key1, key2, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
 			if err != nil {
 				log.Exit(err)
 			}

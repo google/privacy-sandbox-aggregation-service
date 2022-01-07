@@ -59,10 +59,11 @@ func (fn *parseRawConversionFn) Setup(ctx context.Context) {
 	fn.countConversion = beam.NewCounter("aggregation", "parserawConversionFn_conversion_count")
 }
 
-func getMaxKey(s int) uint128.Uint128 {
+// GetMaxBucketID gets the maximum bucket ID corresponding to
+func GetMaxBucketID(keyBitSize int) uint128.Uint128 {
 	maxKey := uint128.Max
-	if s < 128 {
-		maxKey = uint128.Uint128{1, 0}.Lsh(uint(s)).Sub64(1)
+	if keyBitSize < 128 {
+		maxKey = uint128.Uint128{1, 0}.Lsh(uint(keyBitSize)).Sub64(1)
 	}
 	return maxKey
 }
@@ -78,7 +79,7 @@ func ParseRawConversion(line string, keyBitSize int) (reporttypes.RawReport, err
 	if err != nil {
 		return reporttypes.RawReport{}, err
 	}
-	if key128.Cmp(getMaxKey(keyBitSize)) == 1 {
+	if key128.Cmp(GetMaxBucketID(keyBitSize)) == 1 {
 		return reporttypes.RawReport{}, fmt.Errorf("key %q overflows the integer with %d bits", key128.String(), keyBitSize)
 	}
 
@@ -168,27 +169,27 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 	return values
 }
 
-// GenerateEncryptedReports splits a conversion record into DPF keys, and encrypts the partial reports.
-func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
+// GenerateDPFKeys generates DPF keys for the input report.
+func GenerateDPFKeys(report reporttypes.RawReport, keyBitSize int) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
 	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	keyDpfSum1, keyDpfSum2, err := incrementaldpf.GenerateKeys(allParams, report.Bucket, putValueForHierarchies(allParams, report.Value))
-	if err != nil {
-		return nil, nil, err
-	}
+	return incrementaldpf.GenerateKeys(allParams, report.Bucket, putValueForHierarchies(allParams, report.Value))
+}
 
+// EncryptPartialReports encrypts the partial reports.
+func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
-		SumKey: keyDpfSum1,
+		SumKey: key1,
 	}, publicKeys1, contextInfo, encryptOutput)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
-		SumKey: keyDpfSum2,
+		SumKey: key2,
 	}, publicKeys2, contextInfo, encryptOutput)
 
 	if err != nil {
@@ -201,7 +202,11 @@ func GenerateEncryptedReports(report reporttypes.RawReport, keyBitSize int, publ
 func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	encryptedReport1, encryptedReport2, err := GenerateEncryptedReports(c, fn.KeyBitSize, fn.PublicKeys1, fn.PublicKeys2, nil, fn.EncryptOutput)
+	key1, key2, err := GenerateDPFKeys(c, fn.KeyBitSize)
+	if err != nil {
+		return err
+	}
+	encryptedReport1, encryptedReport2, err := EncryptPartialReports(key1, key2, fn.PublicKeys1, fn.PublicKeys2, nil, fn.EncryptOutput)
 	if err != nil {
 		return err
 	}
@@ -230,7 +235,8 @@ func formatPartialReportFn(encrypted *pb.EncryptedPartialReportDpf, emit func(st
 	return nil
 }
 
-func writePartialReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
+// WritePartialReport writes the formated encrypted partial reports to a file.
+func WritePartialReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
 	s = s.Scope("WriteEncryptedPartialReportDpf")
 	formatted := beam.ParDo(s, formatPartialReportFn, output)
 	ioutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
@@ -270,8 +276,8 @@ func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams
 	resharded := beam.Reshuffle(scope, rawConversions)
 
 	partialReport1, partialReport2 := splitRawConversion(scope, resharded, params)
-	writePartialReport(scope, partialReport1, params.PartialReportURI1, params.Shards)
-	writePartialReport(scope, partialReport2, params.PartialReportURI2, params.Shards)
+	WritePartialReport(scope, partialReport1, params.PartialReportURI1, params.Shards)
+	WritePartialReport(scope, partialReport2, params.PartialReportURI2, params.Shards)
 }
 
 // PrefixNode represents a node in the tree that defines the conversion key prefix hierarchy.

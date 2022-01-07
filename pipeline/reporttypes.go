@@ -61,3 +61,11 @@ type RawReport struct {
 	Bucket uint128.Uint128
 	Value  uint64
 }
+
+// RawReachReport represents a raw report from the Reach frequency.
+type RawReachReport struct {
+	Campaign   uint64
+	Person     uint64
+	LLRegister uint64
+	Slice      string
+}

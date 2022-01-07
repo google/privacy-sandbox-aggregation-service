@@ -483,3 +483,86 @@ go_test(
         "@com_lukechampine_uint128//:go_default_library",
     ],
 )
+
+go_library(
+    name = "reachdataconverter",
+    srcs = ["reachdataconverter.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reachdataconverter",
+    deps = [
+        ":crypto_go_proto",
+        ":cryptoio",
+        ":dpfdataconverter",
+        ":incrementaldpf",
+        ":ioutils",
+        ":reporttypes",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
+        "@com_lukechampine_uint128//:go_default_library",
+    ],
+)
+
+go_library(
+    name = "reachaggregator",
+    srcs = ["reachaggregator.go"],
+    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reachaggregator",
+    deps = [
+        ":crypto_go_proto",
+        ":distributednoise",
+        ":dpfaggregator",
+        ":incrementaldpf",
+        ":ioutils",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/gcs:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
+    ],
+)
+
+go_test(
+    name = "reachaggregator_test",
+    size = "small",
+    srcs = ["reachaggregator_test.go"],
+    embed = [":reachaggregator"],
+    deps = ["@com_github_google_go_cmp//cmp:go_default_library"],
+)
+
+go_test(
+    name = "reachdataconverter_test",
+    size = "small",
+    srcs = ["reachdataconverter_test.go"],
+    embed = [":reachdataconverter"],
+    deps = [
+        ":cryptoio",
+        ":dpfaggregator",
+        ":reachaggregator",
+        ":reporttypes",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "generate_reach_test_data_pipeline",
+    srcs = ["generate_reach_test_data_pipeline.go"],
+    deps = [
+        ":cryptoio",
+        ":reachdataconverter",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "dpf_aggregate_reach_partial_report_pipeline",
+    srcs = ["dpf_aggregate_reach_partial_report_pipeline.go"],
+    deps = [
+        ":cryptoio",
+        ":dpfaggregator",
+        ":reachaggregator",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
+    ],
+)

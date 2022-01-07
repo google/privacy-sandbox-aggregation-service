@@ -235,7 +235,7 @@ func TestWriteReadPartialReports(t *testing.T) {
 	pipeline, scope := beam.NewPipelineWithRoot()
 	wantList := beam.CreateList(scope, want)
 	filename := path.Join(tmpDir, "partial.txt")
-	writePartialReport(scope, wantList, filename, 1)
+	WritePartialReport(scope, wantList, filename, 1)
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
@@ -251,7 +251,7 @@ func TestWriteReadPartialReports(t *testing.T) {
 
 func TestGetMaxKey(t *testing.T) {
 	want := uint128.Max
-	got := getMaxKey(128)
+	got := GetMaxBucketID(128)
 	if got.Cmp(want) != 0 {
 		t.Fatalf("expect %s for key size %d, got %s", want.String(), 128, got.String())
 	}
@@ -261,7 +261,7 @@ func TestGetMaxKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got = getMaxKey(70)
+	got = GetMaxBucketID(70)
 	if got.Cmp(want) != 0 {
 		t.Fatalf("expect %s for key size %d, got %s", want.String(), 70, got.String())
 	}

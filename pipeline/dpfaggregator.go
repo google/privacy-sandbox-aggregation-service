@@ -517,7 +517,7 @@ type addNoiseFn struct {
 	L1Sensitivity uint64
 }
 
-func (fn *addNoiseFn) ProcessElement(ctx context.Context, id uint64, pa *pb.PartialAggregationDpf, emit func(uint64, *pb.PartialAggregationDpf)) error {
+func (fn *addNoiseFn) ProcessElement(ctx context.Context, id uint128.Uint128, pa *pb.PartialAggregationDpf, emit func(uint128.Uint128, *pb.PartialAggregationDpf)) error {
 	noise, err := distributednoise.DistributedGeometricMechanismRand(fn.Epsilon, fn.L1Sensitivity, numberOfHelpers)
 	if err != nil {
 		return err

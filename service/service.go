@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
@@ -56,11 +56,11 @@ func New(serverCfg ServerCfg, runner string, dataflowCfg DataflowCfg) grpcpb.Agg
 }
 
 func (s *server) AggregateDpfPartialReport(ctx context.Context, in *pb.AggregateDpfPartialReportRequest) (*pb.AggregateDpfPartialReportResponse, error) {
-	outputEvaluationContextURI := ioutils.JoinPath(s.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s_%d", defaultEvaluationContextFile, in.QueryId, in.PrefixLength))
+	outputEvaluationContextURI := utils.JoinPath(s.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s_%d", defaultEvaluationContextFile, in.QueryId, in.PrefixLength))
 
 	inputPartialReportURI := in.PartialReportUri
 	if in.PreviousPrefixLength >= 0 {
-		inputPartialReportURI = ioutils.JoinPath(s.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s_%d", defaultEvaluationContextFile, in.QueryId, in.PreviousPrefixLength))
+		inputPartialReportURI = utils.JoinPath(s.ServerCfg.WorkspaceURI, fmt.Sprintf("%s_%s_%d", defaultEvaluationContextFile, in.QueryId, in.PreviousPrefixLength))
 	}
 
 	args := []string{

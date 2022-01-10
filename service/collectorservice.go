@@ -27,8 +27,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"github.com/ugorji/go/codec"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
@@ -171,9 +171,9 @@ func (brw *bufferedReportWriter) writeBatchKeyBatches(ctx context.Context, batch
 		origin, encryptedReports := origin, encryptedReports // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
 			if len(encryptedReports) > 0 {
-				batchedReportsURI := ioutils.JoinPath(brw.batchDir, fmt.Sprintf("%s/%s+%s+%s", batchKey, batchKey, origin, timestamp))
+				batchedReportsURI := utils.JoinPath(brw.batchDir, fmt.Sprintf("%s/%s+%s+%s", batchKey, batchKey, origin, timestamp))
 				log.Infof("Writing %v records in batch for %v to: %v", len(encryptedReports), origin, batchedReportsURI)
-				return ioutils.WriteLines(ctx, encryptedReports, batchedReportsURI)
+				return utils.WriteLines(ctx, encryptedReports, batchedReportsURI)
 			}
 			log.Infof("Empty batch, nothing to write!")
 			return nil

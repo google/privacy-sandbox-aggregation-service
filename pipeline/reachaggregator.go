@@ -28,7 +28,8 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -357,7 +358,7 @@ func (fn *formatRQFn) ProcessElement(ctx context.Context, id uint64, result *inc
 func WriteReachRQ(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
 	s = s.Scope("WriteRQ")
 	formatted := beam.ParDo(s, &formatRQFn{}, col)
-	ioutils.WriteNShardedFiles(s, outputName, shards, formatted)
+	pipelineutils.WriteNShardedFiles(s, outputName, shards, formatted)
 }
 
 func parseRQ(line string) (uint64, *ReachRQ, error) {
@@ -385,7 +386,7 @@ func parseRQ(line string) (uint64, *ReachRQ, error) {
 
 // ReadReachRQ reads the R and Q values from a file.
 func ReadReachRQ(ctx context.Context, filename string) (map[uint64]*ReachRQ, error) {
-	lines, err := ioutils.ReadLines(ctx, filename)
+	lines, err := utils.ReadLines(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +424,7 @@ func (fn *formatHistogramFn) ProcessElement(ctx context.Context, index uint64, r
 func WriteHistogram(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
 	s = s.Scope("WriteHistogram")
 	formatted := beam.ParDo(s, &formatHistogramFn{}, col)
-	ioutils.WriteNShardedFiles(s, outputName, shards, formatted)
+	pipelineutils.WriteNShardedFiles(s, outputName, shards, formatted)
 }
 
 func parseHistogram(line string) (uint64, *incrementaldpf.ReachTuple, error) {
@@ -451,7 +452,7 @@ func parseHistogram(line string) (uint64, *incrementaldpf.ReachTuple, error) {
 
 // ReadPartialHistogram reads the partial aggregation result without using a Beam pipeline.
 func ReadPartialHistogram(ctx context.Context, filename string) (map[uint64]*incrementaldpf.ReachTuple, error) {
-	lines, err := ioutils.ReadLines(ctx, filename)
+	lines, err := utils.ReadLines(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +520,7 @@ func WriteReachResult(ctx context.Context, result map[uint64]*ReachResult, fileU
 		}
 		lines = append(lines, line)
 	}
-	return ioutils.WriteLines(ctx, lines, fileURI)
+	return utils.WriteLines(ctx, lines, fileURI)
 }
 
 func parseReachResult(line string) (uint64, *ReachResult, error) {
@@ -547,7 +548,7 @@ func parseReachResult(line string) (uint64, *ReachResult, error) {
 
 // ReadReachResult reads the partial count and verification results from a file.
 func ReadReachResult(ctx context.Context, fileUIR string) (map[uint64]*ReachResult, error) {
-	lines, err := ioutils.ReadLines(ctx, fileUIR)
+	lines, err := utils.ReadLines(ctx, fileUIR)
 	if err != nil {
 		return nil, err
 	}

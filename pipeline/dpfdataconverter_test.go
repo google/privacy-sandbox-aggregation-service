@@ -28,8 +28,8 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 
@@ -44,7 +44,7 @@ func TestReadInputConversions(t *testing.T) {
 		}
 	}
 
-	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestGetMaxKey(t *testing.T) {
 	}
 
 	var err error
-	want, err = ioutils.StringToUint128("1180591620717411303423") // 2^70-1
+	want, err = utils.StringToUint128("1180591620717411303423") // 2^70-1
 	if err != nil {
 		t.Fatal(err)
 	}

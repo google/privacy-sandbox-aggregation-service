@@ -29,7 +29,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -158,7 +158,7 @@ type GeneratePartialReportParams struct {
 func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams) {
 	scope = scope.Scope("GeneratePartialReports")
 
-	allFiles := ioutils.AddStrInPath(params.ReachReportURI, "*")
+	allFiles := pipelineutils.AddStrInPath(params.ReachReportURI, "*")
 	lines := textio.Read(scope, allFiles)
 	records := beam.ParDo(scope, &parseRawReachReportFn{KeyBitSize: params.KeyBitSize}, lines)
 	resharded := beam.Reshuffle(scope, records)

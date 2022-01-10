@@ -15,7 +15,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 const keyBitSize = 32
@@ -34,19 +34,19 @@ func TestPipeline(t *testing.T) {
 func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
 
-	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	createKeyBinary, err := ioutils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
+	createKeyBinary, err := utils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	generateTestDataBinary, err := ioutils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
+	generateTestDataBinary, err := utils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dpfAggregateBinary, err := ioutils.RunfilesPath("pipeline/dpf_aggregate_partial_report_pipeline", true /*isBinary*/)
+	dpfAggregateBinary, err := utils.RunfilesPath("pipeline/dpf_aggregate_partial_report_pipeline", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,19 +234,19 @@ func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 func testDirectPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
 
-	testFile, err := ioutils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	createKeyBinary, err := ioutils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
+	createKeyBinary, err := utils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	generateTestDataBinary, err := ioutils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
+	generateTestDataBinary, err := utils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dpfAggregateBinary, err := ioutils.RunfilesPath("pipeline/dpf_aggregate_partial_report_pipeline", true /*isBinary*/)
+	dpfAggregateBinary, err := utils.RunfilesPath("pipeline/dpf_aggregate_partial_report_pipeline", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,8 +38,8 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -67,7 +67,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 	}
 
 	payload := reporttypes.Payload{DPFKey: b}
-	bPayload, err := ioutils.MarshalCBOR(payload)
+	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
 		return err
 	}
@@ -481,7 +481,7 @@ func parseCompleteHistogram(line string) (CompleteHistogram, error) {
 	if gotLen, wantLen := len(cols), 2; gotLen != wantLen {
 		return CompleteHistogram{}, fmt.Errorf("got %d columns in line %q, want %d", gotLen, line, wantLen)
 	}
-	idx, err := ioutils.StringToUint128(cols[0])
+	idx, err := utils.StringToUint128(cols[0])
 	if err != nil {
 		return CompleteHistogram{}, err
 	}
@@ -509,7 +509,7 @@ func TestWriteCompleteHistogramWithoutPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lines, err := ioutils.ReadLines(ctx, resultFile)
+	lines, err := utils.ReadLines(ctx, resultFile)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -29,8 +29,7 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/service/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	grpcMetadata "google.golang.org/grpc/metadata"
@@ -215,12 +214,12 @@ func WriteHierarchicalResultsFile(ctx context.Context, results []HierarchicalRes
 	if err != nil {
 		return err
 	}
-	return ioutils.WriteBytes(ctx, br, filename)
+	return utils.WriteBytes(ctx, br, filename)
 }
 
 // ReadHierarchicalResultsFile reads the hierarchical query results from a file.
 func ReadHierarchicalResultsFile(ctx context.Context, filename string) ([]HierarchicalResult, error) {
-	br, err := ioutils.ReadBytes(ctx, filename)
+	br, err := utils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -237,12 +236,12 @@ func WriteHierarchicalConfigFile(ctx context.Context, config *HierarchicalConfig
 	if err != nil {
 		return err
 	}
-	return ioutils.WriteBytes(ctx, bc, filename)
+	return utils.WriteBytes(ctx, bc, filename)
 }
 
 // ReadHierarchicalConfigFile reads the HierarchicalConfig from a file and validate it.
 func ReadHierarchicalConfigFile(ctx context.Context, filename string) (*HierarchicalConfig, error) {
-	bc, err := ioutils.ReadBytes(ctx, filename)
+	bc, err := utils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +254,7 @@ func ReadHierarchicalConfigFile(ctx context.Context, filename string) (*Hierarch
 
 // ReadDirectConfigFile reads the DirectConfig from a file and validate it.
 func ReadDirectConfigFile(ctx context.Context, filename string) (*DirectConfig, error) {
-	bc, err := ioutils.ReadBytes(ctx, filename)
+	bc, err := utils.ReadBytes(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -298,12 +297,12 @@ type AggregateRequest struct {
 
 // GetRequestPartialResultURI returns the URI of the expected result file for a request.
 func GetRequestPartialResultURI(sharedDir, queryID string, level int32) string {
-	return ioutils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, level))
+	return utils.JoinPath(sharedDir, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, level))
 }
 
 // GetRequestDecryptedReportURI returns the URI of the decrypted report file.
 func GetRequestDecryptedReportURI(workDir, queryID string) string {
-	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s", queryID, DefaultDecryptedReportFile))
+	return utils.JoinPath(workDir, fmt.Sprintf("%s_%s", queryID, DefaultDecryptedReportFile))
 }
 
 // GetRequestExpandParamsURI calculates the expand parameters, saves it into a file and returns the URI.
@@ -440,5 +439,5 @@ func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.Com
 }
 
 func getRequestExpandParamsURI(workDir string, request *AggregateRequest) string {
-	return ioutils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultExpandParamsFile, request.QueryLevel))
+	return utils.JoinPath(workDir, fmt.Sprintf("%s_%s_%d", request.QueryID, DefaultExpandParamsFile, request.QueryLevel))
 }

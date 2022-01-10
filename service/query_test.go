@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
@@ -90,7 +90,7 @@ func writePartialHistogram(ctx context.Context, filename string, results map[uin
 		}
 		lines = append(lines, fmt.Sprintf("%d,%s", id, base64.StdEncoding.EncodeToString(b)))
 	}
-	return ioutils.WriteLines(ctx, lines, filename)
+	return utils.WriteLines(ctx, lines, filename)
 }
 
 func TestGetRequestExpandParams(t *testing.T) {
@@ -135,11 +135,11 @@ func TestGetRequestExpandParams(t *testing.T) {
 	}
 
 	queryID := "unit-test"
-	partialFile1 := ioutils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 0))
+	partialFile1 := utils.JoinPath(sharedDir1, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 0))
 	if err := writePartialHistogram(ctx, partialFile1, partial1); err != nil {
 		t.Fatal(err)
 	}
-	partialFile2 := ioutils.JoinPath(sharedDir2, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 0))
+	partialFile2 := utils.JoinPath(sharedDir2, fmt.Sprintf("%s_%s_%d", queryID, DefaultPartialResultFile, 0))
 	if err := writePartialHistogram(ctx, partialFile2, partial2); err != nil {
 		t.Fatal(err)
 	}
@@ -155,14 +155,14 @@ func TestGetRequestExpandParams(t *testing.T) {
 	}
 	for _, want := range []*aggParams{
 		{
-			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 0)),
+			ExpandParamsURI: utils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 0)),
 			ExpandParams: &dpfaggregator.ExpandParameters{
 				Level:         0,
 				PreviousLevel: -1,
 			},
 		},
 		{
-			ExpandParamsURI: ioutils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 1)),
+			ExpandParamsURI: utils.JoinPath(workspace, fmt.Sprintf("%s_%s_%d", queryID, DefaultExpandParamsFile, 1)),
 			ExpandParams: &dpfaggregator.ExpandParameters{
 				Level:         1,
 				Prefixes:      []uint128.Uint128{uint128.From64(1)},

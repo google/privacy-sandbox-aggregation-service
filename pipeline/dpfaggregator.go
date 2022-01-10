@@ -50,8 +50,9 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -124,7 +125,7 @@ func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, lin
 // ReadEncryptedPartialReport reads each line from a file, and parses it as a partial report that contains a encrypted DPF key and the context info.
 func ReadEncryptedPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedPartialReport")
-	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
+	allFiles := pipelineutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	reshuffledLines := beam.Reshuffle(scope, lines)
 	return beam.ParDo(scope, &parseEncryptedPartialReportFn{}, reshuffledLines)
@@ -153,16 +154,16 @@ func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted 
 	if fn.isEncryptedBundle {
 		b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
 		if err != nil {
-			if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+			if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
 				return fmt.Errorf("failed in decrypting and deserializing for data: %s", encrypted.String())
 			}
 			fn.nonencryptedCounter.Inc(ctx, 1)
 			fn.isEncryptedBundle = false
-		} else if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
+		} else if err := utils.UnmarshalCBOR(b, payload); err != nil {
 			return err
 		}
 	} else {
-		if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
 			return fmt.Errorf("failed in deserializing non-encrypted data: %s", encrypted.String())
 		}
 		fn.nonencryptedCounter.Inc(ctx, 1)
@@ -267,7 +268,7 @@ func (fn *parsePartialReportFn) ProcessElement(ctx context.Context, line string,
 // ReadPartialReport reads each line from a file, and parses it as a PartialReport.
 func ReadPartialReport(scope beam.Scope, partialReportFile string) beam.PCollection {
 	scope = scope.Scope("ReadPartialReport")
-	allFiles := ioutils.AddStrInPath(partialReportFile, "*")
+	allFiles := pipelineutils.AddStrInPath(partialReportFile, "*")
 	lines := textio.ReadSdf(scope, allFiles)
 	reshuffledLines := beam.Reshuffle(scope, lines)
 	return beam.ParDo(scope, &parsePartialReportFn{}, reshuffledLines)
@@ -296,7 +297,7 @@ func (fn *formatPartialReportFn) ProcessElement(ctx context.Context, partialRepo
 func writePartialReport(s beam.Scope, col beam.PCollection, outputName string, shards int64) {
 	s = s.Scope("WritePartialReport")
 	formatted := beam.ParDo(s, &formatPartialReportFn{}, col)
-	ioutils.WriteNShardedFiles(s, outputName, shards, formatted)
+	pipelineutils.WriteNShardedFiles(s, outputName, shards, formatted)
 }
 
 type expandedVec struct {
@@ -699,7 +700,7 @@ func parseHistogram(line string) (uint128.Uint128, *pb.PartialAggregationDpf, er
 		return uint128.Zero, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
 	}
 
-	index, err := ioutils.StringToUint128(cols[0])
+	index, err := utils.StringToUint128(cols[0])
 	if err != nil {
 		return uint128.Zero, nil, err
 	}
@@ -729,7 +730,7 @@ func (fn *parsePartialHistogramFn) ProcessElement(ctx context.Context, line stri
 
 func readPartialHistogram(s beam.Scope, partialHistogramFile string) beam.PCollection {
 	s = s.Scope("ReadPartialHistogram")
-	allFiles := ioutils.AddStrInPath(partialHistogramFile, "*")
+	allFiles := pipelineutils.AddStrInPath(partialHistogramFile, "*")
 	lines := textio.Read(s, allFiles)
 	return beam.ParDo(s, &parsePartialHistogramFn{}, lines)
 }
@@ -809,7 +810,7 @@ func MergePartialHistogram(scope beam.Scope, partialHistFile1, partialHistFile2,
 
 // ReadPartialHistogram reads the partial aggregation result without using a Beam pipeline.
 func ReadPartialHistogram(ctx context.Context, filename string) (map[uint128.Uint128]*pb.PartialAggregationDpf, error) {
-	lines, err := ioutils.ReadLines(ctx, filename)
+	lines, err := utils.ReadLines(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -830,7 +831,7 @@ func WriteCompleteHistogram(ctx context.Context, filename string, results map[ui
 	for _, result := range results {
 		lines = append(lines, fmt.Sprintf("%s,%d", result.Bucket.String(), result.Sum))
 	}
-	return ioutils.WriteLines(ctx, lines, filename)
+	return utils.WriteLines(ctx, lines, filename)
 }
 
 // MergePartialResult merges the partial histograms without using a beam pipeline.
@@ -858,12 +859,12 @@ func SaveExpandParameters(ctx context.Context, params *ExpandParameters, uri str
 	if err != nil {
 		return err
 	}
-	return ioutils.WriteBytes(ctx, b, uri)
+	return utils.WriteBytes(ctx, b, uri)
 }
 
 // ReadExpandParameters reads the ExpandParams from a file.
 func ReadExpandParameters(ctx context.Context, uri string) (*ExpandParameters, error) {
-	b, err := ioutils.ReadBytes(ctx, uri)
+	b, err := utils.ReadBytes(ctx, uri)
 	if err != nil {
 		return nil, err
 	}

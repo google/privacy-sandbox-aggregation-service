@@ -33,20 +33,6 @@ go_proto_library(
     ],
 )
 
-go_library(
-    name = "utils",
-    srcs = ["utils.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/utils",
-    deps = [
-        "//pipeline:ioutils",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_google_cloud_go_pubsub//:go_default_library",
-        "@com_google_cloud_go_storage//:go_default_library",
-        "@org_golang_google_api//iamcredentials/v1:go_default_library",
-        "@org_golang_google_api//idtoken:go_default_library",
-    ],
-)
-
 go_binary(
     name = "server",
     srcs = ["server.go"],
@@ -91,7 +77,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service",
     deps = [
         ":service_go_grpc_proto",
-        "//pipeline:ioutils",
+        "//utils",
     ],
 )
 
@@ -112,10 +98,9 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/query",
     deps = [
         ":service_go_grpc_proto",
-        ":utils",
         "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
-        "//pipeline:ioutils",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_pborman_uuid//:uuid",
@@ -135,7 +120,7 @@ go_test(
     deps = [
         "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
-        "//pipeline:ioutils",
+        "//utils",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
@@ -149,8 +134,8 @@ go_library(
     deps = [
         "//encryption:crypto_go_proto",
         "//pipeline:dpfdataconverter",
-        "//pipeline:ioutils",
         "//pipeline:reporttypes",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
         "@org_golang_x_sync//errgroup:go_default_library",
@@ -198,11 +183,10 @@ go_binary(
     ],
     x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
-        ":utils",
         "//encryption:cryptoio",
         "//pipeline:dpfdataconverter",
-        "//pipeline:ioutils",
         "//pipeline:reporttypes",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",
     ],
@@ -246,7 +230,7 @@ go_binary(
     deps = [
         ":aggregatorservice",
         ":query",
-        ":utils",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",
         "@com_github_pborman_uuid//:uuid",
@@ -275,9 +259,8 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/aggregatorservice",
     deps = [
         ":query",
-        ":utils",
         "//pipeline:dpfaggregator",
-        "//pipeline:ioutils",
+        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",
@@ -324,11 +307,4 @@ container_push(
     registry = "gcr.io",
     repository = "$(GCR_PROJECT)/aggregator_server",
     tag = "$(VERSION)-debug",
-)
-
-go_test(
-    name = "utils_test",
-    size = "small",
-    srcs = ["utils_test.go"],
-    embed = [":utils"],
 )

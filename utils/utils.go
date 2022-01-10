@@ -12,80 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package ioutils contains utilities for reading/writing files with the beam pipelines.
-package ioutils
+// Package utils contains basic utilities.
+package utils
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 
+	log "github.com/golang/glog"
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
-	"github.com/apache/beam/sdks/go/pkg/beam"
-	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
+	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/storage"
-	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
+	"google.golang.org/api/iamcredentials/v1"
+	"google.golang.org/api/idtoken"
 	"github.com/ugorji/go/codec"
 	"lukechampine.com/uint128"
+
+	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
-
-func init() {
-	beam.RegisterType(reflect.TypeOf((*addShardKeyFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*getShardFn)(nil)).Elem())
-}
-
-type addShardKeyFn struct {
-	TotalShards int64
-}
-
-func (fn *addShardKeyFn) ProcessElement(line string, emit func(int64, string)) {
-	emit(rand.Int63n(fn.TotalShards), line)
-}
-
-type getShardFn struct {
-	Shard int64
-}
-
-func (fn *getShardFn) ProcessElement(key int64, line string, emit func(string)) {
-	if fn.Shard == key {
-		emit(line)
-	}
-}
-
-// WriteNShardedFiles writes the text files in shards.
-func WriteNShardedFiles(s beam.Scope, outputName string, n int64, lines beam.PCollection) {
-	s = s.Scope("WriteNShardedFiles")
-
-	if n == 1 {
-		textio.Write(s, outputName, lines)
-		return
-	}
-	keyed := beam.ParDo(s, &addShardKeyFn{TotalShards: n}, lines)
-	for i := int64(0); i < n; i++ {
-		shard := beam.ParDo(s, &getShardFn{Shard: i}, keyed)
-		textio.Write(s, AddStrInPath(outputName, fmt.Sprintf("-%d-%d", i+1, n)), shard)
-	}
-}
-
-// AddStrInPath adds a string in the file name before the file extension.
-//
-// For example: addStringInPath("/foo/x.bar", "_baz") = "/foo/x_baz.bar"
-func AddStrInPath(path, str string) string {
-	ext := filepath.Ext(path)
-	return path[:len(path)-len(ext)] + str + ext
-}
 
 // ParseGCSPath gets the bucket and object names from the input filename.
 func ParseGCSPath(filename string) (bucket, object string, err error) {
@@ -360,4 +317,92 @@ func RunfilesPath(path string, isBinary bool) (string, error) {
 		path = fmt.Sprintf("%s_/%s", path, filepath.Base(path))
 	}
 	return bazel.Runfile(path)
+}
+
+// GetAuthorizationToken gets GCP service auth token based env service account or impersonated service account through default credentials
+func GetAuthorizationToken(ctx context.Context, audience, impersonatedSvcAccount string) (string, error) {
+	// TODO Switch to this implementation once google api upgraded to v0.52.0+
+	// tokenSource, err = impersonate.IDTokenSource(ctx, impersonate.IDTokenConfig{
+	// 	Audience:        audience,
+	// 	TargetPrincipal: impersonatedSvcAccount,
+	// 	IncludeEmail:    true,
+	// })
+	// if err != nil {
+	// 	return nil, err
+	// }
+	token := ""
+	// First we try the idtoken package, which only works for service accounts
+	tokenSource, err := idtoken.NewTokenSource(ctx, audience)
+	if err != nil {
+		if !strings.Contains(err.Error(), `idtoken: credential must be service_account, found`) {
+			return token, err
+		}
+		if impersonatedSvcAccount == "" {
+			return token, fmt.Errorf("Couldn't obtain Auth Token, no svc account for impersonation set (flag 'impersonated_svc_account'): %v", err)
+		}
+
+		log.Info("no service account found, using application default credentials to impersonate service account")
+		svc, err := iamcredentials.NewService(ctx)
+		if err != nil {
+			return token, err
+		}
+		resp, err := svc.Projects.ServiceAccounts.GenerateIdToken("projects/-/serviceAccounts/"+impersonatedSvcAccount, &iamcredentials.GenerateIdTokenRequest{
+			Audience: audience,
+		}).Do()
+		if err != nil {
+			return token, err
+		}
+		token = resp.Token
+
+	} else {
+		t, err := tokenSource.Token()
+		if err != nil {
+			return token, fmt.Errorf("TokenSource.Token: %v", err)
+		}
+		token = t.AccessToken
+	}
+	return token, nil
+}
+
+// IsGCSObjectExist checks if a GCS object exists.
+func IsGCSObjectExist(ctx context.Context, client *storage.Client, filename string) (bool, error) {
+	bucket, object, err := ParseGCSPath(filename)
+	if err != nil {
+		return false, err
+	}
+	_, err = client.Bucket(bucket).Object(object).Attrs(ctx)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+// PublishRequest publishes on a topic with the aggregation request as the content.
+func PublishRequest(ctx context.Context, client *pubsub.Client, pubsubTopic string, content interface{}) error {
+	topic := client.Topic(pubsubTopic)
+
+	b, err := json.Marshal(content)
+	if err != nil {
+		return err
+	}
+	log.Infof("topic: %s; request: %s", pubsubTopic, string(b))
+
+	_, err = topic.Publish(ctx, &pubsub.Message{Data: b}).Get(ctx)
+	return err
+}
+
+// ParsePubSubResourceName parses the PubSub resource name and get the project ID and topic or subscription.
+//
+// Details about the resource names: https://cloud.google.com/pubsub/docs/admin#resource_names
+func ParsePubSubResourceName(name string) (projectID, relativeName string, err error) {
+	strs := strings.Split(name, "/")
+	if len(strs) != 4 || strs[0] != "projects" || (strs[2] != "subscriptions" && strs[2] != "topics") {
+		err = fmt.Errorf("expect format %s, got %s", "projects/project-identifier/collection/relative-name", name)
+		return
+	}
+	projectID, relativeName = strs[1], strs[3]
+	return
 }

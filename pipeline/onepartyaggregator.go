@@ -28,8 +28,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
@@ -57,7 +58,7 @@ func (fn *parseTargetBucketFn) Setup() {
 }
 
 func (fn *parseTargetBucketFn) ProcessElement(ctx context.Context, line string, emit func(uint128.Uint128, bool)) error {
-	bucket, err := ioutils.StringToUint128(line)
+	bucket, err := utils.StringToUint128(line)
 	if err != nil {
 		return err
 	}
@@ -69,7 +70,7 @@ func (fn *parseTargetBucketFn) ProcessElement(ctx context.Context, line string, 
 // ReadTargetBucket reads the input file and gets the bucket IDs.
 func ReadTargetBucket(scope beam.Scope, bucketURI string) beam.PCollection {
 	scope = scope.Scope("ReadTargetBucket")
-	allFiles := ioutils.AddStrInPath(bucketURI, "*")
+	allFiles := pipelineutils.AddStrInPath(bucketURI, "*")
 	lines := textio.Read(scope, allFiles)
 	return beam.ParDo(scope, &parseTargetBucketFn{}, lines)
 }
@@ -101,7 +102,7 @@ func (fn *parseEncryptedReportFn) ProcessElement(ctx context.Context, line strin
 // ReadEncryptedReport reads each line from a file, and parses it as a encrypted report.
 func ReadEncryptedReport(scope beam.Scope, reportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedReport")
-	allFiles := ioutils.AddStrInPath(reportFile, "*")
+	allFiles := pipelineutils.AddStrInPath(reportFile, "*")
 	lines := textio.Read(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedReportFn{}, lines)
 }
@@ -129,16 +130,16 @@ func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.Enc
 	if fn.isEncryptedBundle {
 		b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
 		if err != nil {
-			if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+			if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
 				return fmt.Errorf("failed in decrypting and deserializing for data: %s", encrypted.String())
 			}
 			fn.nonencryptedCounter.Inc(ctx, 1)
 			fn.isEncryptedBundle = false
-		} else if err := ioutils.UnmarshalCBOR(b, payload); err != nil {
+		} else if err := utils.UnmarshalCBOR(b, payload); err != nil {
 			return err
 		}
 	} else {
-		if err := ioutils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
 			return fmt.Errorf("failed in deserializing non-encrypted data: %s", encrypted.String())
 		}
 		fn.nonencryptedCounter.Inc(ctx, 1)

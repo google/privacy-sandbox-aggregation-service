@@ -29,8 +29,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
@@ -42,7 +43,7 @@ func ParseRawReport(line string) (*reporttypes.RawReport, error) {
 		return nil, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
-	key128, err := ioutils.StringToUint128(cols[0])
+	key128, err := utils.StringToUint128(cols[0])
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo,
 		Operation: "one-party",
 		DPFKey:    b,
 	}
-	bPayload, err := ioutils.MarshalCBOR(payload)
+	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func formatEncryptedReportFn(encrypted *pb.EncryptedReport, emit func(string)) e
 func writeEncryptedReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
 	s = s.Scope("WriteEncryptedReport")
 	formatted := beam.ParDo(s, formatEncryptedReportFn, output)
-	ioutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
+	pipelineutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
 }
 
 // GenerateEncryptedReportParams contains required parameters for generating partial reports.
@@ -183,7 +184,7 @@ type GenerateEncryptedReportParams struct {
 func GenerateEncryptedReport(scope beam.Scope, params *GenerateEncryptedReportParams) {
 	scope = scope.Scope("GenerateEncryptedReport")
 
-	allFiles := ioutils.AddStrInPath(params.RawReportURI, "*")
+	allFiles := pipelineutils.AddStrInPath(params.RawReportURI, "*")
 	lines := textio.Read(scope, allFiles)
 
 	rawReports := beam.ParDo(scope, &parseRawReportFn{}, lines)

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ioutils
+package pipelineutils
 
 import (
-	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -98,123 +97,4 @@ func TestWriteNShardedFiles(t *testing.T) {
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
 	}
-}
-
-func TestWriteReadLines(t *testing.T) {
-	fileDir, err := ioutil.TempDir("/tmp", "test-file")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(fileDir)
-
-	want := []string{"foo", "bar", "baz"}
-	resultFile := path.Join(fileDir, "result.txt")
-	ctx := context.Background()
-	if err := WriteLines(ctx, want, resultFile); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := ReadLines(ctx, resultFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("strings mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestCborMarshalUnmarshal(t *testing.T) {
-	type testStruct struct {
-		FieldStr   string `json:"field_str"`
-		FieldInt   int64  `json:"field_int"`
-		FieldBytes []byte `json:"field_bytes"`
-	}
-
-	want := &testStruct{
-		FieldStr:   "test_string",
-		FieldInt:   12345,
-		FieldBytes: []byte("test_bytes"),
-	}
-
-	b, err := MarshalCBOR(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got := &testStruct{}
-	if err := UnmarshalCBOR(b, got); err != nil {
-		t.Fatal(err)
-	}
-
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Unmarshaled message mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestJoinPath(t *testing.T) {
-	filename := "bar"
-
-	dirGCS := "gs://foo"
-	want := dirGCS + "/" + filename
-	got := JoinPath(dirGCS, filename)
-	if want != got {
-		t.Errorf("expect joint path %s, got %s", want, got)
-	}
-
-	dirGCS = "gs://foo/"
-	want = dirGCS + filename
-	got = JoinPath(dirGCS, filename)
-	if want != got {
-		t.Errorf("expect joint path %s, got %s", want, got)
-	}
-
-	dirLocal := "/foo"
-	want = dirLocal + "/" + filename
-	got = JoinPath(dirLocal, filename)
-	if want != got {
-		t.Errorf("expect joint path %s, got %s", want, got)
-	}
-
-	dirLocal = "/foo/"
-	want = dirLocal + filename
-	got = JoinPath(dirLocal, filename)
-	if want != got {
-		t.Errorf("expect joint path %s, got %s", want, got)
-	}
-}
-
-func TestStringToUint128(t *testing.T) {
-	want := "147573952589676412928" // 2^67
-	n, err := StringToUint128(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := n.String()
-	if want != got {
-		t.Fatalf("expect %q, got %q", want, got)
-	}
-
-	want = "xyz"
-	n, err = StringToUint128(want)
-	if err == nil {
-		t.Fatalf("failed to detect invalid input %q", want)
-	}
-}
-
-func TestStringToUint128Overflow(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatalf("failed to panic on a value overflows uint128")
-		}
-	}()
-	StringToUint128("680564733841876926926749214863536422912") // 2^129
-}
-
-func TestStringToUint128Negative(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("failed to panic on a negative value")
-		}
-	}()
-	StringToUint128("-147573952589676412928") // -2^67
 }

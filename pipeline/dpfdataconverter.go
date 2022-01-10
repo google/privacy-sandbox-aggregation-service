@@ -33,8 +33,9 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -75,7 +76,7 @@ func ParseRawConversion(line string, keyBitSize int) (reporttypes.RawReport, err
 		return reporttypes.RawReport{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
-	key128, err := ioutils.StringToUint128(cols[0])
+	key128, err := utils.StringToUint128(cols[0])
 	if err != nil {
 		return reporttypes.RawReport{}, err
 	}
@@ -129,7 +130,7 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 		Operation: "hierarchical-histogram",
 		DPFKey:    bDpfKey,
 	}
-	bPayload, err := ioutils.MarshalCBOR(payload)
+	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +240,7 @@ func formatPartialReportFn(encrypted *pb.EncryptedPartialReportDpf, emit func(st
 func WritePartialReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
 	s = s.Scope("WriteEncryptedPartialReportDpf")
 	formatted := beam.ParDo(s, formatPartialReportFn, output)
-	ioutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
+	pipelineutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
 }
 
 // splitRawConversion splits the raw report records into secret shares and encrypts them with public keys from helpers.
@@ -270,7 +271,7 @@ type GeneratePartialReportParams struct {
 func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams) {
 	scope = scope.Scope("GeneratePartialReports")
 
-	allFiles := ioutils.AddStrInPath(params.ConversionURI, "*")
+	allFiles := pipelineutils.AddStrInPath(params.ConversionURI, "*")
 	lines := textio.Read(scope, allFiles)
 	rawConversions := beam.ParDo(scope, &parseRawConversionFn{KeyBitSize: params.KeyBitSize}, lines)
 	resharded := beam.Reshuffle(scope, rawConversions)
@@ -414,7 +415,7 @@ func CreateConversionIndex(prefixes []uint128.Uint128, prefixBitSize, totalBitSi
 
 // ReadRawConversions reads conversions from a file. Each line of the file represents a conversion record.
 func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize int) ([]reporttypes.RawReport, error) {
-	lines, err := ioutils.ReadLines(ctx, conversionFile)
+	lines, err := utils.ReadLines(ctx, conversionFile)
 	if err != nil {
 		return nil, err
 	}

@@ -26,8 +26,8 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 var (
@@ -45,7 +45,7 @@ func writeConversions(ctx context.Context, filename string, conversions []report
 	for i, conversion := range conversions {
 		lines[i] = fmt.Sprintf("%d,%d", conversion.Bucket, conversion.Value)
 	}
-	return ioutils.WriteLines(ctx, lines, filename)
+	return utils.WriteLines(ctx, lines, filename)
 }
 
 func main() {

@@ -30,6 +30,7 @@ import (
 	log "github.com/golang/glog"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/dataflow/v1b3"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
@@ -79,6 +80,7 @@ type QueryHandler struct {
 
 	PubSubTopicClient, PubSubSubscriptionClient *pubsub.Client
 	GCSClient                                   *storage.Client
+	DataflowSvc                                 *dataflow.Service
 }
 
 // Setup creates the cloud API clients.
@@ -108,6 +110,11 @@ func (h *QueryHandler) Setup(ctx context.Context) error {
 	}
 
 	h.GCSClient, err = storage.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	h.DataflowSvc, err = dataflow.NewService(ctx)
 	return err
 }
 
@@ -139,11 +146,107 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 			return
 		}
 
+		// check if dataflow job with queryId-level-origin is already running / finished / failed
+		/*
+		 -- no job with "queryId-level-origin" name --> schedule
+		 -- job with "queryId-level-origin" name and state one of JOB_STATE_RUNNING, JOB_STATE_PENDING,
+		    JOB_STATE_QUEUED, JOB_STATE_STOPPED --> wait and periodically check on job status
+		 -- job with "queryId-level-origin" name and state one of JOB_STATE_RESOURCE_CLEANING_UP, JOB_STATE_DONE
+		    --> ack message and schedule next level if applicable
+		 -- job with "queryId-level-origin" name and state none of above --> assume non-recoverable failure, ack message,
+		 	  don't schedule any other levels
+		*/
+		jobsSvc := dataflow.NewProjectsLocationsJobsService(h.DataflowSvc)
+		// currently unpaged, TODO add paging through results
+		jobs, err := jobsSvc.List(h.DataflowCfg.Project, h.DataflowCfg.Region).Do()
+		if err != nil {
+			log.Error(fmt.Errorf("Failed checking for existing dataflow jobs: %v", err))
+			msg.Nack()
+			return
+		}
+
+		waitStates := map[string]bool{
+			"JOB_STATE_RUNNING": true,
+			"JOB_STATE_PENDING": true,
+			"JOB_STATE_QUEUED":  true,
+			"JOB_STATE_STOPPED": true,
+		}
+
+		continueStates := map[string]bool{
+			"JOB_STATE_RESOURCE_CLEANING_UP": true,
+			"JOB_STATE_DONE":                 true,
+		}
+
+		jobDone := false
+		jobInWaitState := false
+		jobID := ""
+		for _, job := range jobs.Jobs {
+			if job.Name == fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin) {
+				if waitStates[job.CurrentState] {
+					// wait and periodically check on job status
+					log.Infof("Found dataflow job %s, %s in state %s", job.Name, job.Id, job.CurrentState)
+					jobInWaitState = true
+					jobID = job.Id
+				} else if continueStates[job.CurrentState] {
+					// use normal flow below to ack message and schedule next level if applicable
+					jobDone = true
+				} else {
+					// assume non-recoverable failure, ack message, don't schedule any other levels
+					log.Errorf("Dataflow job %s, %s found with unrecoverable state: %s ", job.Name, job.Id, job.CurrentState)
+					msg.Ack()
+					return
+				}
+
+				break
+			}
+		}
+
+		for jobInWaitState {
+			if jobID == "" {
+				log.Errorf("No jobId set for job in wait state")
+				msg.Nack()
+				return
+			}
+
+			// check every minute for job state
+			time.Sleep(1 * time.Minute)
+
+			job, err := jobsSvc.Get(h.DataflowCfg.Project, h.DataflowCfg.Region, jobID).Do()
+			if err != nil {
+				log.Errorf("Failed checking existing dataflow job with id %s: %v", jobID, err)
+				msg.Nack()
+				return
+			}
+
+			if waitStates[job.CurrentState] {
+				// continue to wait and periodically check on job status
+				continue
+
+			} else if continueStates[job.CurrentState] {
+				// use normal flow below to ack message and schedule next level if applicable
+				jobDone = true
+				jobInWaitState = false
+				// exit this wait loop
+				break
+			} else {
+				// assume non-recoverable failure, ack message, don't schedule any other levels
+				log.Errorf("Dataflow job %s, %s found with unrecoverable state: %s ", job.Name, job.Id, job.CurrentState)
+				msg.Ack()
+				return
+			}
+
+		}
+
+		// no job with "queryId-level-helperId" name --> schedule --> if jobDone schedule next lvl
 		var aggErr error
 		if hierarchicalConfig, err := query.ReadHierarchicalConfigFile(ctx, request.ExpandConfigURI); err == nil {
-			aggErr = h.aggregatePartialReportHierarchical(ctx, request, hierarchicalConfig)
+			aggErr = h.aggregatePartialReportHierarchical(ctx, request, hierarchicalConfig, jobDone)
 		} else if directConfig, err := query.ReadDirectConfigFile(ctx, request.ExpandConfigURI); err == nil {
-			aggErr = h.aggregatePartialReportDirect(ctx, request, directConfig)
+			if jobDone {
+				log.Infof("query %q complete", request.QueryID)
+			} else {
+				aggErr = h.aggregatePartialReportDirect(ctx, request, directConfig)
+			}
 		} else {
 			log.Errorf("invalid expansion configuration in URI %s", request.ExpandConfigURI)
 		}
@@ -161,94 +264,95 @@ func getFinalPartialResultURI(resultDir, queryID, origin string) string {
 	return utils.JoinPath(resultDir, fmt.Sprintf("%s_%s", queryID, strings.ReplaceAll(origin, ".", "_")))
 }
 
-func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, request *query.AggregateRequest, config *query.HierarchicalConfig) error {
+func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, request *query.AggregateRequest, config *query.HierarchicalConfig, jobDone bool) error {
 	finalLevel := int32(len(config.PrefixLengths)) - 1
 	if request.QueryLevel > finalLevel {
 		return fmt.Errorf("expect request level <= finalLevel %d, got %d", finalLevel, request.QueryLevel)
 	}
+	if !jobDone {
+		partialReportURI := request.PartialReportURI
+		outputDecryptedReportURI := ""
+		if request.QueryLevel > 0 {
+			// If it is not the first-level aggregation, check if the result from the partner helper is ready for the previous level.
+			exist, err := utils.IsGCSObjectExist(ctx, h.GCSClient,
+				query.GetRequestPartialResultURI(request.PartnerSharedInfo.SharedDir, request.QueryID, request.QueryLevel-1),
+			)
+			if err != nil {
+				return err
+			}
+			if !exist {
+				// When the partial result from the partner helper is not ready, nack the message with an error.
+				return fmt.Errorf("result from %s for level %d of query %s is not ready", request.PartnerSharedInfo.Origin, request.QueryLevel-1, request.QueryID)
+			}
 
-	partialReportURI := request.PartialReportURI
-	outputDecryptedReportURI := ""
-	if request.QueryLevel > 0 {
-		// If it is not the first-level aggregation, check if the result from the partner helper is ready for the previous level.
-		exist, err := utils.IsGCSObjectExist(ctx, h.GCSClient,
-			query.GetRequestPartialResultURI(request.PartnerSharedInfo.SharedDir, request.QueryID, request.QueryLevel-1),
+			// If it is not the first-level aggregation, the pipeline should read the decrypted reports instead of the original encrypted ones.
+			partialReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
+		} else {
+			outputDecryptedReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
+		}
+
+		expandParamsURI, err := query.GetRequestExpandParamsURI(ctx, config, request,
+			h.ServerCfg.WorkspaceURI,
+			h.SharedDir,
+			request.PartnerSharedInfo.SharedDir,
 		)
 		if err != nil {
 			return err
 		}
-		if !exist {
-			// When the partial result from the partner helper is not ready, nack the message with an error.
-			return fmt.Errorf("result from %s for level %d of query %s is not ready", request.PartnerSharedInfo.Origin, request.QueryLevel-1, request.QueryID)
+
+		var outputResultURI string
+		// The final-level results are not supposed to be shared with the partner helpers.
+		if request.QueryLevel == finalLevel {
+			outputResultURI = getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
+		} else {
+			outputResultURI = query.GetRequestPartialResultURI(h.SharedDir, request.QueryID, request.QueryLevel)
 		}
 
-		// If it is not the first-level aggregation, the pipeline should read the decrypted reports instead of the original encrypted ones.
-		partialReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
-	} else {
-		outputDecryptedReportURI = query.GetRequestDecryptedReportURI(h.ServerCfg.WorkspaceURI, request.QueryID)
-	}
+		args := []string{
+			"--partial_report_uri=" + partialReportURI,
+			"--expand_parameters_uri=" + expandParamsURI,
+			"--partial_histogram_uri=" + outputResultURI,
+			"--decrypted_report_uri=" + outputDecryptedReportURI,
+			"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.QueryLevel]),
+			"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+			"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
+			"--runner=" + h.PipelineRunner,
+		}
 
-	expandParamsURI, err := query.GetRequestExpandParamsURI(ctx, config, request,
-		h.ServerCfg.WorkspaceURI,
-		h.SharedDir,
-		request.PartnerSharedInfo.SharedDir,
-	)
-	if err != nil {
-		return err
-	}
+		if h.PipelineRunner == "dataflow" {
+			args = append(args,
+				"--project="+h.DataflowCfg.Project,
+				"--region="+h.DataflowCfg.Region,
+				"--zone="+h.DataflowCfg.Zone,
+				"--temp_location="+h.DataflowCfg.TempLocation,
+				"--staging_location="+h.DataflowCfg.StagingLocation,
+				// set jobname to queryID-level-origin
+				"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
+				"--num_workers="+fmt.Sprint(request.NumWorkers),
+				"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
+				"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+				"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
+			)
+		}
 
-	var outputResultURI string
-	// The final-level results are not supposed to be shared with the partner helpers.
-	if request.QueryLevel == finalLevel {
-		outputResultURI = getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
-	} else {
-		outputResultURI = query.GetRequestPartialResultURI(h.SharedDir, request.QueryID, request.QueryLevel)
-	}
+		str := h.ServerCfg.DpfAggregatePartialReportBinary
+		for _, s := range args {
+			str = fmt.Sprintf("%s\n%s", str, s)
+		}
+		log.Infof("Running command\n%s", str)
 
-	args := []string{
-		"--partial_report_uri=" + partialReportURI,
-		"--expand_parameters_uri=" + expandParamsURI,
-		"--partial_histogram_uri=" + outputResultURI,
-		"--decrypted_report_uri=" + outputDecryptedReportURI,
-		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon*config.PrivacyBudgetPerPrefix[request.QueryLevel]),
-		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
-		"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
-		"--runner=" + h.PipelineRunner,
+		cmd := exec.CommandContext(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args...)
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			log.Errorf("%s: %s", err, stderr.String())
+			return err
+		}
+		log.Infof("output of cmd: %s", out.String())
 	}
-
-	if h.PipelineRunner == "dataflow" {
-		args = append(args,
-			"--project="+h.DataflowCfg.Project,
-			"--region="+h.DataflowCfg.Region,
-			"--zone="+h.DataflowCfg.Zone,
-			"--temp_location="+h.DataflowCfg.TempLocation,
-			"--staging_location="+h.DataflowCfg.StagingLocation,
-			// set jobname to queryID-level-origin
-			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
-			"--num_workers="+fmt.Sprint(request.NumWorkers),
-			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
-			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
-			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
-		)
-	}
-
-	str := h.ServerCfg.DpfAggregatePartialReportBinary
-	for _, s := range args {
-		str = fmt.Sprintf("%s\n%s", str, s)
-	}
-	log.Infof("Running command\n%s", str)
-
-	cmd := exec.CommandContext(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		log.Errorf("%s: %s", err, stderr.String())
-		return err
-	}
-	log.Infof("output of cmd: %s", out.String())
 
 	if request.QueryLevel == finalLevel {
 		log.Infof("query %q complete", request.QueryID)

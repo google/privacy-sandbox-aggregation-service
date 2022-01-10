@@ -35,14 +35,14 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )

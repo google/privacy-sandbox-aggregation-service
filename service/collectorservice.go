@@ -30,7 +30,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 /* 20% reportsChannel buffer to allow for reports being processed while writing batches but

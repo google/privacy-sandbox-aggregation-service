@@ -22,7 +22,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 )

@@ -20,7 +20,7 @@ import (
 	"flag"
 
 	log "github.com/golang/glog"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 )
 

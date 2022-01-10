@@ -25,13 +25,13 @@ import (
 	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 
 	// The following packages are required to read files from GCS or local.
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/gcs"

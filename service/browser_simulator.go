@@ -30,7 +30,7 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"

@@ -26,13 +26,13 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 func init() {

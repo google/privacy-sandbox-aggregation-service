@@ -31,7 +31,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 func TestCollectPayloads(t *testing.T) {

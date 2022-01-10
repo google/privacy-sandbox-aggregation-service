@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 
-load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 package(
@@ -19,101 +18,6 @@ package(
 )
 
 licenses(["notice"])
-
-proto_library(
-    name = "crypto_proto",
-    srcs = ["crypto.proto"],
-    deps = ["@com_github_google_distributed_point_functions//dpf:distributed_point_function_proto"],
-)
-
-go_proto_library(
-    name = "crypto_go_proto",
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto",
-    protos = [":crypto_proto"],
-    deps = ["@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto"],
-)
-
-cc_proto_library(
-    name = "crypto_cc_proto",
-    deps = [":crypto_proto"],
-)
-
-cc_library(
-    name = "cbytes",
-    hdrs = ["cbytes.h"],
-)
-
-cc_library(
-    name = "cbytes_utils",
-    srcs = ["cbytes_utils.cc"],
-    hdrs = ["cbytes_utils.h"],
-    deps = [
-        ":cbytes",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-go_library(
-    name = "cryptoio",
-    srcs = ["cryptoio.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/cryptoio",
-    deps = [
-        ":crypto_go_proto",
-        ":ioutils",
-        ":standardencrypt",
-        "@com_github_google_tink_go//aead:go_default_library",
-        "@com_github_google_tink_go//core/registry:go_default_library",
-        "@com_github_google_tink_go//integration/gcpkms:go_default_library",
-        "@com_github_google_tink_go//keyset:go_default_library",
-        "@com_github_google_tink_go//tink:go_default_library",
-        "@com_github_pborman_uuid//:uuid",
-        "@com_lukechampine_uint128//:go_default_library",
-        "@org_golang_google_protobuf//proto",
-    ],
-)
-
-go_test(
-    name = "cryptoio_test",
-    size = "small",
-    srcs = ["cryptoio_test.go"],
-    data = [
-        "@tink_base//testdata:credentials",
-    ],
-    embed = [":cryptoio"],
-    deps = [
-        ":crypto_go_proto",
-        ":standardencrypt",
-        "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
-        "@com_github_google_go_cmp//cmp:go_default_library",
-        "@com_lukechampine_uint128//:go_default_library",
-        "@org_golang_google_protobuf//testing/protocmp",
-    ],
-)
-
-go_library(
-    name = "standardencrypt",
-    srcs = ["standardencrypt.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt",
-    visibility = ["//visibility:private"],
-    deps = [
-        ":crypto_go_proto",
-        "@com_github_google_tink_go//hybrid:go_default_library",
-        "@com_github_google_tink_go//insecurecleartextkeyset:go_default_library",
-        "@com_github_google_tink_go//keyset:go_default_library",
-    ],
-)
-
-go_test(
-    name = "standardencrypt_test",
-    size = "small",
-    srcs = ["standardencrypt_test.go"],
-    embed = [":standardencrypt"],
-    deps = [
-        "@com_github_google_go_cmp//cmp:go_default_library",
-        "@org_golang_google_protobuf//testing/protocmp",
-    ],
-)
 
 go_library(
     name = "ioutils",
@@ -147,79 +51,17 @@ go_test(
     ],
 )
 
-cc_library(
-    name = "distributed_point_function_c_bridge",
-    srcs = ["distributed_point_function_c_bridge.cc"],
-    hdrs = ["distributed_point_function_c_bridge.h"],
-    deps = [
-        ":cbytes",
-        ":cbytes_utils",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
-        "@com_github_google_distributed_point_functions//dpf:int_mod_n",
-        "@com_github_google_distributed_point_functions//dpf:tuple",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "distributed_point_function_c_bridge_test",
-    srcs = ["distributed_point_function_c_bridge_test.cc"],
-    deps = [
-        ":cbytes",
-        ":cbytes_utils",
-        ":distributed_point_function_c_bridge",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_cc_proto",
-        "@com_github_google_googletest//:gtest_main",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-    ],
-)
-
-go_library(
-    name = "incrementaldpf",
-    srcs = ["incrementaldpf.go"],
-    cdeps = [
-        ":distributed_point_function_c_bridge",  # keep
-    ],
-    cgo = True,
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/incrementaldpf",
-    visibility = ["//visibility:private"],
-    deps = [
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
-        "@com_lukechampine_uint128//:go_default_library",
-        "@org_golang_google_protobuf//proto",
-    ],
-)
-
-go_test(
-    name = "incrementaldpf_test",
-    size = "small",
-    srcs = ["incrementaldpf_test.go"],
-    embed = [":incrementaldpf"],
-    deps = [
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
-        "@com_github_google_go_cmp//cmp:go_default_library",
-        "@com_lukechampine_uint128//:go_default_library",
-    ],
-)
-
 go_library(
     name = "dpfaggregator",
     srcs = ["dpfaggregator.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator",
     deps = [
-        ":crypto_go_proto",
-        ":distributednoise",
-        ":incrementaldpf",
         ":ioutils",
         ":reporttypes",
-        ":standardencrypt",
+        "//encryption:crypto_go_proto",
+        "//encryption:distributednoise",
+        "//encryption:incrementaldpf",
+        "//encryption:standardencrypt",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/gcs:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
@@ -236,12 +78,12 @@ go_test(
     srcs = ["dpfaggregator_test.go"],
     embed = [":dpfaggregator"],
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
-        ":incrementaldpf",
         ":ioutils",
         ":reporttypes",
-        ":standardencrypt",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
+        "//encryption:incrementaldpf",
+        "//encryption:standardencrypt",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
@@ -260,10 +102,10 @@ go_binary(
     name = "dpf_generate_raw_conversion",
     srcs = ["dpf_generate_raw_conversion.go"],
     deps = [
-        ":cryptoio",
         ":dpfdataconverter",
         ":ioutils",
         ":reporttypes",
+        "//encryption:cryptoio",
         "@com_github_golang_glog//:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
     ],
@@ -273,30 +115,9 @@ go_binary(
     name = "create_hybrid_key_pair",
     srcs = ["create_hybrid_key_pair.go"],
     deps = [
-        ":cryptoio",
         ":ioutils",
+        "//encryption:cryptoio",
         "@com_github_golang_glog//:go_default_library",
-    ],
-)
-
-go_library(
-    name = "distributednoise",
-    srcs = ["distributednoise.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/distributednoise",
-    deps = [
-        "@org_gonum_v1_gonum//floats:go_default_library",
-        "@org_gonum_v1_gonum//stat/distuv:go_default_library",
-    ],
-)
-
-go_test(
-    name = "distributednoise_test",
-    size = "small",
-    srcs = ["distributednoise_test.go"],
-    embed = [":distributednoise"],
-    deps = [
-        "@com_github_grd_stat//:go_default_library",
-        "@org_gonum_v1_gonum//floats:go_default_library",
     ],
 )
 
@@ -312,10 +133,10 @@ go_library(
     srcs = ["onepartyaggregator.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator",
     deps = [
-        ":crypto_go_proto",
         ":ioutils",
         ":reporttypes",
-        ":standardencrypt",
+        "//encryption:crypto_go_proto",
+        "//encryption:standardencrypt",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/transforms/stats:go_default_library",
@@ -330,11 +151,11 @@ go_test(
     srcs = ["onepartyaggregator_test.go"],
     embed = [":onepartyaggregator"],
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
         ":ioutils",
         ":reporttypes",
-        ":standardencrypt",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
+        "//encryption:standardencrypt",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/passert:go_default_library",
@@ -348,11 +169,11 @@ go_library(
     srcs = ["onepartydataconverter.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartydataconverter",
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
         ":ioutils",
         ":reporttypes",
-        ":standardencrypt",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
+        "//encryption:standardencrypt",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
         "@org_golang_google_protobuf//proto",
@@ -365,9 +186,9 @@ go_test(
     srcs = ["onepartydataconverter_test.go"],
     embed = [":onepartydataconverter"],
     deps = [
-        ":cryptoio",
         ":onepartyaggregator",
         ":reporttypes",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/ptest:go_default_library",
@@ -379,9 +200,9 @@ go_binary(
     name = "generate_test_data_pipeline",
     srcs = ["generate_test_data_pipeline.go"],
     deps = [
-        ":cryptoio",
         ":dpfdataconverter",
         ":onepartydataconverter",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
@@ -394,9 +215,9 @@ go_test(
     srcs = ["dpf_pipeline_integration_test.go"],
     data = [
         "dpf_test_conversion_data.csv",
-        "//pipeline:create_hybrid_key_pair",
-        "//pipeline:dpf_aggregate_partial_report_pipeline",
-        "//pipeline:generate_test_data_pipeline",
+        ":create_hybrid_key_pair",
+        ":dpf_aggregate_partial_report_pipeline",
+        ":generate_test_data_pipeline",
     ],
     deps = [
         ":dpfaggregator",
@@ -411,9 +232,9 @@ go_binary(
     name = "dpf_aggregate_partial_report_pipeline",
     srcs = ["dpf_aggregate_partial_report_pipeline.go"],
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
         ":dpfaggregator",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
@@ -435,8 +256,8 @@ go_binary(
     name = "oneparty_aggregate_report_pipeline",
     srcs = ["oneparty_aggregate_report_pipeline.go"],
     deps = [
-        ":cryptoio",
         ":onepartyaggregator",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
@@ -448,13 +269,13 @@ go_library(
     srcs = ["dpfdataconverter.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter",
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
         ":dpfaggregator",
-        ":incrementaldpf",
         ":ioutils",
         ":reporttypes",
-        ":standardencrypt",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
+        "//encryption:incrementaldpf",
+        "//encryption:standardencrypt",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
@@ -470,11 +291,11 @@ go_test(
     data = [":dpf_test_conversion_data.csv"],
     embed = [":dpfdataconverter"],
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
         ":dpfaggregator",
         ":ioutils",
         ":reporttypes",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
@@ -489,12 +310,12 @@ go_library(
     srcs = ["reachdataconverter.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reachdataconverter",
     deps = [
-        ":crypto_go_proto",
-        ":cryptoio",
         ":dpfdataconverter",
-        ":incrementaldpf",
         ":ioutils",
         ":reporttypes",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
+        "//encryption:incrementaldpf",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
@@ -506,11 +327,11 @@ go_library(
     srcs = ["reachaggregator.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/pipeline/reachaggregator",
     deps = [
-        ":crypto_go_proto",
-        ":distributednoise",
         ":dpfaggregator",
-        ":incrementaldpf",
         ":ioutils",
+        "//encryption:crypto_go_proto",
+        "//encryption:distributednoise",
+        "//encryption:incrementaldpf",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/gcs:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
@@ -532,10 +353,10 @@ go_test(
     srcs = ["reachdataconverter_test.go"],
     embed = [":reachdataconverter"],
     deps = [
-        ":cryptoio",
         ":dpfaggregator",
         ":reachaggregator",
         ":reporttypes",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/ptest:go_default_library",
         "@com_github_google_go_cmp//cmp:go_default_library",
@@ -546,8 +367,8 @@ go_binary(
     name = "generate_reach_test_data_pipeline",
     srcs = ["generate_reach_test_data_pipeline.go"],
     deps = [
-        ":cryptoio",
         ":reachdataconverter",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
@@ -558,9 +379,9 @@ go_binary(
     name = "dpf_aggregate_reach_partial_report_pipeline",
     srcs = ["dpf_aggregate_reach_partial_report_pipeline.go"],
     deps = [
-        ":cryptoio",
         ":dpfaggregator",
         ":reachaggregator",
+        "//encryption:cryptoio",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",

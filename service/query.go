@@ -34,7 +34,7 @@ import (
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	grpcMetadata "google.golang.org/grpc/metadata"
-	cryptopb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	cryptopb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 	servicepb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 )

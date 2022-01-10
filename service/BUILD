@@ -29,7 +29,7 @@ go_proto_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto",
     proto = ":service_proto",
     deps = [
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
     ],
 )
 
@@ -113,7 +113,7 @@ go_library(
     deps = [
         ":service_go_grpc_proto",
         ":utils",
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
         "//pipeline:ioutils",
         "@com_github_golang_glog//:go_default_library",
@@ -133,7 +133,7 @@ go_test(
     srcs = ["query_test.go"],
     embed = [":query"],
     deps = [
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
         "//pipeline:ioutils",
         "@com_github_google_go_cmp//cmp:go_default_library",
@@ -147,7 +147,7 @@ go_library(
     srcs = ["collectorservice.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
     deps = [
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
         "//pipeline:dpfdataconverter",
         "//pipeline:ioutils",
         "//pipeline:reporttypes",
@@ -199,7 +199,7 @@ go_binary(
     x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
         ":utils",
-        "//pipeline:cryptoio",
+        "//encryption:cryptoio",
         "//pipeline:dpfdataconverter",
         "//pipeline:ioutils",
         "//pipeline:reporttypes",
@@ -232,7 +232,7 @@ go_test(
     srcs = ["collectorservice_test.go"],
     embed = [":collectorservice"],
     deps = [
-        "//pipeline:crypto_go_proto",
+        "//encryption:crypto_go_proto",
         "//pipeline:reporttypes",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@org_golang_google_protobuf//proto",

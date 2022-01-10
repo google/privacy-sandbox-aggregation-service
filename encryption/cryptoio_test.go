@@ -24,10 +24,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 // TestKMSEncryptDecryptStandardPrivateKey can be tested with 'blaze run', but fails with 'blaze test'.

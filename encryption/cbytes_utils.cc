@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "pipeline/cbytes_utils.h"
+#include "encryption/cbytes_utils.h"
 
 #include <cstddef>
 #include <cstring>
 #include <string>
 
 #include "absl/strings/string_view.h"
-#include "pipeline/cbytes.h"
+#include "encryption/cbytes.h"
 
 namespace convagg {
 namespace crypto {

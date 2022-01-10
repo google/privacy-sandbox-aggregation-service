@@ -26,15 +26,15 @@ import (
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/ioutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/standardencrypt"
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/core/registry"
 	"github.com/google/tink/go/integration/gcpkms"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/tink"
 
-	pb "github.com/google/privacy-sandbox-aggregation-service/pipeline/crypto_go_proto"
+	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 // The default file names for stored encryption keys and secret.

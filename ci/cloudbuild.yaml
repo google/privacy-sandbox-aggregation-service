@@ -82,7 +82,7 @@ steps:
     - 'run'
     - '-c'
     - 'opt'
-    - 'service:browser_simulator_image_publish'
+    - 'tools:browser_simulator_image_publish'
     - '--stamp'
     - '--define'
     - 'VERSION=$_VERSION'

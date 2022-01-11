@@ -31,8 +31,8 @@ import (
 	log "github.com/golang/glog"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 

@@ -81,17 +81,6 @@ go_library(
     ],
 )
 
-go_binary(
-    name = "simulate_reporter_hierarchical_aggregation",
-    srcs = ["simulate_reporter_hierarchical_aggregation.go"],
-    deps = [
-        ":query",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//credentials:go_default_library",
-    ],
-)
-
 go_library(
     name = "query",
     srcs = ["query.go"],
@@ -133,8 +122,8 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
     deps = [
         "//encryption:crypto_go_proto",
-        "//pipeline:dpfdataconverter",
         "//pipeline:reporttypes",
+        "//test:dpfdataconverter",
         "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
@@ -174,42 +163,6 @@ container_push(
     tag = "$(VERSION)",
 )
 
-go_binary(
-    name = "browser_simulator",
-    srcs = ["browser_simulator.go"],
-    gc_linkopts = [
-        "-X",
-        "main.version=$(VERSION)",
-    ],
-    x_defs = {"build": "{BUILD_TIMESTAMP}"},
-    deps = [
-        "//encryption:cryptoio",
-        "//pipeline:dpfdataconverter",
-        "//pipeline:reporttypes",
-        "//utils",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_github_hashicorp_go_retryablehttp//:go_default_library",
-    ],
-)
-
-container_image(
-    name = "browser_simulator_image",
-    base = "@base_image//image",
-    creation_time = "{BUILD_TIMESTAMP}",
-    entrypoint = ["/browser_simulator"],
-    files = [":browser_simulator"],
-    stamp = True,
-)
-
-container_push(
-    name = "browser_simulator_image_publish",
-    format = "Docker",
-    image = ":browser_simulator_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/browser_simulator",
-    tag = "$(VERSION)",
-)
-
 go_test(
     name = "collectorservice_test",
     size = "small",
@@ -221,20 +174,6 @@ go_test(
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
-    ],
-)
-
-go_binary(
-    name = "aggregation_query_tool",
-    srcs = ["aggregation_query_tool.go"],
-    deps = [
-        ":aggregatorservice",
-        ":query",
-        "//utils",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_github_hashicorp_go_retryablehttp//:go_default_library",
-        "@com_github_pborman_uuid//:uuid",
-        "@com_google_cloud_go_pubsub//:go_default_library",
     ],
 )
 

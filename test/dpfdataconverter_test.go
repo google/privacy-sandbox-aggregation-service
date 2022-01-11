@@ -44,7 +44,7 @@ func TestReadInputConversions(t *testing.T) {
 		}
 	}
 
-	testFile, err := utils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("test/dpf_test_conversion_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}

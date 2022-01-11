@@ -26,8 +26,8 @@ import (
 	log "github.com/golang/glog"
 	"golang.org/x/sync/errgroup"
 	"github.com/ugorji/go/codec"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"

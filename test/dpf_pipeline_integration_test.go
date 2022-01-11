@@ -34,15 +34,15 @@ func TestPipeline(t *testing.T) {
 func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
 
-	testFile, err := utils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("test/dpf_test_conversion_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	createKeyBinary, err := utils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
+	createKeyBinary, err := utils.RunfilesPath("tools/create_hybrid_key_pair", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	generateTestDataBinary, err := utils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
+	generateTestDataBinary, err := utils.RunfilesPath("test/generate_test_data_pipeline", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,15 +234,15 @@ func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
 func testDirectPipeline(t testing.TB, encryptOutput bool) {
 	ctx := context.Background()
 
-	testFile, err := utils.RunfilesPath("pipeline/dpf_test_conversion_data.csv", false /*isBinary*/)
+	testFile, err := utils.RunfilesPath("test/dpf_test_conversion_data.csv", false /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	createKeyBinary, err := utils.RunfilesPath("pipeline/create_hybrid_key_pair", true /*isBinary*/)
+	createKeyBinary, err := utils.RunfilesPath("tools/create_hybrid_key_pair", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}
-	generateTestDataBinary, err := utils.RunfilesPath("pipeline/generate_test_data_pipeline", true /*isBinary*/)
+	generateTestDataBinary, err := utils.RunfilesPath("test/generate_test_data_pipeline", true /*isBinary*/)
 	if err != nil {
 		t.Fatal(err)
 	}

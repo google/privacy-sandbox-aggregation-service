@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -240,4 +241,16 @@ func AggregateReport(scope beam.Scope, params *AggregateReportParams) {
 
 	// TODO: Add noise before writing the result.
 	writeHistogram(scope, filteredResult, params.HistogramURI)
+}
+
+// ValidateTargetBuckets checks if the targeted bucket IDs are empty.
+func ValidateTargetBuckets(ctx context.Context, bucketURI string) error {
+	lines, err := utils.ReadLines(ctx, bucketURI)
+	if err != nil {
+		return err
+	}
+	if len(lines) == 0 {
+		return errors.New("expect nonempty bucket IDs")
+	}
+	return nil
 }

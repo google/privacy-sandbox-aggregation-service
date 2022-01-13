@@ -32,10 +32,10 @@ import (
 
 var (
 	helperAddress1     = flag.String("helper_address1", "", "Address of helper 1.")
-	helperAddress2     = flag.String("helper_address2", "", "Address of helper 2.")
+	helperAddress2     = flag.String("helper_address2", "", "Address of helper 2, required for MPC protocal.")
 	partialReportURI1  = flag.String("partial_report_uri1", "", "Input partial report for helper 1.")
-	partialReportURI2  = flag.String("partial_report_uri2", "", "Input partial report for helper 2.")
-	expansionConfigURI = flag.String("expansion_config_uri", "", "URI for the expansion configurations with type query.HierarchicalConfig or query.DirectConfig.")
+	partialReportURI2  = flag.String("partial_report_uri2", "", "Input partial report for helper 2, required for MPC protocal.")
+	expansionConfigURI = flag.String("expansion_config_uri", "", "URI for the expansion configurations with type query.HierarchicalConfig, query.DirectConfig or a single column of bucket IDs for the one-party design.")
 	epsilon            = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
 	keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	resultDir          = flag.String("result_dir", "", "The directory where the final results will be saved. Helpers should only have writing permissions to this directory.")
@@ -62,49 +62,59 @@ func main() {
 	log.Infof("Running querier simulator version: %v, build: %v\n", version, buildDate)
 
 	ctx := context.Background()
-	var token1, token2 string
-	var err error
+	client := retryablehttp.NewClient().StandardClient()
+	queryID := uuid.New()
+
+	var (
+		token1, token2               string
+		sharedInfo1, sharedInfo2     *query.HelperSharedInfo
+		pubsubClient1, pubsubClient2 *pubsub.Client
+		project1, project2           string
+		topic1, topic2               string
+		err                          error
+	)
+
 	if token1, err = utils.GetAuthorizationToken(ctx, *helperAddress1, *impersonatedSvcAccount); err != nil {
 		log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
 	}
-	if token2, err = utils.GetAuthorizationToken(ctx, *helperAddress2, *impersonatedSvcAccount); err != nil {
-		log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
-	}
 
-	client := retryablehttp.NewClient().StandardClient()
-
-	sharedInfo1, err := aggregatorservice.ReadHelperSharedInfo(client, *helperAddress1, token1)
-	if err != nil {
-		log.Exit(err)
-	}
-	sharedInfo2, err := aggregatorservice.ReadHelperSharedInfo(client, *helperAddress2, token2)
+	sharedInfo1, err = aggregatorservice.ReadHelperSharedInfo(client, *helperAddress1, token1)
 	if err != nil {
 		log.Exit(err)
 	}
 
-	project1, topic1, err := utils.ParsePubSubResourceName(sharedInfo1.PubSubTopic)
+	project1, topic1, err = utils.ParsePubSubResourceName(sharedInfo1.PubSubTopic)
 	if err != nil {
 		log.Exit(err)
 	}
-	client1, err := pubsub.NewClient(ctx, project1)
+	pubsubClient1, err = pubsub.NewClient(ctx, project1)
 	if err != nil {
 		log.Exit(err)
 	}
-	defer client1.Close()
+	defer pubsubClient1.Close()
 
-	project2, topic2, err := utils.ParsePubSubResourceName(sharedInfo2.PubSubTopic)
-	if err != nil {
-		log.Exit(err)
-	}
-	client2, err := pubsub.NewClient(ctx, project2)
-	if err != nil {
-		log.Exit(err)
-	}
-	defer client2.Close()
+	if *helperAddress2 != "" {
+		if token2, err = utils.GetAuthorizationToken(ctx, *helperAddress2, *impersonatedSvcAccount); err != nil {
+			log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
+		}
 
-	queryID := uuid.New()
+		sharedInfo2, err = aggregatorservice.ReadHelperSharedInfo(client, *helperAddress2, token2)
+		if err != nil {
+			log.Exit(err)
+		}
+		project2, topic2, err = utils.ParsePubSubResourceName(sharedInfo2.PubSubTopic)
+		if err != nil {
+			log.Exit(err)
+		}
+		pubsubClient2, err = pubsub.NewClient(ctx, project2)
+		if err != nil {
+			log.Exit(err)
+		}
+		defer pubsubClient2.Close()
+	}
+
 	// Request aggregation on helper1.
-	if err := utils.PublishRequest(ctx, client1, topic1, &query.AggregateRequest{
+	if err := utils.PublishRequest(ctx, pubsubClient1, topic1, &query.AggregateRequest{
 		PartialReportURI:  *partialReportURI1,
 		ExpandConfigURI:   *expansionConfigURI,
 		TotalEpsilon:      *epsilon,
@@ -117,17 +127,19 @@ func main() {
 		log.Exit(err)
 	}
 
-	// Request aggregation on helper2.
-	if err := utils.PublishRequest(ctx, client2, topic2, &query.AggregateRequest{
-		PartialReportURI:  *partialReportURI2,
-		ExpandConfigURI:   *expansionConfigURI,
-		TotalEpsilon:      *epsilon,
-		QueryID:           queryID,
-		PartnerSharedInfo: sharedInfo1,
-		ResultDir:         *resultDir,
-		KeyBitSize:        int32(*keyBitSize),
-		NumWorkers:        int32(*numWorkers),
-	}); err != nil {
-		log.Exit(err)
+	if *helperAddress2 != "" {
+		// Request aggregation on helper2.
+		if err := utils.PublishRequest(ctx, pubsubClient2, topic2, &query.AggregateRequest{
+			PartialReportURI:  *partialReportURI2,
+			ExpandConfigURI:   *expansionConfigURI,
+			TotalEpsilon:      *epsilon,
+			QueryID:           queryID,
+			PartnerSharedInfo: sharedInfo1,
+			ResultDir:         *resultDir,
+			KeyBitSize:        int32(*keyBitSize),
+			NumWorkers:        int32(*numWorkers),
+		}); err != nil {
+			log.Exit(err)
+		}
 	}
 }

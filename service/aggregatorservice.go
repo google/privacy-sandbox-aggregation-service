@@ -32,6 +32,7 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/dataflow/v1b3"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
@@ -51,6 +52,7 @@ type DataflowCfg struct {
 type ServerCfg struct {
 	PrivateKeyParamsURI             string
 	DpfAggregatePartialReportBinary string
+	OnepartyAggregateReportBinary   string
 	WorkspaceURI                    string
 }
 
@@ -247,6 +249,12 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 			} else {
 				aggErr = h.aggregatePartialReportDirect(ctx, request, directConfig)
 			}
+		} else if err := onepartyaggregator.ValidateTargetBuckets(ctx, request.ExpandConfigURI); err == nil {
+			if jobDone {
+				log.Infof("query %q complete", request.QueryID)
+			} else {
+				aggErr = h.aggregateOnepartyReport(ctx, request)
+			}
 		} else {
 			log.Errorf("invalid expansion configuration in URI %s", request.ExpandConfigURI)
 		}
@@ -262,6 +270,42 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 
 func getFinalPartialResultURI(resultDir, queryID, origin string) string {
 	return utils.JoinPath(resultDir, fmt.Sprintf("%s_%s", queryID, strings.ReplaceAll(origin, ".", "_")))
+}
+
+func (h *QueryHandler) runPipeline(ctx context.Context, binary string, args []string, request *query.AggregateRequest) error {
+	if h.PipelineRunner == "dataflow" {
+		args = append(args,
+			"--project="+h.DataflowCfg.Project,
+			"--region="+h.DataflowCfg.Region,
+			"--zone="+h.DataflowCfg.Zone,
+			"--temp_location="+h.DataflowCfg.TempLocation,
+			"--staging_location="+h.DataflowCfg.StagingLocation,
+			// set jobname to queryID-level-origin
+			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
+			"--num_workers="+fmt.Sprint(request.NumWorkers),
+			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
+			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
+		)
+	}
+
+	str := binary
+	for _, s := range args {
+		str = fmt.Sprintf("%s\n%s", str, s)
+	}
+	log.Infof("Running command\n%s", str)
+
+	cmd := exec.CommandContext(ctx, binary, args...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		log.Errorf("%s: %s", err, stderr.String())
+		return err
+	}
+	log.Infof("output of cmd: %s", out.String())
+	return nil
 }
 
 func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, request *query.AggregateRequest, config *query.HierarchicalConfig, jobDone bool) error {
@@ -335,23 +379,9 @@ func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, r
 			)
 		}
 
-		str := h.ServerCfg.DpfAggregatePartialReportBinary
-		for _, s := range args {
-			str = fmt.Sprintf("%s\n%s", str, s)
-		}
-		log.Infof("Running command\n%s", str)
-
-		cmd := exec.CommandContext(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args...)
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		err = cmd.Run()
-		if err != nil {
-			log.Errorf("%s: %s", err, stderr.String())
+		if err := h.runPipeline(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args, request); err != nil {
 			return err
 		}
-		log.Infof("output of cmd: %s", out.String())
 	}
 
 	if request.QueryLevel == finalLevel {
@@ -390,35 +420,25 @@ func (h *QueryHandler) aggregatePartialReportDirect(ctx context.Context, request
 		"--runner=" + h.PipelineRunner,
 	}
 
-	if h.PipelineRunner == "dataflow" {
-		args = append(args,
-			"--project="+h.DataflowCfg.Project,
-			"--region="+h.DataflowCfg.Region,
-			"--zone="+h.DataflowCfg.Zone,
-			"--temp_location="+h.DataflowCfg.TempLocation,
-			"--staging_location="+h.DataflowCfg.StagingLocation,
-			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
-			"--num_workers="+fmt.Sprint(request.NumWorkers),
-			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
-			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
-			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
-		)
+	if err := h.runPipeline(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args, request); err != nil {
+		return err
 	}
 
-	str := h.ServerCfg.DpfAggregatePartialReportBinary
-	for _, s := range args {
-		str = fmt.Sprintf("%s\n%s", str, s)
-	}
-	log.Infof("Running command\n%s", str)
+	log.Infof("query %q complete", request.QueryID)
+	return nil
+}
 
-	cmd := exec.CommandContext(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		log.Errorf("%s: %s", err, stderr.String())
-		log.Infof("output of cmd: %s", out.String())
+func (h *QueryHandler) aggregateOnepartyReport(ctx context.Context, request *query.AggregateRequest) error {
+	outputResultURI := getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
+	args := []string{
+		"--encrypted_report_uri=" + request.PartialReportURI,
+		"--target_bucket_uri=" + request.ExpandConfigURI,
+		"--partial_histogram_uri=" + outputResultURI,
+		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+		"--runner=" + h.PipelineRunner,
+	}
+
+	if err := h.runPipeline(ctx, h.ServerCfg.OnepartyAggregateReportBinary, args, request); err != nil {
 		return err
 	}
 

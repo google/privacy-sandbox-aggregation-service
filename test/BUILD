@@ -128,8 +128,8 @@ go_test(
     embed = [":onepartydataconverter"],
     deps = [
         "//encryption:cryptoio",
+        "//pipeline:onepartyaggregator",
         "//pipeline:reporttypes",
-        "//third_party/privacy_sandbox_aggregation/pipeline:onepartyaggregator",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/ptest:go_default_library",

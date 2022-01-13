@@ -199,6 +199,7 @@ go_library(
     deps = [
         ":query",
         "//pipeline:dpfaggregator",
+        "//pipeline:onepartyaggregator",
         "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",

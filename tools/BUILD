@@ -99,14 +99,3 @@ go_binary(
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
     ],
 )
-
-go_binary(
-    name = "simulate_reporter_hierarchical_aggregation",
-    srcs = ["simulate_reporter_hierarchical_aggregation.go"],
-    deps = [
-        "//third_party/privacy_sandbox_aggregation/service:query",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//credentials:go_default_library",
-    ],
-)

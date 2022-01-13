@@ -18,85 +18,14 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 
 licenses(["notice"])
 
-proto_library(
-    name = "service_proto",
-    srcs = ["service.proto"],
-)
-
-go_proto_library(
-    name = "service_go_grpc_proto",
-    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto",
-    proto = ":service_proto",
-    deps = [
-        "//encryption:crypto_go_proto",
-    ],
-)
-
-go_binary(
-    name = "server",
-    srcs = ["server.go"],
-    gc_linkopts = [
-        "-X",
-        "main.version=$(VERSION)",
-    ],
-    x_defs = {"build": "{BUILD_TIMESTAMP}"},
-    deps = [
-        ":service",
-        ":service_go_grpc_proto",
-        "@com_github_golang_glog//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//reflection:go_default_library",
-    ],
-)
-
-container_image(
-    name = "helper_server_image",
-    base = "@base_image//image",
-    creation_time = "{BUILD_TIMESTAMP}",
-    entrypoint = ["/server"],
-    files = [
-        "//pipeline:dpf_aggregate_partial_report_pipeline",
-        "//service:server",
-    ],
-    stamp = True,
-)
-
-container_push(
-    name = "helper_server_image_publish",
-    format = "Docker",
-    image = ":helper_server_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/helper_server",
-    tag = "$(VERSION)",
-)
-
-go_library(
-    name = "service",
-    srcs = ["service.go"],
-    importpath = "github.com/google/privacy-sandbox-aggregation-service/service/service",
-    deps = [
-        ":service_go_grpc_proto",
-        "//utils",
-    ],
-)
-
 go_library(
     name = "query",
     srcs = ["query.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/query",
     deps = [
-        ":service_go_grpc_proto",
-        "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
         "//utils",
-        "@com_github_golang_glog//:go_default_library",
-        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
-        "@com_github_pborman_uuid//:uuid",
         "@com_lukechampine_uint128//:go_default_library",
-        "@org_golang_google_grpc//:go_default_library",
-        "@org_golang_google_grpc//metadata:go_default_library",
-        "@org_golang_x_sync//errgroup:go_default_library",
         "@org_gonum_v1_gonum//floats:go_default_library",
     ],
 )

@@ -20,22 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
-	log "github.com/golang/glog"
-	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/gonum/floats"
-	"google.golang.org/grpc"
 	"lukechampine.com/uint128"
-	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
-
-	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
-	grpcMetadata "google.golang.org/grpc/metadata"
-	cryptopb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
-	grpcpb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
-	servicepb "github.com/google/privacy-sandbox-aggregation-service/service/service_go_grpc_proto"
 )
 
 const elementBitSize = 64
@@ -52,23 +41,6 @@ type DirectConfig struct {
 	BucketIDs []uint128.Uint128
 }
 
-// PrefixHistogramQuery contains the parameters and methods for querying the histogram of given prefixes.
-type PrefixHistogramQuery struct {
-	QueryID                              string
-	Prefixes                             []uint128.Uint128
-	PrefixeLength                        int32
-	PreviousPrefixLength                 int32
-	PartialReportURI1, PartialReportURI2 string
-	PartialAggregationDir                string
-	ParamsDir                            string
-	Helper1, Helper2                     *grpc.ClientConn
-	ImpersonatedSvcAccount               string
-	Epsilon                              float64
-	KeyBitSize                           int32
-	// Dataflow Job Hints
-	NumWorkers int32
-}
-
 // HierarchicalResult records the aggregation result at certain prefix length.
 //
 // TODO: Add PrivacyBudgetConsumed field
@@ -83,129 +55,6 @@ type aggregateParams struct {
 	ExpandParamsURI                            string
 	PartialHistogramURI1, PartialHistogramURI2 string
 	Epsilon                                    float64
-}
-
-func (phq *PrefixHistogramQuery) aggregateReports(ctx context.Context, params aggregateParams) error {
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		newCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		audience := "https://" + strings.Split(phq.Helper1.Target(), ":")[0]
-
-		if phq.ImpersonatedSvcAccount != "" {
-			var err error
-			newCtx, err = addGRPCAuthHeaderToContext(newCtx, audience, phq.ImpersonatedSvcAccount)
-			if err != nil {
-				log.Errorf("Helper Server 1 - Continuing without auth header: %v", err)
-				return err
-			}
-		}
-
-		_, err := grpcpb.NewAggregatorClient(phq.Helper1).AggregateDpfPartialReport(newCtx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportUri:     phq.PartialReportURI1,
-			PartialHistogramUri:  params.PartialHistogramURI1,
-			Epsilon:              params.Epsilon,
-			ExpandParametersUri:  params.ExpandParamsURI,
-			QueryId:              phq.QueryID,
-			PreviousPrefixLength: phq.PreviousPrefixLength,
-			PrefixLength:         phq.PrefixeLength,
-			KeyBitSize:           phq.KeyBitSize,
-			NumWorkers:           phq.NumWorkers,
-		})
-		if err != nil {
-			log.Errorf("Helper Server 1: %v", err)
-		}
-		return err
-	})
-
-	g.Go(func() error {
-		newCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		audience := "https://" + strings.Split(phq.Helper2.Target(), ":")[0]
-		if phq.ImpersonatedSvcAccount != "" {
-			var err error
-			newCtx, err = addGRPCAuthHeaderToContext(newCtx, audience, phq.ImpersonatedSvcAccount)
-			if err != nil {
-				log.Errorf("Helper Server 2 - Continuing without auth header: %v", err)
-				return err
-			}
-		}
-
-		_, err := grpcpb.NewAggregatorClient(phq.Helper2).AggregateDpfPartialReport(newCtx, &servicepb.AggregateDpfPartialReportRequest{
-			PartialReportUri:     phq.PartialReportURI2,
-			PartialHistogramUri:  params.PartialHistogramURI2,
-			Epsilon:              params.Epsilon,
-			ExpandParametersUri:  params.ExpandParamsURI,
-			QueryId:              phq.QueryID,
-			PreviousPrefixLength: phq.PreviousPrefixLength,
-			PrefixLength:         phq.PrefixeLength,
-			KeyBitSize:           phq.KeyBitSize,
-			NumWorkers:           phq.NumWorkers,
-		})
-		if err != nil {
-			log.Errorf("Helper Server 2: %v", err)
-		}
-		return err
-	})
-
-	return g.Wait()
-}
-
-// getPrefixHistogram calls the RPC methods on both helpers and merges the generated partial aggregation results.
-func (phq *PrefixHistogramQuery) getPrefixHistogram(ctx context.Context) ([]dpfaggregator.CompleteHistogram, error) {
-	expandParams := &dpfaggregator.ExpandParameters{
-		PreviousLevel: phq.PreviousPrefixLength - 1,
-		Prefixes:      phq.Prefixes,
-	}
-	expandParams.Level = phq.PrefixeLength - 1
-
-	expandParamsURI := fmt.Sprintf("%s/expand_params%s.txt", phq.ParamsDir, phq.QueryID)
-	if err := dpfaggregator.SaveExpandParameters(ctx, expandParams, expandParamsURI); err != nil {
-		return nil, err
-	}
-
-	tempPartialResultURI1 := fmt.Sprintf("%s/%s_1.txt", phq.PartialAggregationDir, phq.QueryID)
-	tempPartialResultURI2 := fmt.Sprintf("%s/%s_2.txt", phq.PartialAggregationDir, phq.QueryID)
-
-	if err := phq.aggregateReports(ctx, aggregateParams{
-		ExpandParamsURI:      expandParamsURI,
-		PartialHistogramURI1: tempPartialResultURI1,
-		PartialHistogramURI2: tempPartialResultURI2,
-	}); err != nil {
-		return nil, err
-	}
-	partial1, err := dpfaggregator.ReadPartialHistogram(ctx, tempPartialResultURI1)
-	if err != nil {
-		return nil, err
-	}
-	partial2, err := dpfaggregator.ReadPartialHistogram(ctx, tempPartialResultURI2)
-	if err != nil {
-		return nil, err
-	}
-
-	return dpfaggregator.MergePartialResult(partial1, partial2)
-}
-
-// HierarchicalAggregation queries the hierarchical aggregation results.
-func (phq *PrefixHistogramQuery) HierarchicalAggregation(ctx context.Context, epsilon float64, config *HierarchicalConfig) ([]HierarchicalResult, error) {
-	phq.QueryID = uuid.New()
-
-	var results []HierarchicalResult
-	phq.PreviousPrefixLength = 0
-	phq.Prefixes = []uint128.Uint128{}
-	for i, threshold := range config.ExpansionThresholdPerPrefix {
-		phq.PrefixeLength = config.PrefixLengths[i]
-		// Use naive composition by simply splitting the epsilon based on the privacy budget config.
-		phq.Epsilon = epsilon * config.PrivacyBudgetPerPrefix[i]
-		result, err := phq.getPrefixHistogram(ctx)
-		if err != nil {
-			return nil, err
-		}
-		phq.Prefixes = getNextNonemptyPrefixes(result, threshold)
-		results = append(results, HierarchicalResult{PrefixLength: config.PrefixLengths[i], Histogram: result, ExpansionThreshold: threshold})
-		phq.PreviousPrefixLength = config.PrefixLengths[i]
-	}
-	return results, nil
 }
 
 // WriteHierarchicalResultsFile writes the hierarchical query results into a file.
@@ -396,29 +245,6 @@ func getNextNonemptyPrefixes(result []dpfaggregator.CompleteHistogram, threshold
 		}
 	}
 	return prefixes
-}
-
-func extendPrefixDomains(sumParams *cryptopb.IncrementalDpfParameters, prefixLength int32) {
-	sumParams.Params = append(sumParams.Params, &dpfpb.DpfParameters{
-		LogDomainSize: prefixLength,
-		ValueType: &dpfpb.ValueType{
-			Type: &dpfpb.ValueType_Integer_{
-				Integer: &dpfpb.ValueType_Integer{
-					Bitsize: elementBitSize,
-				},
-			},
-		},
-	})
-}
-
-func addGRPCAuthHeaderToContext(ctx context.Context, audience, impersonatedSvcAccount string) (context.Context, error) {
-	token, err := utils.GetAuthorizationToken(ctx, audience, impersonatedSvcAccount)
-	if err != nil {
-		return ctx, err
-	}
-
-	// Add AccessToken to grpcContext
-	return grpcMetadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
 func getCurrentLevelParams(queryLevel int32, previousResults []dpfaggregator.CompleteHistogram, config *HierarchicalConfig) (*dpfaggregator.ExpandParameters, error) {

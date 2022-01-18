@@ -15,6 +15,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
@@ -27,8 +28,12 @@ func TestMain(m *testing.M) {
 func TestPipeline(t *testing.T) {
 	testHierarchicalPipeline(t, false /*encryptOutput*/)
 	testHierarchicalPipeline(t, true /*encryptOutput*/)
+
 	testDirectPipeline(t, false /*encryptOutput*/)
 	testDirectPipeline(t, true /*encryptOutput*/)
+
+	testOnepartyPipeline(t, false /*encryptOutput*/)
+	testOnepartyPipeline(t, true /*encryptOutput*/)
 }
 
 func testHierarchicalPipeline(t testing.TB, encryptOutput bool) {
@@ -350,6 +355,103 @@ func testDirectPipeline(t testing.TB, encryptOutput bool) {
 		{Bucket: uint128.From64(16), Sum: 256},
 		{Bucket: uint128.From64(22), Sum: 0},
 	}, gotResult, cmpopts.SortSlices(func(a, b dpfaggregator.CompleteHistogram) bool { return a.Bucket.Cmp(b.Bucket) == -1 })); diff != "" {
+		t.Errorf("results mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func testOnepartyPipeline(t testing.TB, encryptOutput bool) {
+	ctx := context.Background()
+
+	testFile, err := utils.RunfilesPath("test/dpf_test_conversion_data.csv", false /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createKeyBinary, err := utils.RunfilesPath("tools/create_hybrid_key_pair", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generateTestDataBinary, err := utils.RunfilesPath("test/generate_test_data_pipeline", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aggregateBinary, err := utils.RunfilesPath("pipeline/oneparty_aggregate_report_pipeline", true /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir, err := ioutil.TempDir("/tmp", "test-private")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	encryptionKeyDir := path.Join(tmpDir, "encryption_key_dir")
+	if err := os.MkdirAll(encryptionKeyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	privateKeyURI := path.Join(encryptionKeyDir, "private_key")
+	publicKeyURI := path.Join(encryptionKeyDir, "public_key")
+	if err := executeCommand(ctx, createKeyBinary,
+		"--private_key_dir="+encryptionKeyDir,
+		"--private_key_info_file="+privateKeyURI,
+		"--public_key_info_file="+publicKeyURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	partialReportDir := path.Join(tmpDir, "partial_report_dir")
+	if err := os.MkdirAll(partialReportDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	encryptedReportURI := path.Join(partialReportDir, "encrypted_report")
+	if err := executeCommand(ctx, generateTestDataBinary,
+		"--conversion_uri="+testFile,
+		"--encrypted_report_uri1="+encryptedReportURI,
+		"--public_keys_uri1="+publicKeyURI,
+		"--encrypt_output="+strconv.FormatBool(encryptOutput),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	paramsDir := path.Join(tmpDir, "params_dir")
+	if err := os.MkdirAll(paramsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	paramsURI := path.Join(paramsDir, "params")
+
+	want := map[uint128.Uint128]uint64{
+		uint128.From64(2550136832): 361,
+		uint128.From64(2684354560): 400,
+	}
+	var lines []string
+	for k := range want {
+		lines = append(lines, k.String())
+	}
+	if err := utils.WriteLines(ctx, lines, paramsURI); err != nil {
+		t.Fatal(err)
+	}
+
+	resultDir := path.Join(tmpDir, "result_dir")
+	if err := os.MkdirAll(resultDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	histogramURI := path.Join(resultDir, "histogram")
+	if err := executeCommand(ctx, aggregateBinary,
+		"--encrypted_report_uri="+encryptedReportURI,
+		"--target_bucket_uri="+paramsURI,
+		"--histogram_uri="+histogramURI,
+		"--private_key_params_uri="+privateKeyURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := onepartyaggregator.ReadHistogram(ctx, histogramURI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
 	}
 }

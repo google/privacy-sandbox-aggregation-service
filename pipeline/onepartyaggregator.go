@@ -22,6 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
@@ -253,4 +255,39 @@ func ValidateTargetBuckets(ctx context.Context, bucketURI string) error {
 		return errors.New("expect nonempty bucket IDs")
 	}
 	return nil
+}
+
+func parseHistogram(line string) (uint128.Uint128, uint64, error) {
+	cols := strings.Split(line, ",")
+	if got, want := len(cols), 2; got != want {
+		return uint128.Zero, 0, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
+	}
+
+	key128, err := utils.StringToUint128(cols[0])
+	if err != nil {
+		return uint128.Zero, 0, err
+	}
+
+	value64, err := strconv.ParseUint(cols[1], 10, 64)
+	if err != nil {
+		return uint128.Zero, 0, err
+	}
+	return key128, value64, nil
+}
+
+// ReadHistogram reads the aggregation result.
+func ReadHistogram(ctx context.Context, filename string) (map[uint128.Uint128]uint64, error) {
+	lines, err := utils.ReadLines(ctx, filename)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[uint128.Uint128]uint64)
+	for _, line := range lines {
+		index, aggregation, err := parseHistogram(line)
+		if err != nil {
+			return nil, err
+		}
+		result[index] = aggregation
+	}
+	return result, nil
 }

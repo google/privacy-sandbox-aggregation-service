@@ -19,17 +19,19 @@ package(
 )
 
 go_test(
-    name = "dpf_pipeline_integration_test",
+    name = "pipeline_integration_test",
     size = "small",
-    srcs = ["dpf_pipeline_integration_test.go"],
+    srcs = ["pipeline_integration_test.go"],
     data = [
         "dpf_test_conversion_data.csv",
         ":generate_test_data_pipeline",
         "//pipeline:dpf_aggregate_partial_report_pipeline",
+        "//pipeline:oneparty_aggregate_report_pipeline",
         "//tools:create_hybrid_key_pair",
     ],
     deps = [
         "//pipeline:dpfaggregator",
+        "//pipeline:onepartyaggregator",
         "//utils",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_github_google_go_cmp//cmp/cmpopts:go_default_library",

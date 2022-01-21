@@ -24,8 +24,8 @@ go_binary(
     name = "aggregation_query_tool",
     srcs = ["aggregation_query_tool.go"],
     deps = [
-        "//third_party/privacy_sandbox_aggregation/service:aggregatorservice",
-        "//third_party/privacy_sandbox_aggregation/service:query",
+        "//service:aggregatorservice",
+        "//service:query",
         "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",

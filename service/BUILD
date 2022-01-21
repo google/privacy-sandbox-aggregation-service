@@ -18,6 +18,10 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 
 licenses(["notice"])
 
+package(
+    default_visibility = ["//visibility:public"],
+)
+
 go_library(
     name = "query",
     srcs = ["query.go"],

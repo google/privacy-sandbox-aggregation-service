@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -53,7 +54,7 @@ func main() {
 
 	buildDate := time.Unix(0, 0)
 	if i, err := strconv.ParseInt(build, 10, 64); err != nil {
-		log.Error(err)
+		log.Info(err)
 	} else {
 		buildDate = time.Unix(i, 0)
 	}
@@ -75,7 +76,7 @@ func main() {
 	)
 
 	if token1, err = utils.GetAuthorizationToken(ctx, *helperAddress1, *impersonatedSvcAccount); err != nil {
-		log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
+		log.Infof("Couldn't get Auth Bearer IdToken: %s", err)
 	}
 
 	sharedInfo1, err = aggregatorservice.ReadHelperSharedInfo(client, *helperAddress1, token1)
@@ -95,7 +96,7 @@ func main() {
 
 	if *helperAddress2 != "" {
 		if token2, err = utils.GetAuthorizationToken(ctx, *helperAddress2, *impersonatedSvcAccount); err != nil {
-			log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
+			log.Infof("Couldn't get Auth Bearer IdToken: %s", err)
 		}
 
 		sharedInfo2, err = aggregatorservice.ReadHelperSharedInfo(client, *helperAddress2, token2)
@@ -142,4 +143,6 @@ func main() {
 			log.Exit(err)
 		}
 	}
+
+	fmt.Printf("query request sent with ID %q", queryID)
 }

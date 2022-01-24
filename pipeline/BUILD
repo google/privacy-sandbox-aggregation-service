@@ -27,6 +27,7 @@ go_library(
         ":pipelineutils",
         ":reporttypes",
         "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
         "//encryption:distributednoise",
         "//encryption:incrementaldpf",
         "//encryption:standardencrypt",
@@ -82,13 +83,13 @@ go_library(
         ":pipelineutils",
         ":reporttypes",
         "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
         "//encryption:standardencrypt",
         "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/transforms/stats:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
-        "@org_golang_google_protobuf//proto",
     ],
 )
 

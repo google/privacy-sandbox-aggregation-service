@@ -55,8 +55,8 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
     deps = [
         "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
         "//pipeline:reporttypes",
-        "//test:dpfdataconverter",
         "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",

@@ -17,7 +17,6 @@ package onepartyaggregator
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,8 +27,8 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/transforms/stats"
-	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
@@ -88,13 +87,8 @@ func (fn *parseEncryptedReportFn) Setup() {
 }
 
 func (fn *parseEncryptedReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedReport)) error {
-	bsc, err := base64.StdEncoding.DecodeString(line)
+	encrypted, err := cryptoio.DeserializeEncryptedReport(line)
 	if err != nil {
-		return err
-	}
-
-	encrypted := &pb.EncryptedReport{}
-	if err := proto.Unmarshal(bsc, encrypted); err != nil {
 		return err
 	}
 	emit(encrypted)

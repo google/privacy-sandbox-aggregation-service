@@ -26,8 +26,8 @@ import (
 	log "github.com/golang/glog"
 	"golang.org/x/sync/errgroup"
 	"github.com/ugorji/go/codec"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -126,7 +126,7 @@ func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *re
 			tempMap := make(map[string]string)
 			itemsCount := 0
 			for _, payload := range report.AggregationServicePayloads {
-				encryptedPayload, err := dpfdataconverter.FormatEncryptedPartialReport(&pb.EncryptedPartialReportDpf{
+				encryptedPayload, err := cryptoio.SerializeEncryptedReport(&pb.EncryptedReport{
 					EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
 					ContextInfo:     report.SharedInfo,
 					KeyId:           payload.KeyID,

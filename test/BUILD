@@ -119,7 +119,6 @@ go_library(
         "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
-        "@org_golang_google_protobuf//proto",
     ],
 )
 

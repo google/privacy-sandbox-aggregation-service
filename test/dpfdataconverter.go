@@ -42,7 +42,7 @@ import (
 )
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedPartialReportDpf)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*encryptSecretSharesFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())
@@ -120,7 +120,7 @@ func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPubl
 	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
 }
 
-func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedPartialReportDpf, error) {
+func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, error) {
 	bDpfKey, err := proto.Marshal(partialReport.SumKey)
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 	}
 	// TODO: Remove the option of aggregating reports without encryption when HPKE is ready in Go tink.
 	if !encryptOutput {
-		return &pb.EncryptedPartialReportDpf{
+		return &pb.EncryptedReport{
 			EncryptedReport: &pb.StandardCiphertext{Data: bPayload},
 			ContextInfo:     contextInfo,
 			KeyId:           keyID,
@@ -152,7 +152,7 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 	if err != nil {
 		return nil, err
 	}
-	return &pb.EncryptedPartialReportDpf{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
+	return &pb.EncryptedReport{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
 }
 
 func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
@@ -181,7 +181,7 @@ func GenerateDPFKeys(report reporttypes.RawReport, keyBitSize int) (*dpfpb.DpfKe
 }
 
 // EncryptPartialReports encrypts the partial reports.
-func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedPartialReportDpf, *pb.EncryptedPartialReportDpf, error) {
+func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, *pb.EncryptedReport, error) {
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: key1,
 	}, publicKeys1, contextInfo, encryptOutput)
@@ -200,7 +200,7 @@ func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []
 	return encryptedReport1, encryptedReport2, nil
 }
 
-func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
+func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit1 func(*pb.EncryptedReport), emit2 func(*pb.EncryptedReport)) error {
 	fn.countReport.Inc(ctx, 1)
 
 	key1, key2, err := GenerateDPFKeys(c, fn.KeyBitSize)
@@ -217,18 +217,9 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttyp
 	return nil
 }
 
-// FormatEncryptedPartialReport serializes the EncryptedPartialReportDpf into a string.
-func FormatEncryptedPartialReport(encrypted *pb.EncryptedPartialReportDpf) (string, error) {
-	bEncrypted, err := proto.Marshal(encrypted)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(bEncrypted), nil
-}
-
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
-func formatPartialReportFn(encrypted *pb.EncryptedPartialReportDpf, emit func(string)) error {
-	encryptedStr, err := FormatEncryptedPartialReport(encrypted)
+func formatPartialReportFn(encrypted *pb.EncryptedReport, emit func(string)) error {
+	encryptedStr, err := cryptoio.SerializeEncryptedReport(encrypted)
 	if err != nil {
 		return err
 	}
@@ -238,7 +229,7 @@ func formatPartialReportFn(encrypted *pb.EncryptedPartialReportDpf, emit func(st
 
 // WritePartialReport writes the formated encrypted partial reports to a file.
 func WritePartialReport(s beam.Scope, output beam.PCollection, outputTextName string, shards int64) {
-	s = s.Scope("WriteEncryptedPartialReportDpf")
+	s = s.Scope("WriteEncryptedReport")
 	formatted := beam.ParDo(s, formatPartialReportFn, output)
 	pipelineutils.WriteNShardedFiles(s, outputTextName, shards, formatted)
 }

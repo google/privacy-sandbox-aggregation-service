@@ -47,6 +47,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
@@ -66,7 +67,7 @@ const numberOfHelpers = 2
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*dpfpb.EvaluationContext)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedPartialReportDpf)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReportDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregationDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
@@ -107,14 +108,9 @@ func (fn *parseEncryptedPartialReportFn) Setup() {
 	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "encrypted-partial-report-count")
 }
 
-func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedPartialReportDpf)) error {
-	bsc, err := base64.StdEncoding.DecodeString(line)
+func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedReport)) error {
+	encrypted, err := cryptoio.DeserializeEncryptedReport(line)
 	if err != nil {
-		return err
-	}
-
-	encrypted := &pb.EncryptedPartialReportDpf{}
-	if err := proto.Unmarshal(bsc, encrypted); err != nil {
 		return err
 	}
 	emit(encrypted)
@@ -144,7 +140,7 @@ func (fn *decryptPartialReportFn) Setup() {
 	fn.nonencryptedCounter = beam.NewCounter("aggregation", "unpack-nonencrypted-count")
 }
 
-func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted *pb.EncryptedPartialReportDpf, emit func(*pb.PartialReportDpf)) error {
+func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted *pb.EncryptedReport, emit func(*pb.PartialReportDpf)) error {
 	privateKey, ok := fn.StandardPrivateKeys[encrypted.KeyId]
 	if !ok {
 		return fmt.Errorf("no private key found for keyID = %q", encrypted.KeyId)

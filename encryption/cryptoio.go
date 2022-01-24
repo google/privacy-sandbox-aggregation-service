@@ -325,3 +325,26 @@ func GetRandomPublicKey(keys []PublicKeyInfo) (string, *pb.StandardPublicKey, er
 	}
 	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
 }
+
+// SerializeEncryptedReport serializes the EncryptedReport into a string.
+func SerializeEncryptedReport(encrypted *pb.EncryptedReport) (string, error) {
+	bEncrypted, err := proto.Marshal(encrypted)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(bEncrypted), nil
+}
+
+// DeserializeEncryptedReport deserializes the EncryptedReport from a string.
+func DeserializeEncryptedReport(line string) (*pb.EncryptedReport, error) {
+	bsc, err := base64.StdEncoding.DecodeString(line)
+	if err != nil {
+		return nil, err
+	}
+
+	encrypted := &pb.EncryptedReport{}
+	if err := proto.Unmarshal(bsc, encrypted); err != nil {
+		return nil, err
+	}
+	return encrypted, nil
+}

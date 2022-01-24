@@ -221,7 +221,7 @@ func TestWriteReadPartialReports(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	want := []*pb.EncryptedPartialReportDpf{
+	want := []*pb.EncryptedReport{
 		{
 			EncryptedReport: &pb.StandardCiphertext{Data: []byte("encrypted1")},
 			ContextInfo:     []byte("context1"),

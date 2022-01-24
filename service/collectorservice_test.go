@@ -67,8 +67,8 @@ func TestCollectPayloads(t *testing.T) {
 	brw.wg.Wait()
 
 	// Verify the right data was written to the batches
-	want1 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
-	want2 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
+	want1 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
+	want2 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
 
 	filesWritten := false
 	dir = dir + "/helper1+helper2"
@@ -143,11 +143,11 @@ func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
 	brw.wg.Wait()
 
 	// Verify the right data was written to the batches
-	want1 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
-	want2 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
-	want3 := &pb.EncryptedPartialReportDpf{EncryptedReport: &pb.StandardCiphertext{Data: payload3}, ContextInfo: contextInfo}
+	want1 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
+	want2 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
+	want3 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload3}, ContextInfo: contextInfo}
 
-	originCombos := map[string][]*pb.EncryptedPartialReportDpf{
+	originCombos := map[string][]*pb.EncryptedReport{
 		"helper1+helper2": {want1, want2},
 		"helper1+helper3": {want1, want3},
 	}
@@ -202,14 +202,14 @@ func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
 	}
 }
 
-func readFile(dir, filename string) ([]*pb.EncryptedPartialReportDpf, error) {
+func readFile(dir, filename string) ([]*pb.EncryptedReport, error) {
 	file, err := os.Open(path.Join(dir, filename))
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var batch []*pb.EncryptedPartialReportDpf
+	var batch []*pb.EncryptedReport
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		partialReport, err := readPartialReport(scanner.Text())
@@ -226,13 +226,13 @@ func readFile(dir, filename string) ([]*pb.EncryptedPartialReportDpf, error) {
 	return batch, nil
 }
 
-func readPartialReport(line string) (*pb.EncryptedPartialReportDpf, error) {
+func readPartialReport(line string) (*pb.EncryptedReport, error) {
 	bsc, err := base64.StdEncoding.DecodeString(line)
 	if err != nil {
 		return nil, err
 	}
 
-	partialReport := &pb.EncryptedPartialReportDpf{}
+	partialReport := &pb.EncryptedReport{}
 	if err := proto.Unmarshal(bsc, partialReport); err != nil {
 		return nil, err
 	}

@@ -17,7 +17,6 @@ package onepartydataconverter
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -26,7 +25,6 @@ import (
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
-	"google.golang.org/protobuf/proto"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
@@ -91,15 +89,6 @@ func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo,
 	return &pb.EncryptedReport{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
 }
 
-// FormatEncryptedReport serializes the EncryptedReport into a string.
-func FormatEncryptedReport(encrypted *pb.EncryptedReport) (string, error) {
-	bEncrypted, err := proto.Marshal(encrypted)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(bEncrypted), nil
-}
-
 func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
@@ -155,7 +144,7 @@ func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *reporttypes.Ra
 
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
 func formatEncryptedReportFn(encrypted *pb.EncryptedReport, emit func(string)) error {
-	encryptedStr, err := FormatEncryptedReport(encrypted)
+	encryptedStr, err := cryptoio.SerializeEncryptedReport(encrypted)
 	if err != nil {
 		return err
 	}

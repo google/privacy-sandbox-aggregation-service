@@ -36,7 +36,7 @@ import (
 )
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedPartialReportDpf)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*createEncryptedPartialReportsFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawReachReportFn)(nil)).Elem())
@@ -116,7 +116,7 @@ func (fn *createEncryptedPartialReportsFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("reach", "encrypt_report_count")
 }
 
-func (fn *createEncryptedPartialReportsFn) ProcessElement(ctx context.Context, report reporttypes.RawReachReport, emit1 func(*pb.EncryptedPartialReportDpf), emit2 func(*pb.EncryptedPartialReportDpf)) error {
+func (fn *createEncryptedPartialReportsFn) ProcessElement(ctx context.Context, report reporttypes.RawReachReport, emit1 func(*pb.EncryptedReport), emit2 func(*pb.EncryptedReport)) error {
 	params := incrementaldpf.CreateReachUint64TupleDpfParameters(int32(fn.KeyBitSize))
 	key1, key2, err := incrementaldpf.GenerateReachTupleKeys(params, uint128.From64(report.LLRegister), reachReportToTuple(report))
 	if err != nil {

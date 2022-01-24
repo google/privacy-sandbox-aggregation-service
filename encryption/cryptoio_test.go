@@ -190,3 +190,27 @@ func TestSaveReadPrivateKeyParamsCollection(t *testing.T) {
 		t.Errorf("read/write private key parameters mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestSerializeEncryptedReport(t *testing.T) {
+	want := &pb.EncryptedReport{
+		EncryptedReport: &pb.StandardCiphertext{
+			Data: []byte("encrypted data"),
+		},
+		ContextInfo: []byte("context info"),
+		KeyId:       "unique key id",
+	}
+
+	serialized, err := SerializeEncryptedReport(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := DeserializeEncryptedReport(serialized)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("deserialized report mismatch (-want +got):\n%s", diff)
+	}
+}

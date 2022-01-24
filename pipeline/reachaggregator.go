@@ -43,7 +43,7 @@ const numberOfHelpers = 2
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*dpfpb.EvaluationContext)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedPartialReportDpf)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReportDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregationDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())

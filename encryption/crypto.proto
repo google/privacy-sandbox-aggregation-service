@@ -42,16 +42,8 @@ message PartialReportDpf {
   distributed_point_functions.DpfKey sum_key = 1;
 }
 
-// EncryptedPartialReportDpf contains the encrypted partial report and the context
-// information required to decrypt it.
-message EncryptedPartialReportDpf {
-  StandardCiphertext encrypted_report = 1;
-  bytes context_info = 2;
-  // The ID to find the corresponding private key for decryption.
-  string key_id = 3;
-}
-
-// EncryptedReport contains the encrypted report for the one-party design.
+// EncryptedReport contains the encrypted report for both the one-party and
+// MPC designs.
 message EncryptedReport {
   StandardCiphertext encrypted_report = 1;
   bytes context_info = 2;

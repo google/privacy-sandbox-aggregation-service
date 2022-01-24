@@ -60,7 +60,7 @@ type standardEncryptFn struct {
 	PublicKeys []cryptoio.PublicKeyInfo
 }
 
-func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.EncryptedPartialReportDpf)) error {
+func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.EncryptedReport)) error {
 	b, err := proto.Marshal(report.SumKey)
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 	if err != nil {
 		return err
 	}
-	emit(&pb.EncryptedPartialReportDpf{EncryptedReport: result, ContextInfo: contextInfo, KeyId: keyID})
+	emit(&pb.EncryptedReport{EncryptedReport: result, ContextInfo: contextInfo, KeyId: keyID})
 	return nil
 }
 

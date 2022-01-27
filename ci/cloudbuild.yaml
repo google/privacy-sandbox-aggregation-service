@@ -28,7 +28,9 @@ steps:
     - '--define'
     - 'VERSION=$_VERSION'
     - '--define'
-    - 'GCR_PROJECT=$PROJECT_ID'
+    - 'REGISTRY=gcr.io'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID'
     - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
     - '--google_default_credentials'
 
@@ -48,7 +50,9 @@ steps:
     - '--define'
     - 'VERSION=$_VERSION'
     - '--define'
-    - 'GCR_PROJECT=$PROJECT_ID'
+    - 'REGISTRY=gcr.io'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID'
     - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
     - '--google_default_credentials'
 
@@ -68,7 +72,9 @@ steps:
     - '--define'
     - 'VERSION=$_VERSION'
     - '--define'
-    - 'GCR_PROJECT=$PROJECT_ID'
+    - 'REGISTRY=gcr.io'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID'
     - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
     - '--google_default_credentials'
 
@@ -87,7 +93,9 @@ steps:
     - '--define'
     - 'VERSION=$_VERSION'
     - '--define'
-    - 'GCR_PROJECT=$PROJECT_ID'
+    - 'REGISTRY=gcr.io'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID'
     - '--remote_cache=https://storage.googleapis.com/privacyaggregate-bazelcache'
     - '--google_default_credentials'
 

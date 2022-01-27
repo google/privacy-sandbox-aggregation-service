@@ -91,8 +91,8 @@ container_push(
     name = "collector_server_image_publish",
     format = "Docker",
     image = ":collector_server_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/collector_server",
+    registry = "$(REGISTRY)",
+    repository = "$(REPOSITORY)/collector_server",
     tag = "$(VERSION)",
 )
 
@@ -157,8 +157,8 @@ container_push(
     name = "aggregator_server_image_publish",
     format = "Docker",
     image = ":aggregator_server_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/aggregator_server",
+    registry = "$(REGISTRY)",
+    repository = "$(REPOSITORY)/aggregator_server",
     tag = "$(VERSION)",
 )
 
@@ -178,7 +178,7 @@ container_push(
     name = "aggregator_server_debug_image_publish",
     format = "Docker",
     image = ":aggregator_server_debug_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/aggregator_server",
+    registry = "$(REGISTRY)",
+    repository = "$(REPOSITORY)/aggregator_server",
     tag = "$(VERSION)-debug",
 )

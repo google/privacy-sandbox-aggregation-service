@@ -61,8 +61,8 @@ container_push(
     name = "browser_simulator_image_publish",
     format = "Docker",
     image = ":browser_simulator_image",
-    registry = "gcr.io",
-    repository = "$(GCR_PROJECT)/browser_simulator",
+    registry = "$(REGISTRY)",
+    repository = "$(REPOSITORY)/browser_simulator",
     tag = "$(VERSION)",
 )
 

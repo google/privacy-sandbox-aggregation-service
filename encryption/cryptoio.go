@@ -121,6 +121,9 @@ func getAEADForKMS(keyURI, credentialPath string) (tink.AEAD, error) {
 }
 
 // KMSEncryptData encrypts the input data with GCP KMS.
+//
+// The key URI should be in the following format, and the key version is not needed.
+// "gcp-kms://projects/<GCP ID>/locations/<key location>/keyRings/<key ring name>/cryptoKeys/<key name>"
 func KMSEncryptData(ctx context.Context, keyURI, credentialPath string, data []byte) ([]byte, error) {
 	a, err := getAEADForKMS(keyURI, credentialPath)
 	if err != nil {

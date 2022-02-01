@@ -42,6 +42,7 @@ go_binary(
         "//encryption:cryptoio",
         "//pipeline:reporttypes",
         "//test:dpfdataconverter",
+        "//test:onepartydataconverter",
         "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",

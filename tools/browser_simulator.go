@@ -33,6 +33,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
+	"github.com/google/privacy-sandbox-aggregation-service/test/onepartydataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
@@ -40,13 +41,13 @@ import (
 var (
 	address              = flag.String("address", "", "Address of the server.")
 	helperPublicKeysURI1 = flag.String("helper_public_keys_uri1", "", "A file that contains the public encryption key from helper1.")
-	helperPublicKeysURI2 = flag.String("helper_public_keys_uri2", "", "A file that contains the public encryption key from helper2.")
+	helperPublicKeysURI2 = flag.String("helper_public_keys_uri2", "", "A file that contains the public encryption key from helper2. Required if helper_origin2 is set.")
 	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 	conversionURI        = flag.String("conversion_uri", "", "Input raw conversion data.")
 	conversionRaw        = flag.String("conversion_raw", "2684354560,20", "Raw conversion.")
 	sendCount            = flag.Int("send_count", 1, "How many times to send each conversion.")
 	helperOrigin1        = flag.String("helper_origin1", "", "Origin of helper1.")
-	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2.")
+	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2. Ignore to use the one-party protocol.")
 	concurrency          = flag.Int("concurrency", 10, "Concurrent requests.")
 
 	encryptOutput = flag.Bool("encrypt_output", true, "Generate reports with encryption. This should only be false for integration test before HPKE is ready in Go Tink.")
@@ -85,27 +86,31 @@ func main() {
 		log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
 	}
 
+	isMPC := *helperOrigin2 != ""
+
 	var conversionsSent uint64
 	requestCh := make(chan *bytes.Buffer)
 	done := setupRequestWorkers(client, token, *concurrency, &conversionsSent, requestCh)
 
+	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
+	// Use any version of the public keys until the version control is designed.
 	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI1)
 	if err != nil {
 		log.Exit(err)
 	}
-	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI2)
-	if err != nil {
-		log.Exit(err)
-	}
-
-	// Use any version of the public keys until the version control is designed.
-	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
 	for _, v := range helperPubKeys1 {
 		publicKeyInfo1 = v
 	}
-	for _, v := range helperPubKeys2 {
-		publicKeyInfo2 = v
+	if isMPC {
+		helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI2)
+		if err != nil {
+			log.Exit(err)
+		}
+		for _, v := range helperPubKeys2 {
+			publicKeyInfo2 = v
+		}
 	}
+
 	// Empty context information for demo.
 	contextInfo, err := utils.MarshalCBOR(&reporttypes.SharedInfo{})
 	if err != nil {
@@ -133,23 +138,38 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			key1, key2, err := dpfdataconverter.GenerateDPFKeys(c, *keyBitSize)
-			if err != nil {
-				log.Exit(err)
-			}
-			report1, report2, err := dpfdataconverter.EncryptPartialReports(key1, key2, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
-			if err != nil {
-				log.Exit(err)
-			}
-			report, err := utils.MarshalCBOR(&reporttypes.AggregationReport{
-				SharedInfo: contextInfo,
-				AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
-					{Origin: *helperOrigin1, Payload: report1.EncryptedReport.Data, KeyID: report1.KeyId},
-					{Origin: *helperOrigin2, Payload: report2.EncryptedReport.Data, KeyID: report2.KeyId},
-				},
-			})
-			if err != nil {
-				log.Exit(err)
+			var report []byte
+			if isMPC {
+				key1, key2, err := dpfdataconverter.GenerateDPFKeys(c, *keyBitSize)
+				if err != nil {
+					log.Exit(err)
+				}
+				encrypted1, encrypted2, err := dpfdataconverter.EncryptPartialReports(key1, key2, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
+				if err != nil {
+					log.Exit(err)
+				}
+				payload1 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin1, Payload: encrypted1.EncryptedReport.Data, KeyID: encrypted2.KeyId}
+				payload2 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin2, Payload: encrypted2.EncryptedReport.Data, KeyID: encrypted2.KeyId}
+				report, err = utils.MarshalCBOR(&reporttypes.AggregationReport{
+					SharedInfo:                 contextInfo,
+					AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload1, payload2},
+				})
+				if err != nil {
+					log.Exit(err)
+				}
+			} else {
+				encrypted, err := onepartydataconverter.EncryptReport(&c, publicKeyInfo1, contextInfo, *encryptOutput)
+				if err != nil {
+					log.Exit(err)
+				}
+				payload := &reporttypes.AggregationServicePayload{Origin: *helperOrigin1, Payload: encrypted.EncryptedReport.Data, KeyID: encrypted.KeyId}
+				report, err = utils.MarshalCBOR(&reporttypes.AggregationReport{
+					SharedInfo:                 contextInfo,
+					AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload},
+				})
+				if err != nil {
+					log.Exit(err)
+				}
 			}
 			requestCh <- bytes.NewBuffer(report)
 		}

@@ -107,6 +107,24 @@ type bufferedReportWriter struct {
 	reportsCh  chan *reporttypes.AggregationReport
 }
 
+func getBatchKey(report *reporttypes.AggregationReport) (string, error) {
+	switch len(report.AggregationServicePayloads) {
+	case 1:
+		return report.AggregationServicePayloads[0].Origin, nil
+	case 2:
+		origin1, origin2 := report.AggregationServicePayloads[0].Origin, report.AggregationServicePayloads[1].Origin
+		if origin1 == origin2 {
+			return "", fmt.Errorf("expect different origins, got both equals to %q", origin1)
+		}
+		if origin1 > origin2 {
+			origin1, origin2 = origin2, origin1
+		}
+		return fmt.Sprintf("%s+%s", origin1, origin2), nil
+	default:
+		return "", fmt.Errorf("expect 1 or 2 payloads, got %d", len(report.AggregationServicePayloads))
+	}
+}
+
 func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *reporttypes.AggregationReport) {
 	log.Infof("Starting buffered report writer with %v batch size", brw.batchSize)
 
@@ -114,11 +132,11 @@ func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *re
 	brw.wg.Add(1)
 	go func() {
 		for report := range reportsCh {
-			origin1, origin2 := report.AggregationServicePayloads[0].Origin, report.AggregationServicePayloads[1].Origin
-			if origin1 > origin2 {
-				origin1, origin2 = origin2, origin1
+			batchKey, err := getBatchKey(report)
+			if err != nil {
+				log.Error(err)
+				continue
 			}
-			batchKey := fmt.Sprintf("%s+%s", origin1, origin2)
 			if batches[batchKey] == nil {
 				batches[batchKey] = make(map[string][]string)
 			}
@@ -144,12 +162,14 @@ func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *re
 				continue
 			}
 
+			isBatchFull := false
 			for origin, encryptedPayload := range tempMap {
 				batches[batchKey][origin] = append(batches[batchKey][origin], encryptedPayload)
+				isBatchFull = len(batches[batchKey][origin]) == brw.batchSize
 			}
 
 			// TODO: harden against batchKey attacks
-			if len(batches[batchKey][origin1]) == brw.batchSize {
+			if isBatchFull {
 				brw.writeBatchKeyBatches(ctx, batchKey, batches[batchKey])
 				// reset batchKey map
 				batches[batchKey] = make(map[string][]string)

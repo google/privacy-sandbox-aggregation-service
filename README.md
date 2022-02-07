@@ -5,6 +5,7 @@ The code in here is related to a prototype for aggregating data across browsers 
 # How to build
 
 To build the code, you need to install [Bazel](https://bazel.build/) first, and there are detailed instructions in the Go files for running the binaries.
+**You can follow our [Terraform setup](terraform/README.md) to setup an environment.**
 
 # Main pipelines
 

@@ -16,11 +16,12 @@
 # Keeps GCLIBC at version 2.28 since Golang Apache Beam only supports up to GLIBC version 2.29 in the harnes container as of 2022s0103
 
 
-FROM debian:buster-20211220-slim
+FROM debian:buster-20220125-slim
 
 RUN \
     # This makes add-apt-repository available.
     apt-get update && \
+    apt-get -y upgrade && \
     apt-get -y install \
         python \
         python3 \
@@ -54,7 +55,8 @@ RUN \
     "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
     $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get -y update && \
-    apt-get install -y docker-ce docker-ce-cli
+    apt-get install -y docker-ce docker-ce-cli && \
+    apt-get -y autoclean && apt-get -y autoremove
 
     # Unpack bazel for future use.
 RUN bazel version

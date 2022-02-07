@@ -1,0 +1,101 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+steps:
+
+###########################################################
+# Step 1: Build Browser Simulator Container
+###########################################################
+- name: '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/bazel-cloud-build-image:latest'
+  entrypoint: 'bazel'
+  id: 'browser-simulator-container-build'
+  args:
+    - 'run'
+    - '-c'
+    - 'opt'
+    - 'tools:browser_simulator_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$BUILD_ID'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID/${_REPOSITORY}'
+    - '--define'
+    - 'REGISTRY=${_LOCATION}-docker.pkg.dev'
+    - '--remote_cache=https://storage.googleapis.com/$PROJECT_ID-bazelcache'
+    - '--google_default_credentials'
+
+###########################################################
+# Step 2: Build Collector Container
+###########################################################
+- name: '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/bazel-cloud-build-image:latest'
+  entrypoint: 'bazel'
+  id: 'collector-container-build'
+  args:
+    - 'run'
+    - '-c'
+    - 'opt'
+    - 'service:collector_server_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$BUILD_ID'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID/${_REPOSITORY}'
+    - '--define'
+    - 'REGISTRY=${_LOCATION}-docker.pkg.dev'
+    - '--remote_cache=https://storage.googleapis.com/$PROJECT_ID-bazelcache'
+    - '--google_default_credentials'
+
+###########################################################
+# Step 3: Build Aggregator Container
+###########################################################
+- name: '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/bazel-cloud-build-image:latest'
+  entrypoint: 'bazel'
+  id: 'aggregator-container-build'
+  args:
+    - 'run'
+    - '-c'
+    - 'opt'
+    - 'service:aggregator_server_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$BUILD_ID'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID/${_REPOSITORY}'
+    - '--define'
+    - 'REGISTRY=${_LOCATION}-docker.pkg.dev'
+    - '--remote_cache=https://storage.googleapis.com/$PROJECT_ID-bazelcache'
+    - '--google_default_credentials'
+
+###########################################################
+# Step 4: Build Aggregator Debug Container
+###########################################################
+- name: '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/bazel-cloud-build-image:latest'
+  entrypoint: 'bazel'
+  id: 'aggregator-container-debug-build'
+  args:
+    - 'run'
+    - '-c'
+    - 'opt'
+    - 'service:aggregator_server_debug_image_publish'
+    - '--stamp'
+    - '--define'
+    - 'VERSION=$BUILD_ID'
+    - '--define'
+    - 'REPOSITORY=$PROJECT_ID/${_REPOSITORY}'
+    - '--define'
+    - 'REGISTRY=${_LOCATION}-docker.pkg.dev'
+    - '--remote_cache=https://storage.googleapis.com/$PROJECT_ID-bazelcache'
+    - '--google_default_credentials'
+
+timeout: 3600s

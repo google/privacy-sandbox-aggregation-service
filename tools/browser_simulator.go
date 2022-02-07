@@ -148,7 +148,7 @@ func main() {
 				if err != nil {
 					log.Exit(err)
 				}
-				payload1 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin1, Payload: encrypted1.EncryptedReport.Data, KeyID: encrypted2.KeyId}
+				payload1 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin1, Payload: encrypted1.EncryptedReport.Data, KeyID: encrypted1.KeyId}
 				payload2 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin2, Payload: encrypted2.EncryptedReport.Data, KeyID: encrypted2.KeyId}
 				report, err = utils.MarshalCBOR(&reporttypes.AggregationReport{
 					SharedInfo:                 contextInfo,

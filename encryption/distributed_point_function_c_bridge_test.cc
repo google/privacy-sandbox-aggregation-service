@@ -2,12 +2,15 @@
 
 #include <sys/param.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include "absl/numeric/int128.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "dpf/distributed_point_function.h"
@@ -18,7 +21,10 @@
 namespace {
 using ::convagg::crypto::AllocateCBytes;
 using ::convagg::crypto::StrToCBytes;
+using ::distributed_point_functions::DistributedPointFunction;
+using ::distributed_point_functions::DpfKey;
 using ::distributed_point_functions::DpfParameters;
+using ::distributed_point_functions::EvaluationContext;
 using ::distributed_point_functions::ValueType;
 
 TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
@@ -245,6 +251,123 @@ TEST(DistributedPointFunctionBridge, TestEvaluateAt64) {
   free(b_param.c);
   free(b_key1.c);
   free(b_key2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
+std::vector<DpfParameters> GetDefaultDpfParameters(int key_bit_size) {
+  std::vector<DpfParameters> parameters(key_bit_size);
+  for (int i = 0; i < key_bit_size; i++) {
+    parameters[i] = DpfParameters();
+    parameters[i].set_log_domain_size(i + 1);
+    parameters[i].mutable_value_type()->mutable_integer()->set_bitsize(
+        default_element_bit_size);
+  }
+  return parameters;
+}
+
+TEST(DistributedPointFunctionBridge, TestEvaluateAt64Default) {
+  constexpr int kKeyBitSize = 128;
+  std::vector<DpfParameters> params = GetDefaultDpfParameters(kKeyBitSize);
+
+  CBytes b_params[kKeyBitSize];
+  for (int i = 0; i < kKeyBitSize; i++) {
+    ASSERT_TRUE(
+        AllocateCBytes(params[i].ByteSizeLong(), &b_params[i]) &&
+        params[i].SerializePartialToArray(b_params[i].c, b_params[i].l));
+  }
+
+  CUInt128 alpha = {.lo = 8, .hi = 0};
+  uint64_t betas[kKeyBitSize];
+  for (int i = 0; i < kKeyBitSize; i++) {
+    betas[i] = 123;
+  }
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateKeys(b_params, kKeyBitSize, &alpha, betas,
+                          /*betas_size=*/kKeyBitSize, &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  constexpr int kNumEvaluationPoints = 4;
+  CUInt128 evaluation_points[kNumEvaluationPoints] = {
+      alpha,
+      {.lo = 0, .hi = 0},
+      {.lo = 1, .hi = 0},
+      {.lo = std::numeric_limits<uint64_t>::max(),
+       .hi = std::numeric_limits<uint64_t>::max()}};
+
+  CUInt64Vec vec1;
+  EXPECT_EQ(CEvaluateAt64Default(
+                kKeyBitSize, &b_key1, /*hierarchy_level=*/kKeyBitSize - 1,
+                evaluation_points, kNumEvaluationPoints, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CUInt64Vec vec2;
+  EXPECT_EQ(CEvaluateAt64Default(
+                kKeyBitSize, &b_key2, /*hierarchy_level=*/kKeyBitSize - 1,
+                evaluation_points, kNumEvaluationPoints, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  EXPECT_EQ(vec1.vec[0] + vec2.vec[0], betas[kKeyBitSize - 1]);
+  for (int i = 1; i < kNumEvaluationPoints; ++i) {
+    EXPECT_EQ(vec1.vec[i] + vec2.vec[i], 0);
+  }
+
+  for (auto &p : b_params) {
+    free(p.c);
+  }
+  free(b_key1.c);
+  free(b_key2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
+TEST(DistributedPointFunctionBridge, TestEvaluateUntil64Default) {
+  constexpr int kKeyBitSize = 4;
+
+  std::vector<DpfParameters> params = GetDefaultDpfParameters(kKeyBitSize);
+  absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
+      DistributedPointFunction::CreateIncremental(std::move(params));
+  DCHECK(dpf.ok());
+
+  absl::uint128 alpha = absl::MakeUint128(0, 1);
+  std::vector<absl::uint128> betas(kKeyBitSize, absl::MakeUint128(0, 123));
+  absl::StatusOr<std::pair<DpfKey, DpfKey>> keys =
+      (*dpf)->GenerateKeysIncremental(alpha, betas);
+  DCHECK(keys.ok());
+
+  EvaluationContext eval_ctx1, eval_ctx2;
+  eval_ctx1.set_previous_hierarchy_level(-1);
+  *eval_ctx1.mutable_key() = keys->first;
+  eval_ctx2.set_previous_hierarchy_level(-1);
+  *eval_ctx2.mutable_key() = keys->second;
+
+  CBytes b_eval_ctx1, b_eval_ctx2, error;
+  ASSERT_TRUE(AllocateCBytes(eval_ctx1.ByteSizeLong(), &b_eval_ctx1) &&
+              eval_ctx1.SerializePartialToArray(b_eval_ctx1.c, b_eval_ctx1.l));
+  ASSERT_TRUE(AllocateCBytes(eval_ctx2.ByteSizeLong(), &b_eval_ctx2) &&
+              eval_ctx2.SerializePartialToArray(b_eval_ctx2.c, b_eval_ctx2.l));
+
+  CUInt128 *prefixes;
+  uint64_t prefixes_size = 0;
+  CUInt64Vec vec1;
+
+  constexpr int hierarchy_level = 1;
+  EXPECT_EQ(CEvaluateUntil64Default(kKeyBitSize, hierarchy_level, prefixes,
+                                    prefixes_size, &b_eval_ctx1, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CUInt64Vec vec2;
+  EXPECT_EQ(CEvaluateUntil64Default(kKeyBitSize, hierarchy_level, prefixes,
+                                    prefixes_size, &b_eval_ctx2, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  EXPECT_EQ(vec1.vec[0] + vec2.vec[0],
+            absl::Uint128Low64(betas[hierarchy_level]));
+  for (int i = 1; i < 1 << hierarchy_level; ++i) {
+    EXPECT_EQ(vec1.vec[i] + vec2.vec[i], 0);
+  }
+
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
   free(vec1.vec);
   free(vec2.vec);
 }

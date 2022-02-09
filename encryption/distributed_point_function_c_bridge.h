@@ -12,6 +12,8 @@ extern "C" {
 // The largest prime that fits in uint64_t (2**64 - 59).
 const uint64_t reach_module = 18446744073709551557llu;
 
+const int32_t default_element_bit_size = 64;
+
 struct CUInt64Vec {
   uint64_t *vec;
   int64_t vec_size;
@@ -65,6 +67,17 @@ int CEvaluateUntil64(int hierarchy_level, const struct CUInt128 *prefixes,
                      int64_t prefixes_size, struct CBytes *mutable_context,
                      struct CUInt64Vec *out_vec, struct CBytes *out_error);
 
+// CEvaluateUntil64Default is similar to CEvaluateUntil64(), except that it
+// takes the key bit size to create the DPF parameters, which can then be
+// exclude from the eval context. In that way, we avoid transferring the
+// default DPF parameters across languages.
+int CEvaluateUntil64Default(int key_bit_size, int hierarchy_level,
+                            const struct CUInt128 *prefixes,
+                            int64_t prefixes_size,
+                            struct CBytes *mutable_context,
+                            struct CUInt64Vec *out_vec,
+                            struct CBytes *out_error);
+
 // CEvaluateAt64 wraps EvaluateAt<uint64_t>() in C:
 // http://google3/dpf/distributed_point_function.h;l=331;rcl=408308420
 int CEvaluateAt64(const struct CBytes *params, int64_t params_size,
@@ -72,6 +85,16 @@ int CEvaluateAt64(const struct CBytes *params, int64_t params_size,
                   const struct CUInt128 *evaluation_points,
                   int64_t evaluation_points_size, struct CUInt64Vec *out_vec,
                   struct CBytes *out_error);
+
+// CEvaluateAt64Default is similar to CEvaluateAt64(), except that it takes
+// the key bit size to create the DPF parameters, which can then be exclude from
+// the eval context. In this way, we can avoid transferring the default DPF
+// parameters across languages.
+int CEvaluateAt64Default(int key_bit_size, const struct CBytes *key,
+                         int hierarchy_level,
+                         const struct CUInt128 *evaluation_points,
+                         int64_t evaluation_points_size,
+                         struct CUInt64Vec *out_vec, struct CBytes *out_error);
 
 // CGenerateReachTupleKeys also wraps GenerateKeys() in C, specifically for
 // generating keys for the Reach tuples:

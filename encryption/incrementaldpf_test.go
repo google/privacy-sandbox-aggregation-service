@@ -151,19 +151,25 @@ func TestDpfHierarchicalGenEvalFunctions(t *testing.T) {
 }
 
 func TestDpfMultiLevelHierarchicalGenEvalFunctions(t *testing.T) {
-	testHierarchicalGenEvalFunctions(t, false /*unSafe*/)
-	testHierarchicalGenEvalFunctions(t, true /*unSafe*/)
+	testHierarchicalGenEvalFunctions(t, false /*useSafe*/, false /*useDefault*/)
+	testHierarchicalGenEvalFunctions(t, true /*useSafe*/, true /*useDefault*/)
+	testHierarchicalGenEvalFunctions(t, true /*useSafe*/, false /*useDefault*/)
 }
 
-func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
+func testHierarchicalGenEvalFunctions(t *testing.T, useSafe, useDefault bool) {
 	os.Setenv("GODEBUG", "cgocheck=2")
-	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 2, ValueType: defaultValueType},
-		{LogDomainSize: 4, ValueType: defaultValueType},
-		{LogDomainSize: 5, ValueType: defaultValueType},
-	}
+
+	const keyBitSize = 5
+
 	alpha, beta := uint128.From64(16), uint64(1)
-	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta, beta, beta})
+	params := make([]*dpfpb.DpfParameters, keyBitSize)
+	betas := make([]uint64, keyBitSize)
+	for i := 0; i < keyBitSize; i++ {
+		params[i] = &dpfpb.DpfParameters{LogDomainSize: int32(i + 1), ValueType: defaultValueType}
+		betas[i] = beta
+	}
+
+	k1, k2, err := GenerateKeys(params, alpha, betas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,70 +190,102 @@ func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
 		{uint128.From64(1)},
 	}
 
+	// First level of expansion for the first two bits.
+	h0 := 1
 	var expanded1, expanded2 []uint64
 	if useSafe {
-		expanded1, err = EvaluateUntil64(0, prefixes[0], evalCtx1)
+		expanded1, err = EvaluateUntil64(h0, prefixes[0], evalCtx1)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		expanded2, err = EvaluateUntil64(0, prefixes[0], evalCtx2)
+		expanded2, err = EvaluateUntil64(h0, prefixes[0], evalCtx2)
 		if err != nil {
 			t.Fatal(err)
 		}
 	} else {
 		prefixes0, prefixesLength0 := CreateCUint128ArrayUnsafe(prefixes[0])
-		expanded1, err = EvaluateUntil64Unsafe(0, prefixes0, prefixesLength0, evalCtx1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		if useDefault {
+			evalCtx1.Parameters = nil
+			expanded1, err = EvaluateUntil64UnsafeDefault(keyBitSize, h0, prefixes0, prefixesLength0, evalCtx1)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		expanded2, err = EvaluateUntil64Unsafe(0, prefixes0, prefixesLength0, evalCtx2)
-		if err != nil {
-			t.Fatal(err)
+			evalCtx2.Parameters = nil
+			expanded2, err = EvaluateUntil64UnsafeDefault(keyBitSize, h0, prefixes0, prefixesLength0, evalCtx2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+		} else {
+			expanded1, err = EvaluateUntil64Unsafe(h0, prefixes0, prefixesLength0, evalCtx1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			expanded2, err = EvaluateUntil64Unsafe(h0, prefixes0, prefixesLength0, evalCtx2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 		}
 		FreeUnsafePointer(prefixes0)
 	}
-
-	// First level of expansion for the first two bits.
 
 	got := make([]uint64, len(expanded1))
 	for i := range expanded1 {
 		got[i] = expanded1[i] + expanded2[i]
 	}
-	want := make([]uint64, 1<<params[0].GetLogDomainSize())
+	want := make([]uint64, 1<<params[1].GetLogDomainSize())
 	want[2] = 1
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}
 
 	// The next level of expansion for all five bits of two prefixes: 0 (00***) and 2 (10***).
+	h1 := 4
 	if useSafe {
-		expanded1, err = EvaluateUntil64(2, prefixes[1], evalCtx1)
+		expanded1, err = EvaluateUntil64(h1, prefixes[1], evalCtx1)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		expanded2, err = EvaluateUntil64(2, prefixes[1], evalCtx2)
+		expanded2, err = EvaluateUntil64(h1, prefixes[1], evalCtx2)
 		if err != nil {
 			t.Fatal(err)
 		}
 	} else {
 		prefixes1, prefixesLength1 := CreateCUint128ArrayUnsafe(prefixes[1])
-		expanded1, err = EvaluateUntil64Unsafe(2, prefixes1, prefixesLength1, evalCtx1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		if useDefault {
+			evalCtx1.Parameters = nil
+			expanded1, err = EvaluateUntil64UnsafeDefault(keyBitSize, h1, prefixes1, prefixesLength1, evalCtx1)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		expanded2, err = EvaluateUntil64Unsafe(2, prefixes1, prefixesLength1, evalCtx2)
-		if err != nil {
-			t.Fatal(err)
+			evalCtx2.Parameters = nil
+			expanded2, err = EvaluateUntil64UnsafeDefault(keyBitSize, h1, prefixes1, prefixesLength1, evalCtx2)
+			if err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			expanded1, err = EvaluateUntil64Unsafe(h1, prefixes1, prefixesLength1, evalCtx1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			expanded2, err = EvaluateUntil64Unsafe(h1, prefixes1, prefixesLength1, evalCtx2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 		}
 		FreeUnsafePointer(prefixes1)
 	}
 
 	gotMap := make(map[uint128.Uint128]uint64)
-	ids, err := CalculateBucketID(params, prefixes[1], 2, 0)
+	ids, err := CalculateBucketID(params, prefixes[1], int32(h1), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,17 +306,23 @@ func testHierarchicalGenEvalFunctions(t *testing.T, useSafe bool) {
 }
 
 func TestEvaluateAt64(t *testing.T) {
-	testEvaluateAt64(t, true /*useSafe*/)
-	testEvaluateAt64(t, false /*useSafe*/)
+	testEvaluateAt64(t, true /*useSafe*/, false /*useDefault*/)
+	testEvaluateAt64(t, false /*useSafe*/, false /*useDefault*/)
+	testEvaluateAt64(t, false /*useSafe*/, true /*useDefault*/)
 }
 
-func testEvaluateAt64(t *testing.T, useSafe bool) {
+func testEvaluateAt64(t *testing.T, useSafe, useDefault bool) {
 	os.Setenv("GODEBUG", "cgocheck=2")
-	params := []*dpfpb.DpfParameters{
-		{LogDomainSize: 128, ValueType: &dpfpb.ValueType{Type: &dpfpb.ValueType_Integer_{Integer: &dpfpb.ValueType_Integer{Bitsize: 64}}}},
+
+	const keyBitSize = 128
+	params := make([]*dpfpb.DpfParameters, keyBitSize)
+	alpha := uint128.From64(16)
+	betas := make([]uint64, keyBitSize)
+	for i := 0; i < keyBitSize; i++ {
+		params[i] = &dpfpb.DpfParameters{LogDomainSize: int32(i + 1), ValueType: &dpfpb.ValueType{Type: &dpfpb.ValueType_Integer_{Integer: &dpfpb.ValueType_Integer{Bitsize: 64}}}}
+		betas[i] = 1
 	}
-	alpha, beta := uint128.From64(16), uint64(1)
-	k1, k2, err := GenerateKeys(params, alpha, []uint64{beta})
+	k1, k2, err := GenerateKeys(params, alpha, betas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,24 +332,35 @@ func testEvaluateAt64(t *testing.T, useSafe bool) {
 
 	var evaluated1, evaluated2 []uint64
 	if useSafe {
-		evaluated1, err = EvaluateAt64(params, 0, evaluationPoints, k1)
+		evaluated1, err = EvaluateAt64(params, keyBitSize-1, evaluationPoints, k1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluated2, err = EvaluateAt64(params, 0, evaluationPoints, k2)
+		evaluated2, err = EvaluateAt64(params, keyBitSize-1, evaluationPoints, k2)
 		if err != nil {
 			t.Fatal(err)
 		}
 	} else {
 		bucketIDs, bucketIDlength := CreateCUint128ArrayUnsafe(evaluationPoints)
 		defer FreeUnsafePointer(bucketIDs)
-		evaluated1, err = EvaluateAt64Unsafe(params, 0, bucketIDs, bucketIDlength, k1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		evaluated2, err = EvaluateAt64Unsafe(params, 0, bucketIDs, bucketIDlength, k2)
-		if err != nil {
-			t.Fatal(err)
+		if useDefault {
+			evaluated1, err = EvaluateAt64UnsafeDefault(keyBitSize, keyBitSize-1, bucketIDs, bucketIDlength, k1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluated2, err = EvaluateAt64UnsafeDefault(keyBitSize, keyBitSize-1, bucketIDs, bucketIDlength, k2)
+			if err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			evaluated1, err = EvaluateAt64Unsafe(params, keyBitSize-1, bucketIDs, bucketIDlength, k1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluated2, err = EvaluateAt64Unsafe(params, keyBitSize-1, bucketIDs, bucketIDlength, k2)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
@@ -319,7 +374,7 @@ func testEvaluateAt64(t *testing.T, useSafe bool) {
 	for i := range evaluated1 {
 		var expected uint64
 		if evaluationPoints[i] == alpha {
-			expected = beta
+			expected = 1
 		} else {
 			expected = 0
 		}

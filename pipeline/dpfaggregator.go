@@ -204,21 +204,18 @@ type createEvalCtxFn struct {
 	PreviousLevel int32
 	KeyBitSize    int
 
-	dpfParams  []*dpfpb.DpfParameters
 	ctxCounter beam.Counter
 }
 
-func (fn *createEvalCtxFn) Setup() error {
+func (fn *createEvalCtxFn) Setup() {
 	fn.ctxCounter = beam.NewCounter("aggregation", "createEvalCtxFn-ctx-count")
-	var err error
-	fn.dpfParams, err = GetDefaultDPFParameters(fn.KeyBitSize)
-	return err
 }
 
 func (fn *createEvalCtxFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(*dpfpb.EvaluationContext)) error {
+	// As the default DpfParameters are known for the given key bit size, we do not need to set sumCtx.Parameters.
+	// That way, we can save some data when copying evaluation context from Go to C++.
 	sumCtx := &dpfpb.EvaluationContext{}
 	sumCtx.Key = partialReport.SumKey
-	sumCtx.Parameters = fn.dpfParams
 	sumCtx.PreviousHierarchyLevel = fn.PreviousLevel
 
 	emit(sumCtx)
@@ -303,8 +300,9 @@ type expandedVec struct {
 // expandDpfKeyFn expands the DPF keys in a PartialReportDpf into a vector that represent the contribution to the SUM histogram.
 type expandDpfKeyFn struct {
 	ExpandParams *ExpandParameters
-	vecCounter   beam.Counter
+	KeyBitSize   int
 
+	vecCounter      beam.Counter
 	cPrefixes       unsafe.Pointer
 	cPrefixesLength int64
 }
@@ -328,10 +326,12 @@ func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, evalCtx *dpfpb.Eva
 		err    error
 	)
 
+	// The DpfParameters are not needed here (either in the evaluation context or as a direct input), as they are known when the key bit size is given.
+	// That way, we can reduce the data copied from Go to C++.
 	if fn.ExpandParams.DirectExpansion {
-		vecSum, err = incrementaldpf.EvaluateAt64Unsafe(evalCtx.Parameters, int(fn.ExpandParams.Level), fn.cPrefixes, fn.cPrefixesLength, evalCtx.Key)
+		vecSum, err = incrementaldpf.EvaluateAt64UnsafeDefault(fn.KeyBitSize, int(fn.ExpandParams.Level), fn.cPrefixes, fn.cPrefixesLength, evalCtx.Key)
 	} else {
-		vecSum, err = incrementaldpf.EvaluateUntil64Unsafe(int(fn.ExpandParams.Level), fn.cPrefixes, fn.cPrefixesLength, evalCtx)
+		vecSum, err = incrementaldpf.EvaluateUntil64UnsafeDefault(fn.KeyBitSize, int(fn.ExpandParams.Level), fn.cPrefixes, fn.cPrefixesLength, evalCtx)
 	}
 	if err != nil {
 		return err
@@ -590,6 +590,7 @@ func ExpandAndCombineHistogram(scope beam.Scope, evaluationContext beam.PCollect
 
 	expanded := beam.ParDo(scope, &expandDpfKeyFn{
 		ExpandParams: expandParams,
+		KeyBitSize:   keyBitSize,
 	}, evaluationContext)
 
 	var rawResult beam.PCollection

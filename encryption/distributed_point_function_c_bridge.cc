@@ -52,6 +52,17 @@ absl::StatusOr<std::unique_ptr<DistributedPointFunction>> CreateIncrementalDpf(
   return DistributedPointFunction::CreateIncremental(std::move(parameters));
 }
 
+std::vector<DpfParameters> GetDefaultDpfParameters(int key_bit_size) {
+  std::vector<DpfParameters> parameters(key_bit_size);
+  for (int i = 0; i < key_bit_size; i++) {
+    parameters[i] = DpfParameters();
+    parameters[i].set_log_domain_size(i + 1);
+    parameters[i].mutable_value_type()->mutable_integer()->set_bitsize(
+        default_element_bit_size);
+  }
+  return parameters;
+}
+
 int CopyDpfKeys(const std::pair<DpfKey, DpfKey>& keys, struct CBytes* out_key1,
                 struct CBytes* out_key2, struct CBytes* out_error) {
   if (!AllocateCBytes(keys.first.ByteSizeLong(), out_key1) ||
@@ -200,7 +211,7 @@ int CCreateEvaluationContext(const struct CBytes* params, int64_t params_size,
   return static_cast<int>(absl::StatusCode::kOk);
 }
 
-int Evaluate64(bool is_multilevel, int hierarchy_level,
+int Evaluate64(bool is_multilevel, int key_bit_size, int hierarchy_level,
                const struct CUInt128* prefixes, int64_t prefixes_size,
                struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
                struct CBytes* out_error) {
@@ -210,8 +221,14 @@ int Evaluate64(bool is_multilevel, int hierarchy_level,
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
 
-  std::vector<DpfParameters> parameters(eval_context.parameters().begin(),
-                                        eval_context.parameters().end());
+  std::vector<DpfParameters> parameters;
+  if (key_bit_size > 0) {
+    parameters = GetDefaultDpfParameters(key_bit_size);
+    *eval_context.mutable_parameters() = {parameters.begin(), parameters.end()};
+  } else {
+    parameters = std::vector<DpfParameters>(eval_context.parameters().begin(),
+                                            eval_context.parameters().end());
+  }
   absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
       DistributedPointFunction::CreateIncremental(parameters);
   if (!dpf.ok()) {
@@ -259,24 +276,39 @@ int Evaluate64(bool is_multilevel, int hierarchy_level,
 int CEvaluateNext64(const struct CUInt128* prefixes, int64_t prefixes_size,
                     struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
                     struct CBytes* out_error) {
-  return Evaluate64(false, 0, prefixes, prefixes_size, mutable_context, out_vec,
-                    out_error);
+  return Evaluate64(false, 0, 0, prefixes, prefixes_size, mutable_context,
+                    out_vec, out_error);
 }
 
 int CEvaluateUntil64(int hierarchy_level, const struct CUInt128* prefixes,
                      int64_t prefixes_size, struct CBytes* mutable_context,
                      struct CUInt64Vec* out_vec, struct CBytes* out_error) {
-  return Evaluate64(true, hierarchy_level, prefixes, prefixes_size,
+  return Evaluate64(true, 0, hierarchy_level, prefixes, prefixes_size,
                     mutable_context, out_vec, out_error);
 }
 
-int CEvaluateAt64(const struct CBytes* params, int64_t params_size,
-                  const struct CBytes* key, int hierarchy_level,
-                  const struct CUInt128* evaluation_points,
-                  int64_t evaluation_points_size, struct CUInt64Vec* out_vec,
-                  struct CBytes* out_error) {
-  absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
-      CreateIncrementalDpf(params, params_size);
+int CEvaluateUntil64Default(int key_bit_size, int hierarchy_level,
+                            const CUInt128* prefixes,
+                            int64_t prefixes_size,
+                            CBytes* mutable_context,
+                            CUInt64Vec* out_vec,
+                            CBytes* out_error) {
+  return Evaluate64(true, key_bit_size, hierarchy_level, prefixes,
+                    prefixes_size, mutable_context, out_vec, out_error);
+}
+
+int EvaluateAt64(int key_bit_size, const struct CBytes* params,
+                 int64_t params_size, const struct CBytes* key,
+                 int hierarchy_level, const struct CUInt128* evaluation_points,
+                 int64_t evaluation_points_size, struct CUInt64Vec* out_vec,
+                 struct CBytes* out_error) {
+  absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf;
+  if (key_bit_size > 0) {
+    dpf = DistributedPointFunction::CreateIncremental(
+        std::move(GetDefaultDpfParameters(key_bit_size)));
+  } else {
+    dpf = CreateIncrementalDpf(params, params_size);
+  }
   if (!dpf.ok()) {
     StrToCBytes(dpf.status().message(), out_error);
     return dpf.status().raw_code();
@@ -309,6 +341,26 @@ int CEvaluateAt64(const struct CBytes* params, int64_t params_size,
   }
   std::copy(result->begin(), result->end(), out_vec->vec);
   return static_cast<int>(absl::StatusCode::kOk);
+}
+
+int CEvaluateAt64(const struct CBytes* params, int64_t params_size,
+                  const struct CBytes* key, int hierarchy_level,
+                  const struct CUInt128* evaluation_points,
+                  int64_t evaluation_points_size, struct CUInt64Vec* out_vec,
+                  struct CBytes* out_error) {
+  return EvaluateAt64(0, params, params_size, key, hierarchy_level,
+                      evaluation_points, evaluation_points_size, out_vec,
+                      out_error);
+}
+
+int CEvaluateAt64Default(int key_bit_size, const struct CBytes* key,
+                         int hierarchy_level,
+                         const struct CUInt128* evaluation_points,
+                         int64_t evaluation_points_size,
+                         struct CUInt64Vec* out_vec, struct CBytes* out_error) {
+  return EvaluateAt64(key_bit_size, nullptr, 0, key, hierarchy_level,
+                      evaluation_points, evaluation_points_size, out_vec,
+                      out_error);
 }
 
 int EvaluateTupleReachIntNodN(std::unique_ptr<DistributedPointFunction> dpf,

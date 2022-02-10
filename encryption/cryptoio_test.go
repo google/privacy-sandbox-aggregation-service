@@ -25,6 +25,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -212,5 +214,50 @@ func TestSerializeEncryptedReport(t *testing.T) {
 
 	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 		t.Errorf("deserialized report mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestDecryptOrUnmarshal(t *testing.T) {
+	testDecryptOrUnmarshal(t, true /*encryptOutput*/)
+	testDecryptOrUnmarshal(t, false /*encryptOutput*/)
+}
+
+func testDecryptOrUnmarshal(t *testing.T, encryptOutput bool) {
+	priv, pub, err := standardencrypt.GenerateStandardKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &reporttypes.Payload{
+		Operation: "some operation",
+		DPFKey:    []byte("some key"),
+	}
+	data, err := utils.MarshalCBOR(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contextInfo := []byte("some context")
+	if encryptOutput {
+		encrypted, err := standardencrypt.Encrypt(data, contextInfo, pub)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = encrypted.Data
+	}
+
+	got, isEncrypted, err := DecryptOrUnmarshal(&pb.EncryptedReport{
+		EncryptedReport: &pb.StandardCiphertext{Data: data},
+		ContextInfo:     contextInfo,
+	}, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if isEncrypted != encryptOutput {
+		t.Fatalf("expect isEncrypted = %t, got %t", encryptOutput, isEncrypted)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("decrypted payload mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -183,3 +183,25 @@ func GenerateEncryptedReport(scope beam.Scope, params *GenerateEncryptedReportPa
 
 	writeEncryptedReport(scope, encrypted, params.EncryptedReportURI, params.Shards)
 }
+
+// GenerateBrowserReportParams contains required parameters for function GenerateReport().
+type GenerateBrowserReportParams struct {
+	RawReport     reporttypes.RawReport
+	Origin        string
+	PublicKeys    []cryptoio.PublicKeyInfo
+	ContextInfo   []byte
+	EncryptOutput bool
+}
+
+// GenerateBrowserReport creates an aggregation report from the browser.
+func GenerateBrowserReport(params *GenerateBrowserReportParams) (*reporttypes.AggregationReport, error) {
+	encrypted, err := EncryptReport(&params.RawReport, params.PublicKeys, params.ContextInfo, params.EncryptOutput)
+	if err != nil {
+		return nil, err
+	}
+	payload := &reporttypes.AggregationServicePayload{Origin: params.Origin, Payload: encrypted.EncryptedReport.Data, KeyID: encrypted.KeyId}
+	return &reporttypes.AggregationReport{
+		SharedInfo:                 params.ContextInfo,
+		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload},
+	}, nil
+}

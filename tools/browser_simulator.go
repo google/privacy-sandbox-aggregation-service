@@ -138,40 +138,40 @@ func main() {
 
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
-			var report []byte
+			var (
+				report *reporttypes.AggregationReport
+				err    error
+			)
 			if isMPC {
-				key1, key2, err := dpfdataconverter.GenerateDPFKeys(c, *keyBitSize)
-				if err != nil {
-					log.Exit(err)
-				}
-				encrypted1, encrypted2, err := dpfdataconverter.EncryptPartialReports(key1, key2, publicKeyInfo1, publicKeyInfo2, contextInfo, *encryptOutput)
-				if err != nil {
-					log.Exit(err)
-				}
-				payload1 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin1, Payload: encrypted1.EncryptedReport.Data, KeyID: encrypted1.KeyId}
-				payload2 := &reporttypes.AggregationServicePayload{Origin: *helperOrigin2, Payload: encrypted2.EncryptedReport.Data, KeyID: encrypted2.KeyId}
-				report, err = utils.MarshalCBOR(&reporttypes.AggregationReport{
-					SharedInfo:                 contextInfo,
-					AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload1, payload2},
+				report, err = dpfdataconverter.GenerateBrowserReport(&dpfdataconverter.GenerateBrowserReportParams{
+					RawReport:     c,
+					KeyBitSize:    *keyBitSize,
+					Origin1:       *helperOrigin1,
+					Origin2:       *helperOrigin2,
+					PublicKeys1:   publicKeyInfo1,
+					PublicKeys2:   publicKeyInfo2,
+					ContextInfo:   contextInfo,
+					EncryptOutput: *encryptOutput,
 				})
-				if err != nil {
-					log.Exit(err)
-				}
 			} else {
-				encrypted, err := onepartydataconverter.EncryptReport(&c, publicKeyInfo1, contextInfo, *encryptOutput)
-				if err != nil {
-					log.Exit(err)
-				}
-				payload := &reporttypes.AggregationServicePayload{Origin: *helperOrigin1, Payload: encrypted.EncryptedReport.Data, KeyID: encrypted.KeyId}
-				report, err = utils.MarshalCBOR(&reporttypes.AggregationReport{
-					SharedInfo:                 contextInfo,
-					AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload},
+				report, err = onepartydataconverter.GenerateBrowserReport(&onepartydataconverter.GenerateBrowserReportParams{
+					RawReport:     c,
+					Origin:        *helperOrigin1,
+					PublicKeys:    publicKeyInfo1,
+					ContextInfo:   contextInfo,
+					EncryptOutput: *encryptOutput,
 				})
-				if err != nil {
-					log.Exit(err)
-				}
 			}
-			requestCh <- bytes.NewBuffer(report)
+			if err != nil {
+				log.Exit(err)
+			}
+
+			data, err := utils.MarshalCBOR(report)
+			if err != nil {
+				log.Exit(err)
+			}
+
+			requestCh <- bytes.NewBuffer(data)
 		}
 	}
 	close(requestCh)

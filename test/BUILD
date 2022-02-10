@@ -69,15 +69,19 @@ go_test(
     deps = [
         "//encryption:crypto_go_proto",
         "//encryption:cryptoio",
+        "//encryption:incrementaldpf",
         "//pipeline:dpfaggregator",
         "//pipeline:reporttypes",
+        "//third_party/privacy_sandbox_aggregation/service:collectorservice",
         "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_lukechampine_uint128//:go_default_library",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
@@ -131,9 +135,11 @@ go_test(
         "//encryption:cryptoio",
         "//pipeline:onepartyaggregator",
         "//pipeline:reporttypes",
+        "//third_party/privacy_sandbox_aggregation/service:collectorservice",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/passert:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/testing/ptest:go_default_library",
+        "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
     ],
 )

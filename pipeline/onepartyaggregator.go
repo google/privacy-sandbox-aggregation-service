@@ -29,7 +29,6 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/transforms/stats"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
@@ -125,15 +124,17 @@ func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.Enc
 
 	payload := &reporttypes.Payload{}
 	if fn.isEncryptedBundle {
-		b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
+		var (
+			isEncrypted bool
+			err         error
+		)
+		payload, isEncrypted, err = cryptoio.DecryptOrUnmarshal(encrypted, privateKey)
 		if err != nil {
-			if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
-				return fmt.Errorf("failed in decrypting and deserializing for data: %s", encrypted.String())
-			}
+			return err
+		}
+		if !isEncrypted {
 			fn.nonencryptedCounter.Inc(ctx, 1)
 			fn.isEncryptedBundle = false
-		} else if err := utils.UnmarshalCBOR(b, payload); err != nil {
-			return err
 		}
 	} else {
 		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {

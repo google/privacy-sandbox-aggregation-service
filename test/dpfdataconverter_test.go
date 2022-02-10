@@ -25,14 +25,18 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
+	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
@@ -264,5 +268,102 @@ func TestGetMaxKey(t *testing.T) {
 	got = GetMaxBucketID(70)
 	if got.Cmp(want) != 0 {
 		t.Fatalf("expect %s for key size %d, got %s", want.String(), 70, got.String())
+	}
+}
+
+func TestGenerateReport(t *testing.T) {
+	testGenerateReport(t, true /*encryptOutput*/)
+	testGenerateReport(t, false /*encryptOutput*/)
+}
+
+func testGenerateReport(t *testing.T, encryptOutput bool) {
+	ctx := context.Background()
+	privKeys1, publicKeys1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privKeys2, publicKeys2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyBitSize := 128
+	origin1, origin2 := "aggregator1", "aggregator2"
+	contextInfo := []byte("context info")
+	rawReport := reporttypes.RawReport{Bucket: uint128.From64(123), Value: 789}
+	report, err := GenerateBrowserReport(&GenerateBrowserReportParams{
+		RawReport:     rawReport,
+		KeyBitSize:    keyBitSize,
+		Origin1:       origin1,
+		Origin2:       origin2,
+		PublicKeys1:   publicKeys1,
+		PublicKeys2:   publicKeys2,
+		ContextInfo:   contextInfo,
+		EncryptOutput: encryptOutput,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines, err := collectorservice.ConvertReport(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(lines), 2; got != want {
+		t.Fatalf("want %d lines, got %d", want, got)
+	}
+
+	if _, ok := lines[origin1]; !ok {
+		t.Fatalf("missing origin %q", origin1)
+	}
+	if _, ok := lines[origin2]; !ok {
+		t.Fatalf("missing origin %q", origin2)
+	}
+
+	encrypted1, err := cryptoio.DeserializeEncryptedReport(lines[origin1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	encrypted2, err := cryptoio.DeserializeEncryptedReport(lines[origin2])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload1, _, err := cryptoio.DecryptOrUnmarshal(encrypted1, privKeys1[encrypted1.KeyId])
+	if err != nil {
+		t.Fatal(err)
+	}
+	dpfKey1 := &dpfpb.DpfKey{}
+	if err := proto.Unmarshal(payload1.DPFKey, dpfKey1); err != nil {
+		t.Fatal(err)
+	}
+	payload2, _, err := cryptoio.DecryptOrUnmarshal(encrypted2, privKeys2[encrypted2.KeyId])
+	if err != nil {
+		t.Fatal(err)
+	}
+	dpfKey2 := &dpfpb.DpfKey{}
+	if err := proto.Unmarshal(payload2.DPFKey, dpfKey2); err != nil {
+		t.Fatal(err)
+	}
+
+	dpfParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefixes := []uint128.Uint128{uint128.From64(123)}
+	expanded1, err := incrementaldpf.EvaluateAt64(dpfParams, keyBitSize-1, prefixes, dpfKey1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded2, err := incrementaldpf.EvaluateAt64(dpfParams, keyBitSize-1, prefixes, dpfKey2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(expanded1) != 1 || len(expanded2) != 1 {
+		t.Fatalf("expect one item in both vectors, got %d and %d", len(expanded1), len(expanded2))
+	}
+	if got, want := expanded1[0]+expanded2[0], rawReport.Value; got != want {
+		t.Fatalf("expect value %d, got %d", want, got)
 	}
 }

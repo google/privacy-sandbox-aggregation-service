@@ -16,15 +16,18 @@ package onepartydataconverter
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/go/pkg/beam/testing/ptest"
+	"github.com/google/go-cmp/cmp"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
 )
 
 func TestAggregationPipelineOneParty(t *testing.T) {
@@ -74,5 +77,56 @@ func testAggregationPipeline(t testing.TB, withEncryption bool) {
 
 	if err := ptest.Run(pipeline); err != nil {
 		t.Fatalf("pipeline failed: %s", err)
+	}
+}
+
+func testGenerateBrowserReport(t *testing.T, encryptOutput bool) {
+	ctx := context.Background()
+	privKeys, publicKeys, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	origin := "aggregator"
+	contextInfo := []byte("context info")
+	want := reporttypes.RawReport{Bucket: uint128.From64(123), Value: 789}
+	report, err := GenerateBrowserReport(&GenerateBrowserReportParams{
+		RawReport:     want,
+		Origin:        origin,
+		PublicKeys:    publicKeys,
+		ContextInfo:   contextInfo,
+		EncryptOutput: encryptOutput,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines, err := collectorservice.ConvertReport(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(lines), 1; got != want {
+		t.Fatalf("want %d lines, got %d", want, got)
+	}
+	if _, ok := lines[origin]; !ok {
+		t.Fatalf("missing origin %q", origin)
+	}
+
+	encrypted, err := cryptoio.DeserializeEncryptedReport(lines[origin])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, _, err := cryptoio.DecryptOrUnmarshal(encrypted, privKeys[encrypted.KeyId])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := &reporttypes.RawReport{}
+	if err := json.Unmarshal(payload.DPFKey, report); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("resulting report mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -421,3 +421,31 @@ func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize i
 	}
 	return conversions, nil
 }
+
+// GenerateBrowserReportParams contains required parameters for function GenerateReport().
+type GenerateBrowserReportParams struct {
+	RawReport                reporttypes.RawReport
+	KeyBitSize               int
+	Origin1, Origin2         string
+	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
+	ContextInfo              []byte
+	EncryptOutput            bool
+}
+
+// GenerateBrowserReport creates an aggregation report from the browser.
+func GenerateBrowserReport(params *GenerateBrowserReportParams) (*reporttypes.AggregationReport, error) {
+	key1, key2, err := GenerateDPFKeys(params.RawReport, params.KeyBitSize)
+	if err != nil {
+		return nil, err
+	}
+	encrypted1, encrypted2, err := EncryptPartialReports(key1, key2, params.PublicKeys1, params.PublicKeys2, params.ContextInfo, params.EncryptOutput)
+	if err != nil {
+		return nil, err
+	}
+	payload1 := &reporttypes.AggregationServicePayload{Origin: params.Origin1, Payload: encrypted1.EncryptedReport.Data, KeyID: encrypted1.KeyId}
+	payload2 := &reporttypes.AggregationServicePayload{Origin: params.Origin2, Payload: encrypted2.EncryptedReport.Data, KeyID: encrypted2.KeyId}
+	return &reporttypes.AggregationReport{
+		SharedInfo:                 params.ContextInfo,
+		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload1, payload2},
+	}, nil
+}

@@ -18,6 +18,7 @@ package collectorservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -125,6 +126,30 @@ func getBatchKey(report *reporttypes.AggregationReport) (string, error) {
 	}
 }
 
+// ConvertReport converts the report from the browser into the format that can be processed by the aggregators.
+func ConvertReport(report *reporttypes.AggregationReport) (map[string]string, error) {
+	output := make(map[string]string)
+	itemsCount := 0
+	for _, payload := range report.AggregationServicePayloads {
+		encryptedPayload, err := cryptoio.SerializeEncryptedReport(&pb.EncryptedReport{
+			EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
+			ContextInfo:     report.SharedInfo,
+			KeyId:           payload.KeyID,
+		})
+		if err != nil {
+			log.Error(err)
+			break
+		}
+		output[payload.Origin] = encryptedPayload
+		itemsCount++
+	}
+	// Skip shares where not all payloads could be processed
+	if len(report.AggregationServicePayloads) != itemsCount {
+		return nil, errors.New("Error during processing of payload")
+	}
+	return output, nil
+}
+
 func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *reporttypes.AggregationReport) {
 	log.Infof("Starting buffered report writer with %v batch size", brw.batchSize)
 
@@ -140,25 +165,9 @@ func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *re
 			if batches[batchKey] == nil {
 				batches[batchKey] = make(map[string][]string)
 			}
-			// Use temp map for catching if any payload fails to be processed
-			tempMap := make(map[string]string)
-			itemsCount := 0
-			for _, payload := range report.AggregationServicePayloads {
-				encryptedPayload, err := cryptoio.SerializeEncryptedReport(&pb.EncryptedReport{
-					EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
-					ContextInfo:     report.SharedInfo,
-					KeyId:           payload.KeyID,
-				})
-				if err != nil {
-					log.Error(err)
-					break
-				}
-				tempMap[payload.Origin] = encryptedPayload
-				itemsCount++
-			}
-			// Skip shares where not all payloads could be processed
-			if len(report.AggregationServicePayloads) != itemsCount {
-				log.Errorf("Error during processing of payload")
+			tempMap, err := ConvertReport(report)
+			if err != nil {
+				log.Error(err)
 				continue
 			}
 

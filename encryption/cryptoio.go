@@ -27,6 +27,7 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/core/registry"
@@ -350,4 +351,21 @@ func DeserializeEncryptedReport(line string) (*pb.EncryptedReport, error) {
 		return nil, err
 	}
 	return encrypted, nil
+}
+
+// DecryptOrUnmarshal tries to decrypt a report first and then unmarshal the payload.
+//
+// If the report is not encrypted, it unmarshals the payload directly.
+func DecryptOrUnmarshal(encrypted *pb.EncryptedReport, privateKey *pb.StandardPrivateKey) (*reporttypes.Payload, bool, error) {
+	payload, isEncrypted := &reporttypes.Payload{}, true
+	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
+	if err != nil {
+		isEncrypted = false
+		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+			return nil, isEncrypted, fmt.Errorf("failed to decrypt and/or deserialize report: %s", encrypted.String())
+		}
+	} else if err := utils.UnmarshalCBOR(b, payload); err != nil {
+		return nil, isEncrypted, err
+	}
+	return payload, isEncrypted, nil
 }

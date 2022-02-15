@@ -29,6 +29,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/transforms/stats"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
@@ -36,10 +37,13 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
+const numberOfHelpers = 1
+
 func init() {
 	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 
+	beam.RegisterType(reflect.TypeOf((*addNoiseFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*decryptReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*filterBucketFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*formatHistogramFn)(nil)).Elem())
@@ -210,6 +214,27 @@ func (fn *filterBucketFn) ProcessElement(ctx context.Context, bucket uint128.Uin
 	return nil
 }
 
+type addNoiseFn struct {
+	Epsilon       float64
+	L1Sensitivity uint64
+}
+
+func (fn *addNoiseFn) ProcessElement(bucket uint128.Uint128, value uint64, emitResult func(uint128.Uint128, uint64)) error {
+	noise, err := distributednoise.DistributedGeometricMechanismRand(fn.Epsilon, fn.L1Sensitivity, numberOfHelpers)
+	if err != nil {
+		return err
+	}
+	// Overflow of the noise is expected, and there's 50% probability that the noise is negative.
+	value += uint64(noise)
+	emitResult(bucket, value)
+	return nil
+}
+
+func addNoise(scope beam.Scope, rawResult beam.PCollection, epsilon float64, l1Sensitivity uint64) beam.PCollection {
+	scope = scope.Scope("AddNoise")
+	return beam.ParDo(scope, &addNoiseFn{Epsilon: epsilon, L1Sensitivity: l1Sensitivity}, rawResult)
+}
+
 // AggregateReportParams contains necessary parameters for function AggregateReport().
 type AggregateReportParams struct {
 	// Input report file URI, each line contains an encrypted payload from the browser.
@@ -220,6 +245,9 @@ type AggregateReportParams struct {
 	HistogramURI string
 	// The private keys for the standard encryption from the helper server.
 	HelperPrivateKeys map[string]*pb.StandardPrivateKey
+	// Privacy budget for adding noise to the aggregation.
+	Epsilon       float64
+	L1Sensitivity uint64
 }
 
 // AggregateReport reads the encrypted reports, decrypts and aggregates them.
@@ -235,6 +263,10 @@ func AggregateReport(scope beam.Scope, params *AggregateReportParams) {
 
 	joined := beam.CoGroupByKey(scope, buckets, result)
 	filteredResult := beam.ParDo(scope, &filterBucketFn{}, joined)
+
+	if params.Epsilon > 0 {
+		filteredResult = addNoise(scope, filteredResult, params.Epsilon, params.L1Sensitivity)
+	}
 
 	// TODO: Add noise before writing the result.
 	writeHistogram(scope, filteredResult, params.HistogramURI)

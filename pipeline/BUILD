@@ -83,6 +83,7 @@ go_library(
         ":reporttypes",
         "//encryption:crypto_go_proto",
         "//encryption:cryptoio",
+        "//encryption:distributednoise",
         "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/textio:go_default_library",

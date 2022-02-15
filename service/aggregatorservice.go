@@ -435,6 +435,7 @@ func (h *QueryHandler) aggregateOnepartyReport(ctx context.Context, request *que
 		"--target_bucket_uri=" + request.ExpandConfigURI,
 		"--partial_histogram_uri=" + outputResultURI,
 		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+		"--epsilon=" + fmt.Sprintf("%f", request.TotalEpsilon),
 		"--runner=" + h.PipelineRunner,
 	}
 

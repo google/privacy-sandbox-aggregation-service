@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	"flag"
+	"math"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
@@ -31,6 +32,10 @@ var (
 	targetBucketURI     = flag.String("target_bucket_uri", "", "Input target buckets.")
 	histogramURI        = flag.String("histogram_uri", "", "Output aggregation results.")
 	privateKeyParamsURI = flag.String("private_key_params_uri", "", "Input file that stores the parameters required to read the standard private keys.")
+	epsilon             = flag.Float64("epsilon", 0.0, "Epsilon for the privacy budget.")
+	// The default l1 sensitivity is consistent with:
+	// https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#privacy-budgeting
+	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
 )
 
 func main() {
@@ -52,6 +57,8 @@ func main() {
 			TargetBucketURI:    *targetBucketURI,
 			HistogramURI:       *histogramURI,
 			HelperPrivateKeys:  helperPrivKeys,
+			Epsilon:            *epsilon,
+			L1Sensitivity:      *l1Sensitivity,
 		})
 
 	if err := beamx.Run(ctx, pipeline); err != nil {

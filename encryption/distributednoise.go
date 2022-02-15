@@ -13,7 +13,7 @@ import (
 func polyaRand(r, p float64) int64 {
 	// The polya rand number can be drawn with a mixture of Gamma-Poisson distribution:
 	// https://en.wikipedia.org/wiki/Negative_binomial_distribution
-	gamma := distuv.Gamma{Alpha: p, Beta: (1 - r) / r}.Rand()
+	gamma := distuv.Gamma{Alpha: r, Beta: (1 - p) / p}.Rand()
 	return int64(distuv.Poisson{Lambda: gamma}.Rand())
 }
 
@@ -30,6 +30,6 @@ func DistributedGeometricMechanismRand(epsilon float64, l1Sensitivity, numNoiseS
 		return 0, fmt.Errorf("rounding error, expect numNoiseShares*(1/numNoiseShares) == 1, got %v", roundingResult)
 	}
 
-	p, r := 1.0/float64(numNoiseShares), math.Exp(-epsilon/float64(l1Sensitivity))
+	r, p := 1.0/float64(numNoiseShares), math.Exp(-epsilon/float64(l1Sensitivity))
 	return polyaRand(r, p) - polyaRand(r, p), nil
 }

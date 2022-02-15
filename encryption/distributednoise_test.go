@@ -25,17 +25,17 @@ func TestGeometricMechanismNoise(t *testing.T) {
 		},
 		{
 			l1Sensitivity: 2,
-			epsilon:       1.0,
+			epsilon:       0.5,
 		},
 		{
 			l1Sensitivity: 4,
-			epsilon:       2.0,
+			epsilon:       0.5,
 		},
 	} {
-		r := math.Exp(-tc.epsilon / float64(tc.l1Sensitivity))
+		p := math.Exp(-tc.epsilon / float64(tc.l1Sensitivity))
 		wantMean := 0.0
-		// TODO: Add a citation for the variance of Geometric distribution.
-		wantVariance := 2 * r / ((1.0 - r) * (1.0 - r))
+		// TODO: Add a citation for the variance of symmetric geometric distribution.
+		wantVariance := 2 * p / ((1.0 - p) * (1.0 - p))
 		noisedSamples := make(stat.Float64Slice, numberOfSamples)
 		for j := 0; j < numNoiseShares; j++ {
 			for i := 0; i < numberOfSamples; i++ {

@@ -22,7 +22,7 @@ origins = {
     # below are optional values with their defaults
     pubsub_topic            = "aggregator1-topic"
     pipeline_runner         = "dataflow"
-    dataflow_region         = "us-central1"
+    dataflow_region         = "us-west1"
     storage_location        = "US"
     workspace_location      = "workspace"
     shared_location         = "shared"
@@ -34,7 +34,7 @@ origins = {
     # below are optional values with their defaults
     pubsub_topic            = "aggregator2-topic"
     pipeline_runner         = "dataflow"
-    dataflow_region         = "us-central1"
+    dataflow_region         = "us-west1"
     storage_location        = "US"
     workspace_location      = "workspace"
     shared_location         = "shared"

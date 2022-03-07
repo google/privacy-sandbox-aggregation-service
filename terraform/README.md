@@ -2,6 +2,16 @@
 
 The setup is based on [Terraform](https://www.terraform.io/).
 
+## Clone the repository
+
+Clone the repository into a local folder:
+
+```bash
+git clone https://github.com/google/privacy-sandbox-aggregation-service;
+cd privacy-sandbox-aggregation-service
+```
+
+This cloned repostory will be the `project_root` for all following instructions.
 
 ## Terraform Setup
 
@@ -10,9 +20,10 @@ The scripts are based on terrafrom version `0.14.4`. We recommend to install a [
 Run the following in `<project_root>/terraform`
 
 ```bash
-tfenv install 0.14.6
+tfenv install 0.14.6;
 tfenv use 0.14.6
 ```
+
 ## Google Project Setup
 
 Create a [Google Cloud Platfrom](https://cloud.google.com) project and note down the project id.
@@ -29,15 +40,15 @@ gcloud init
 Setup gcloud login and application-default login
 
 ```bash
-gcloud auth login
+gcloud auth login;
 gcloud auth application-default login
 ```
 
 Enable Artifact Registry Service and Cloud Build APIs
 
 ```bash
-gcloud services enable artifactregistry.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
+gcloud services enable artifactregistry.googleapis.com;
+gcloud services enable cloudbuild.googleapis.com;
 gcloud services enable secretmanager.googleapis.com
 ```
 
@@ -46,12 +57,12 @@ gcloud services enable secretmanager.googleapis.com
 We need to build 2 sets of container images:
 
 1. A build container image for all bazel builds
-1. `aggregator`, `collector`, and `browser-simulator`container images
+1. The `aggregator`, `collector`, and `browser-simulator`container images
 
 ### Create a Bucket for Bazel Build Cache
 
-Set your project id as an env variable for your current shell (stay in that shall for all subsequent commands).
-Replace `<your-project-id>` the value from the step above or `gcloud config list --format 'value(core.project)'`.
+Set a project id as an env variable for the current shell (stay in that shell for all subsequent commands).
+Replace `<your-project-id>` with the value from the step above or `gcloud config list --format 'value(core.project)'`.
 
 ```bash
 export PROJECT_ID=<your-project-id>
@@ -100,7 +111,7 @@ No need to wait for this to finish. Feel free to continue with the next steps.
 ## Terraform State Backend Setup
 Run the following in the `<project_root>/terraform` directory
 
-First we need to pick an environment name (keep it short). Replace `<your_env_name>` with your env name.
+First we need to pick an environment name (**keep it short, all lowercase, and only "-" as special character**). Replace `<your_env_name>` with your env name.
 Make sure `$PROJECT_ID` is still set.
 
 ```bash
@@ -129,8 +140,9 @@ Create a keyring and symetric key. Replace `<your-future-gke-cluster-location>` 
 you plan to create your GKE cluster in. The default region for the GKE cluster is set to `us-west1`.
 
 ```bash
-gcloud kms keyrings create $ENVIRONMENT-packet-keyring --location <your-future-gke-cluster-location>
-gcloud kms keys create packet-key --keyring $ENVIRONMENT-packet-keyring --location <your-future-gke-cluster-location> --purpose=encryption
+export GKE_CLUSTER_LOCATION=<your-future-gke-cluster-location>;
+gcloud kms keyrings create $ENVIRONMENT-packet-keyring --location $GKE_CLUSTER_LOCATION;
+gcloud kms keys create packet-key --keyring $ENVIRONMENT-packet-keyring --location $GKE_CLUSTER_LOCATION --purpose=encryption
 ```
 
 Now create the keys for each origin. You need to run below command twice.
@@ -165,13 +177,12 @@ open variables/$ENVIRONMENT.tfvars
 
 Adjust *at a minimum* the following values:
 
-1. `environment` with the value in `$ENVIRONMENT`
-1. `project` with the value in `$PROJECT_ID`
+1. `environment`: replace `privacy-aggregate-sample` with the value picked for `$ENVIRONMENT`
+1. `project`:  replace `sample-project` with the value in `$PROJECT_ID`
 1. `origins.aggregator[n].private_keys_manifest_uri` with the location of the private keys manifest from above key generation step - make sure they are different for aggregator[1/2]
 1. `origins.aggregator[n].public_keys_manifest_uri` with the location of the public keys manifest from above key generation step - make sure they are different for aggregator[1/2]
 1. `container_registry` with value `us-docker.pkg.dev/$PROJECT_ID/container-images`
     1. replace `$PROJECT_ID` with the actual value
-1. `[collector|aggregator|simulator]_version` with value from `$VERSION`
 
 *Optional*
 1. `simulator_settings.enabled` to `true` if you want sample data be generated with the setup of the environment
@@ -205,6 +216,9 @@ GODEBUG=netdns=go bazel run -c opt tools:aggregation_query_tool -- \
 --result_dir gs://$PROJECT_ID-$ENVIRONMENT/results --key_bit_size 20 \
 -logtostderr=true
 ```
+
+**Wait till the dataflow jobs finish before running the next command**
+Dataflow job status can be checked [here](https://console.cloud.google.com/dataflow/jobs)
 
 To merge the partial results (replace placeholders marked by `<placeholder>` )
 

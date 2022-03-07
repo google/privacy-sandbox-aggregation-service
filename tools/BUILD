@@ -64,7 +64,7 @@ container_push(
     image = ":browser_simulator_image",
     registry = "$(REGISTRY)",
     repository = "$(REPOSITORY)/browser_simulator",
-    tag = "$(VERSION)",
+    tag = "$(TAG)",
 )
 
 go_binary(

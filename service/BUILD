@@ -93,7 +93,7 @@ container_push(
     image = ":collector_server_image",
     registry = "$(REGISTRY)",
     repository = "$(REPOSITORY)/collector_server",
-    tag = "$(VERSION)",
+    tag = "$(TAG)",
 )
 
 go_test(
@@ -159,7 +159,7 @@ container_push(
     image = ":aggregator_server_image",
     registry = "$(REGISTRY)",
     repository = "$(REPOSITORY)/aggregator_server",
-    tag = "$(VERSION)",
+    tag = "$(TAG)",
 )
 
 container_image(
@@ -180,5 +180,5 @@ container_push(
     image = ":aggregator_server_debug_image",
     registry = "$(REGISTRY)",
     repository = "$(REPOSITORY)/aggregator_server",
-    tag = "$(VERSION)-debug",
+    tag = "$(TAGs)-debug",
 )

@@ -180,5 +180,5 @@ container_push(
     image = ":aggregator_server_debug_image",
     registry = "$(REGISTRY)",
     repository = "$(REPOSITORY)/aggregator_server",
-    tag = "$(TAGs)-debug",
+    tag = "$(TAG)-debug",
 )

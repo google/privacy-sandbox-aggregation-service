@@ -95,6 +95,7 @@ go_binary(
     srcs = ["dpf_merge_partial_aggregation_pipeline.go"],
     deps = [
         "//pipeline:dpfaggregator",
+        "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",

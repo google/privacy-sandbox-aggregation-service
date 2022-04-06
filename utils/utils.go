@@ -33,6 +33,7 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
+	"google3/third_party/golang/apache_beam/pkg/beam/io/filesystem/filesystem"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/storage"
@@ -42,6 +43,10 @@ import (
 	"lukechampine.com/uint128"
 
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
+
+	// The following packages are required to read files from GCS or local.
+	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/gcs"
+	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
 
 // ParseGCSPath gets the bucket and object names from the input filename.
@@ -405,4 +410,22 @@ func ParsePubSubResourceName(name string) (projectID, relativeName string, err e
 	}
 	projectID, relativeName = strs[1], strs[3]
 	return
+}
+
+// IsFileGlobExist checks if there is any file that matches the input pattern.
+func IsFileGlobExist(ctx context.Context, glob string) (bool, error) {
+	if strings.TrimSpace(glob) == "" {
+		return false, nil
+	}
+	fs, err := filesystem.New(ctx, glob)
+	if err != nil {
+		return false, err
+	}
+	defer fs.Close()
+
+	files, err := fs.List(ctx, glob)
+	if err != nil {
+		return false, err
+	}
+	return len(files) > 0, nil
 }

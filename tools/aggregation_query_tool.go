@@ -73,7 +73,15 @@ func main() {
 		project1, project2           string
 		topic1, topic2               string
 		err                          error
+		inputExist                   bool
 	)
+
+	inputExist, err = utils.IsFileGlobExist(ctx, *partialReportURI1)
+	if err != nil {
+		log.Exit(err)
+	} else if !inputExist {
+		log.Exitf("input not found: %q", *partialReportURI1)
+	}
 
 	if token1, err = utils.GetAuthorizationToken(ctx, *helperAddress1, *impersonatedSvcAccount); err != nil {
 		log.Infof("Couldn't get Auth Bearer IdToken: %s", err)
@@ -95,6 +103,13 @@ func main() {
 	defer pubsubClient1.Close()
 
 	if *helperAddress2 != "" {
+		inputExist, err = utils.IsFileGlobExist(ctx, *partialReportURI2)
+		if err != nil {
+			log.Exit(err)
+		} else if !inputExist {
+			log.Exitf("input not found: %q", *partialReportURI2)
+		}
+
 		if token2, err = utils.GetAuthorizationToken(ctx, *helperAddress2, *impersonatedSvcAccount); err != nil {
 			log.Infof("Couldn't get Auth Bearer IdToken: %s", err)
 		}

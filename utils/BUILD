@@ -24,6 +24,9 @@ go_library(
     srcs = ["utils.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/utils/utils",
     deps = [
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library/io/filesystem",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/gcs:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",

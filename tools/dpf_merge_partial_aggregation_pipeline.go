@@ -43,6 +43,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 var (
@@ -60,6 +61,20 @@ func main() {
 	scope := pipeline.Root()
 
 	ctx := context.Background()
+
+	inputExist, err := utils.IsFileGlobExist(ctx, *partialHistogramURI1)
+	if err != nil {
+		log.Exit(ctx, err)
+	} else if !inputExist {
+		log.Exitf(ctx, "input not found: %q", *partialHistogramURI1)
+	}
+	inputExist, err = utils.IsFileGlobExist(ctx, *partialHistogramURI2)
+	if err != nil {
+		log.Exit(ctx, err)
+	} else if !inputExist {
+		log.Exitf(ctx, "input not found: %q", *partialHistogramURI2)
+	}
+
 	dpfaggregator.MergePartialHistogram(scope, *partialHistogramURI1, *partialHistogramURI2, *completeHistogramURI)
 	if err := beamx.Run(ctx, pipeline); err != nil {
 		log.Exitf(ctx, "Failed to execute job: %s", err)

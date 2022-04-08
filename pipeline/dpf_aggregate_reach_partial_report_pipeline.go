@@ -25,7 +25,9 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reachaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 var (
@@ -57,6 +59,14 @@ func main() {
 	}
 
 	log.Infof(ctx, "Output data written to %v file shards", *fileShards)
+
+	inputGlob := pipelineutils.AddStrInPath(*partialReportURI, "*")
+	inputExist, err := utils.IsFileGlobExist(ctx, inputGlob)
+	if err != nil {
+		log.Exit(ctx, err)
+	} else if !inputExist {
+		log.Exitf(ctx, "input not found: %q", inputGlob)
+	}
 
 	pipeline := beam.NewPipeline()
 	scope := pipeline.Root()

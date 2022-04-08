@@ -116,8 +116,10 @@ go_binary(
     srcs = ["dpf_aggregate_partial_report_pipeline.go"],
     deps = [
         ":dpfaggregator",
+        ":pipelineutils",
         "//encryption:crypto_go_proto",
         "//encryption:cryptoio",
+        "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
@@ -129,7 +131,9 @@ go_binary(
     srcs = ["oneparty_aggregate_report_pipeline.go"],
     deps = [
         ":onepartyaggregator",
+        ":pipelineutils",
         "//encryption:cryptoio",
+        "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
@@ -167,8 +171,10 @@ go_binary(
     srcs = ["dpf_aggregate_reach_partial_report_pipeline.go"],
     deps = [
         ":dpfaggregator",
+        ":pipelineutils",
         ":reachaggregator",
         "//encryption:cryptoio",
+        "//utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",

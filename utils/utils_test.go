@@ -184,3 +184,38 @@ func TestParsePubSubResourceName(t *testing.T) {
 		}
 	}
 }
+
+func TestIsFileGlobExist(t *testing.T) {
+	fileDir, err := ioutil.TempDir("/tmp", "test-file")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(fileDir)
+
+	ctx := context.Background()
+
+	if err := WriteBytes(ctx, []byte("somedata"), path.Join(fileDir, "input_1.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteBytes(ctx, []byte("somedata"), path.Join(fileDir, "input_2.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	if exist, err := IsFileGlobExist(ctx, path.Join(fileDir, "input_1.txt")); err != nil {
+		t.Fatal(err)
+	} else if want, got := true, exist; want != got {
+		t.Fatalf("glob existence wrong, want %v got %v", want, got)
+	}
+
+	if exist, err := IsFileGlobExist(ctx, path.Join(fileDir, "input*.txt")); err != nil {
+		t.Fatal(err)
+	} else if want, got := true, exist; want != got {
+		t.Fatalf("glob existence wrong, want %v got %v", want, got)
+	}
+
+	if exist, err := IsFileGlobExist(ctx, path.Join(fileDir, "no_such_file*.txt")); err != nil {
+		t.Fatal(err)
+	} else if want, got := false, exist; want != got {
+		t.Fatalf("glob existence wrong, want %v got %v", want, got)
+	}
+}

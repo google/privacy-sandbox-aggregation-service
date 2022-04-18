@@ -127,6 +127,25 @@ go_binary(
 )
 
 go_binary(
+    name = "dpf_aggregate_partial_report_pipeline_static",
+    srcs = ["dpf_aggregate_partial_report_pipeline.go"],
+    gc_linkopts = [
+        "-extldflags",
+        "-static",
+    ],
+    deps = [
+        ":dpfaggregator",
+        ":pipelineutils",
+        "//encryption:crypto_go_proto",
+        "//encryption:cryptoio",
+        "//utils",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
+        "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
+    ],
+)
+
+go_binary(
     name = "oneparty_aggregate_report_pipeline",
     srcs = ["oneparty_aggregate_report_pipeline.go"],
     deps = [

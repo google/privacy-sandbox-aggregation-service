@@ -182,3 +182,31 @@ container_push(
     repository = "$(REPOSITORY)/aggregator_server",
     tag = "$(TAG)-debug",
 )
+
+go_binary(
+    name = "aggregator_server_static",
+    srcs = ["aggregator_server.go"],
+    gc_linkopts = [
+        "-X",
+        "main.version=$(VERSION)",
+        "-extldflags",
+        "-static",
+    ],
+    deps = [
+        ":aggregatorservice",
+        ":query",
+        "@com_github_golang_glog//:go_default_library",
+    ],
+)
+
+container_image(
+    name = "aggregator_server_static_image",
+    base = "@alpine_linux_amd64//image",
+    creation_time = "{BUILD_TIMESTAMP}",
+    entrypoint = ["/aggregator_server_static"],
+    files = [
+        ":aggregator_server_static",
+        "//pipeline:dpf_aggregate_partial_report_pipeline_static",
+    ],
+    stamp = True,
+)

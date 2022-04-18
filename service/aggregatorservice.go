@@ -112,12 +112,16 @@ func (h *QueryHandler) Setup(ctx context.Context) error {
 
 	}
 
-	h.GCSClient, err = storage.NewClient(ctx)
+	if strings.HasPrefix(h.SharedDir, "gs://") {
+		h.GCSClient, err = storage.NewClient(ctx)
+	}
 	if err != nil {
 		return err
 	}
 
-	h.DataflowSvc, err = dataflow.NewService(ctx)
+	if h.PipelineRunner == "dataflow" {
+		h.DataflowSvc, err = dataflow.NewService(ctx)
+	}
 	return err
 }
 
@@ -125,7 +129,10 @@ func (h *QueryHandler) Setup(ctx context.Context) error {
 func (h *QueryHandler) Close() {
 	h.PubSubTopicClient.Close()
 	h.PubSubSubscriptionClient.Close()
-	h.GCSClient.Close()
+
+	if h.GCSClient != nil {
+		h.GCSClient.Close()
+	}
 }
 
 // SetupPullRequests gets ready to pull requests contained in a PubSub message subscription, and handles the request.
@@ -149,95 +156,96 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 			return
 		}
 
-		// check if dataflow job with queryId-level-origin is already running / finished / failed
-		/*
-		 -- no job with "queryId-level-origin" name --> schedule
-		 -- job with "queryId-level-origin" name and state one of JOB_STATE_RUNNING, JOB_STATE_PENDING,
-		    JOB_STATE_QUEUED, JOB_STATE_STOPPED --> wait and periodically check on job status
-		 -- job with "queryId-level-origin" name and state one of JOB_STATE_RESOURCE_CLEANING_UP, JOB_STATE_DONE
-		    --> ack message and schedule next level if applicable
-		 -- job with "queryId-level-origin" name and state none of above --> assume non-recoverable failure, ack message,
-		 	  don't schedule any other levels
-		*/
-		jobsSvc := dataflow.NewProjectsLocationsJobsService(h.DataflowSvc)
-		// currently unpaged, TODO add paging through results
-		jobs, err := jobsSvc.List(h.DataflowCfg.Project, h.DataflowCfg.Region).Do()
-		if err != nil {
-			log.Error(fmt.Errorf("Failed checking for existing dataflow jobs: %v", err))
-			msg.Nack()
-			return
-		}
-
-		waitStates := map[string]bool{
-			"JOB_STATE_RUNNING": true,
-			"JOB_STATE_PENDING": true,
-			"JOB_STATE_QUEUED":  true,
-			"JOB_STATE_STOPPED": true,
-		}
-
-		continueStates := map[string]bool{
-			"JOB_STATE_RESOURCE_CLEANING_UP": true,
-			"JOB_STATE_DONE":                 true,
-		}
-
 		jobDone := false
-		jobInWaitState := false
-		jobID := ""
-		for _, job := range jobs.Jobs {
-			if job.Name == fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin) {
+		if h.PipelineRunner == "dataflow" {
+			// check if dataflow job with queryId-level-origin is already running / finished / failed
+			/*
+			 -- no job with "queryId-level-origin" name --> schedule
+			 -- job with "queryId-level-origin" name and state one of JOB_STATE_RUNNING, JOB_STATE_PENDING,
+			    JOB_STATE_QUEUED, JOB_STATE_STOPPED --> wait and periodically check on job status
+			 -- job with "queryId-level-origin" name and state one of JOB_STATE_RESOURCE_CLEANING_UP, JOB_STATE_DONE
+			    --> ack message and schedule next level if applicable
+			 -- job with "queryId-level-origin" name and state none of above --> assume non-recoverable failure, ack message,
+			 	  don't schedule any other levels
+			*/
+			jobsSvc := dataflow.NewProjectsLocationsJobsService(h.DataflowSvc)
+			// currently unpaged, TODO add paging through results
+			jobs, err := jobsSvc.List(h.DataflowCfg.Project, h.DataflowCfg.Region).Do()
+			if err != nil {
+				log.Error(fmt.Errorf("Failed checking for existing dataflow jobs: %v", err))
+				msg.Nack()
+				return
+			}
+
+			waitStates := map[string]bool{
+				"JOB_STATE_RUNNING": true,
+				"JOB_STATE_PENDING": true,
+				"JOB_STATE_QUEUED":  true,
+				"JOB_STATE_STOPPED": true,
+			}
+
+			continueStates := map[string]bool{
+				"JOB_STATE_RESOURCE_CLEANING_UP": true,
+				"JOB_STATE_DONE":                 true,
+			}
+
+			jobInWaitState := false
+			jobID := ""
+			for _, job := range jobs.Jobs {
+				if job.Name == fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin) {
+					if waitStates[job.CurrentState] {
+						// wait and periodically check on job status
+						log.Infof("Found dataflow job %s, %s in state %s", job.Name, job.Id, job.CurrentState)
+						jobInWaitState = true
+						jobID = job.Id
+					} else if continueStates[job.CurrentState] {
+						// use normal flow below to ack message and schedule next level if applicable
+						jobDone = true
+					} else {
+						// assume non-recoverable failure, ack message, don't schedule any other levels
+						log.Errorf("Dataflow job %s, %s found with unrecoverable state: %s ", job.Name, job.Id, job.CurrentState)
+						msg.Ack()
+						return
+					}
+
+					break
+				}
+			}
+
+			for jobInWaitState {
+				if jobID == "" {
+					log.Errorf("No jobId set for job in wait state")
+					msg.Nack()
+					return
+				}
+
+				// check every minute for job state
+				time.Sleep(1 * time.Minute)
+
+				job, err := jobsSvc.Get(h.DataflowCfg.Project, h.DataflowCfg.Region, jobID).Do()
+				if err != nil {
+					log.Errorf("Failed checking existing dataflow job with id %s: %v", jobID, err)
+					msg.Nack()
+					return
+				}
+
 				if waitStates[job.CurrentState] {
-					// wait and periodically check on job status
-					log.Infof("Found dataflow job %s, %s in state %s", job.Name, job.Id, job.CurrentState)
-					jobInWaitState = true
-					jobID = job.Id
+					// continue to wait and periodically check on job status
+					continue
+
 				} else if continueStates[job.CurrentState] {
 					// use normal flow below to ack message and schedule next level if applicable
 					jobDone = true
+					jobInWaitState = false
+					// exit this wait loop
+					break
 				} else {
 					// assume non-recoverable failure, ack message, don't schedule any other levels
 					log.Errorf("Dataflow job %s, %s found with unrecoverable state: %s ", job.Name, job.Id, job.CurrentState)
 					msg.Ack()
 					return
 				}
-
-				break
 			}
-		}
-
-		for jobInWaitState {
-			if jobID == "" {
-				log.Errorf("No jobId set for job in wait state")
-				msg.Nack()
-				return
-			}
-
-			// check every minute for job state
-			time.Sleep(1 * time.Minute)
-
-			job, err := jobsSvc.Get(h.DataflowCfg.Project, h.DataflowCfg.Region, jobID).Do()
-			if err != nil {
-				log.Errorf("Failed checking existing dataflow job with id %s: %v", jobID, err)
-				msg.Nack()
-				return
-			}
-
-			if waitStates[job.CurrentState] {
-				// continue to wait and periodically check on job status
-				continue
-
-			} else if continueStates[job.CurrentState] {
-				// use normal flow below to ack message and schedule next level if applicable
-				jobDone = true
-				jobInWaitState = false
-				// exit this wait loop
-				break
-			} else {
-				// assume non-recoverable failure, ack message, don't schedule any other levels
-				log.Errorf("Dataflow job %s, %s found with unrecoverable state: %s ", job.Name, job.Id, job.CurrentState)
-				msg.Ack()
-				return
-			}
-
 		}
 
 		// no job with "queryId-level-helperId" name --> schedule --> if jobDone schedule next lvl

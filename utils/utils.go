@@ -33,7 +33,7 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
-	"google3/third_party/golang/apache_beam/pkg/beam/io/filesystem/filesystem"
+	"github.com/apache/beam/sdks/go/pkg/beam/io/filesystem"
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/storage"

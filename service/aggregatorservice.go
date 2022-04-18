@@ -39,13 +39,14 @@ import (
 
 // DataflowCfg contains parameters necessary for running pipelines on Dataflow.
 type DataflowCfg struct {
-	Project           string
-	Region            string
-	Zone              string
-	TempLocation      string
-	StagingLocation   string
-	WorkerMachineType string
-	MaxNumWorkers     int
+	Project             string
+	Region              string
+	Zone                string
+	TempLocation        string
+	StagingLocation     string
+	WorkerMachineType   string
+	MaxNumWorkers       int
+	ServiceAccountEmail string
 }
 
 // ServerCfg contains file URIs necessary for the service.
@@ -277,16 +278,42 @@ func (h *QueryHandler) runPipeline(ctx context.Context, binary string, args []st
 		args = append(args,
 			"--project="+h.DataflowCfg.Project,
 			"--region="+h.DataflowCfg.Region,
-			"--zone="+h.DataflowCfg.Zone,
 			"--temp_location="+h.DataflowCfg.TempLocation,
 			"--staging_location="+h.DataflowCfg.StagingLocation,
 			// set jobname to queryID-level-origin
 			"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
-			"--num_workers="+fmt.Sprint(request.NumWorkers),
 			"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
-			"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
-			"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
 		)
+		// The zone of the worker pool. If not specified, Dataflow will pick one for the job.
+		if h.DataflowCfg.Zone != "" {
+			args = append(args,
+				"--zone="+h.DataflowCfg.Zone,
+			)
+		}
+		// The number of workers used at the beginning of a job. If not sepcified, one worker will be used.
+		if request.NumWorkers > 0 {
+			args = append(args,
+				"--num_workers="+fmt.Sprint(request.NumWorkers),
+			)
+		}
+		// The maximum number of workers allowed to be used during a job. If not specified, the maximum will be 1000 or depending on the quotas.
+		if h.DataflowCfg.MaxNumWorkers > 0 {
+			args = append(args,
+				"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
+			)
+		}
+		// The worker type. If not specified, the worker type will be 'e2-standard-2'.
+		if h.DataflowCfg.WorkerMachineType != "" {
+			args = append(args,
+				"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
+			)
+		}
+		// The service account managing workers. If not specified, the Compute Engine default service account will be used.
+		if h.DataflowCfg.ServiceAccountEmail != "" {
+			args = append(args,
+				"--service_account_email="+h.DataflowCfg.ServiceAccountEmail,
+			)
+		}
 	}
 
 	str := binary

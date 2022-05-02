@@ -132,6 +132,8 @@ terraform init -input=false -force-copy -upgrade -verify-plugins=true -backend=t
 
 ## Terraform Environment Configuration
 
+Please install [Bazel](https://docs.bazel.build/versions/main/install.html) before you start this section.
+
 ### Generate Public/Private Key pairs
 
 Run the following in the `<project_root>` directory
@@ -185,7 +187,9 @@ Adjust *at a minimum* the following values:
     1. replace `$PROJECT_ID` with the actual value
 
 *Optional*
-1. `simulator_settings.enabled` to `true` if you want sample data be generated with the setup of the environment
+1. `simulator_settings.enabled` to `true` if you want sample data be generated with the setup of the environment. Note that the sample data will be purged in 7 days (see `modules/gcs/gcs.tf`), and you can follow the `Troubleshooting` section at the end of this document to regenerate it.
+
+
 
 ## Aggregator Environment Setup
 
@@ -199,8 +203,9 @@ Check the plan shown by `terraform apply` and confirm with yes. If it fails the 
 
 The output will show you endpoints you can send data and queries to.
 
-If you set `simulator_settings.enabled` to true you can run a query against the endpoints listed in the output.
+## Send query for aggregation
 
+If you set `simulator_settings.enabled` to true you can run a query against the endpoints listed in the output.
 
 Run the following in directory `<project_root>`. Example query, needs adjustment (replace placeholders marked by `<placeholder>`).
 The output of `terraform apply` prints the example query with filled-in
@@ -234,3 +239,26 @@ You can then download the merged result with
 ```bash
 UUID=<uuid_from_above_query>; gsutil cp gs://$PROJECT_ID-$ENVIRONMENT/results/$UUID'_merged' .
 ```
+
+## Troubleshooting
+
+### Generate sample data
+
+If the sample data gets purged, you can regenerate it in two ways:
+
+1. Set `simulator_settings.enabled = false`, and run `terraform apply`; then set `simulator_settings.enabled = true`, and run `terraform apply` again.
+
+
+2. Run the follwing in directory `<project_root>` to generate reports and send them to the collector. The `<batch-size>` should be the number defined in `$ENVIRONMENT.tfvars`.
+
+```bash
+GODEBUG=netdns=go bazel run -c opt tools:browser_simulator -- \
+--address http://<collector-ip>:8080 \
+--helper_public_keys_uri1 gs://$PROJECT_ID-$ENVIRONMENT/keys/aggregator1/public-keys.json \
+--helper_public_keys_uri2 gs://$PROJECT_ID-$ENVIRONMENT/keys/aggregator2/public-keys.json \
+--send_count <batch-size> \
+--helper_origin1 aggregator1 \
+--helper_origin2 aggregator2 \
+-logtostderr=true
+```
+

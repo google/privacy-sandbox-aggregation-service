@@ -82,8 +82,10 @@ locals {
     "roles/storage.objectCreator",
     "roles/storage.objectViewer",
     "roles/dataflow.developer",
+    "roles/dataflow.worker",
     "roles/secretmanager.secretAccessor",
-    "roles/cloudkms.cryptoKeyDecrypter"
+    "roles/cloudkms.cryptoKeyDecrypter",
+    "roles/iam.serviceAccountUser"
   ]
 
   kubernetes_cluster = {

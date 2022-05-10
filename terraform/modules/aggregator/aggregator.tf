@@ -133,6 +133,7 @@ resource "kubernetes_deployment" "aggregator" {
             "--dataflow_temp_location=${module.gcs[local.dataflow_temp_bucket_name].url}",
             "--dataflow_staging_location=${module.gcs[local.dataflow_staging_bucket_name].url}",
             "--dataflow_region=${var.dataflow_region}",
+            "--dataflow_service_account=${var.service_account_email}",
             "--private_key_params_uri=${var.private_keys_manifest_uri}",
             "--workspace_uri=${module.gcs[local.workspace_bucket_name].url}",
             "--shared_dir=${module.gcs[local.shared_bucket_name].url}",

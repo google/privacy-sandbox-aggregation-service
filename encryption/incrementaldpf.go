@@ -641,3 +641,24 @@ func EvaluateReachTuple(evalCtx *dpfpb.EvaluationContext) ([]*ReachTuple, error)
 	}
 	return expanded, nil
 }
+
+// GetDefaultDPFParameters generates the DPF parameters for creating DPF keys or evaluation context for all possible prefix lengths.
+func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
+	if keyBitSize <= 0 {
+		return nil, fmt.Errorf("keyBitSize should be positive, got %d", keyBitSize)
+	}
+	allParams := make([]*dpfpb.DpfParameters, keyBitSize)
+	for i := int32(1); i <= int32(keyBitSize); i++ {
+		allParams[i-1] = &dpfpb.DpfParameters{
+			LogDomainSize: i,
+			ValueType: &dpfpb.ValueType{
+				Type: &dpfpb.ValueType_Integer_{
+					Integer: &dpfpb.ValueType_Integer{
+						Bitsize: DefaultElementBitSize,
+					},
+				},
+			},
+		}
+	}
+	return allParams, nil
+}

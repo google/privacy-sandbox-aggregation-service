@@ -21,7 +21,7 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
 var (

@@ -27,8 +27,8 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/core/registry"
 	"github.com/google/tink/go/integration/gcpkms"
@@ -330,39 +330,16 @@ func GetRandomPublicKey(keys []PublicKeyInfo) (string, *pb.StandardPublicKey, er
 	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
 }
 
-// SerializeEncryptedReport serializes the EncryptedReport into a string.
-func SerializeEncryptedReport(encrypted *pb.EncryptedReport) (string, error) {
-	bEncrypted, err := proto.Marshal(encrypted)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(bEncrypted), nil
-}
-
-// DeserializeEncryptedReport deserializes the EncryptedReport from a string.
-func DeserializeEncryptedReport(line string) (*pb.EncryptedReport, error) {
-	bsc, err := base64.StdEncoding.DecodeString(line)
-	if err != nil {
-		return nil, err
-	}
-
-	encrypted := &pb.EncryptedReport{}
-	if err := proto.Unmarshal(bsc, encrypted); err != nil {
-		return nil, err
-	}
-	return encrypted, nil
-}
-
 // DecryptOrUnmarshal tries to decrypt a report first and then unmarshal the payload.
 //
 // If the report is not encrypted, it unmarshals the payload directly.
-func DecryptOrUnmarshal(encrypted *pb.EncryptedReport, privateKey *pb.StandardPrivateKey) (*reporttypes.Payload, bool, error) {
+func DecryptOrUnmarshal(aggregatablePayload *pb.AggregatablePayload, privateKey *pb.StandardPrivateKey) (*reporttypes.Payload, bool, error) {
 	payload, isEncrypted := &reporttypes.Payload{}, true
-	b, err := standardencrypt.Decrypt(encrypted.EncryptedReport, encrypted.ContextInfo, privateKey)
+	b, err := standardencrypt.Decrypt(aggregatablePayload.Payload, []byte(aggregatablePayload.SharedInfo), privateKey)
 	if err != nil {
 		isEncrypted = false
-		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
-			return nil, isEncrypted, fmt.Errorf("failed to decrypt and/or deserialize report: %s", encrypted.String())
+		if err := utils.UnmarshalCBOR(aggregatablePayload.Payload.Data, payload); err != nil {
+			return nil, isEncrypted, fmt.Errorf("failed to decrypt and/or deserialize report: %s", aggregatablePayload.String())
 		}
 	} else if err := utils.UnmarshalCBOR(b, payload); err != nil {
 		return nil, isEncrypted, err

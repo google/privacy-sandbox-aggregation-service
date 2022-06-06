@@ -29,42 +29,42 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.AggregatablePayload)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*createEncryptedPartialReportsFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawReachReportFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*reporttypes.RawReachReport)(nil)))
+	beam.RegisterType(reflect.TypeOf((*pipelinetypes.RawReachReport)(nil)))
 }
 
-func parseRawReachReport(line string, keyBitSize int) (reporttypes.RawReachReport, error) {
+func parseRawReachReport(line string, keyBitSize int) (pipelinetypes.RawReachReport, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 4; got != want {
-		return reporttypes.RawReachReport{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
+		return pipelinetypes.RawReachReport{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
 	campaign, err := strconv.ParseUint(cols[0], 10, 64)
 	if err != nil {
-		return reporttypes.RawReachReport{}, err
+		return pipelinetypes.RawReachReport{}, err
 	}
 
 	person, err := strconv.ParseUint(cols[1], 10, 64)
 	if err != nil {
-		return reporttypes.RawReachReport{}, err
+		return pipelinetypes.RawReachReport{}, err
 	}
 
 	llRegister, err := strconv.ParseUint(cols[2], 10, int(keyBitSize))
 	if err != nil {
-		return reporttypes.RawReachReport{}, err
+		return pipelinetypes.RawReachReport{}, err
 	}
 
-	return reporttypes.RawReachReport{
+	return pipelinetypes.RawReachReport{
 		Campaign:   campaign,
 		Person:     person,
 		LLRegister: llRegister,
@@ -81,7 +81,7 @@ func (fn *parseRawReachReportFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("reach", "report_count")
 }
 
-func (fn *parseRawReachReportFn) ProcessElement(ctx context.Context, line string, emit func(reporttypes.RawReachReport)) error {
+func (fn *parseRawReachReportFn) ProcessElement(ctx context.Context, line string, emit func(pipelinetypes.RawReachReport)) error {
 	report, err := parseRawReachReport(line, fn.KeyBitSize)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ type createEncryptedPartialReportsFn struct {
 	countReport beam.Counter
 }
 
-func reachReportToTuple(report reporttypes.RawReachReport) *incrementaldpf.ReachTuple {
+func reachReportToTuple(report pipelinetypes.RawReachReport) *incrementaldpf.ReachTuple {
 	r := rand.Uint64()
 	q := rand.Uint64()
 
@@ -116,13 +116,13 @@ func (fn *createEncryptedPartialReportsFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("reach", "encrypt_report_count")
 }
 
-func (fn *createEncryptedPartialReportsFn) ProcessElement(ctx context.Context, report reporttypes.RawReachReport, emit1 func(*pb.EncryptedReport), emit2 func(*pb.EncryptedReport)) error {
+func (fn *createEncryptedPartialReportsFn) ProcessElement(ctx context.Context, report pipelinetypes.RawReachReport, emit1 func(*pb.AggregatablePayload), emit2 func(*pb.AggregatablePayload)) error {
 	params := incrementaldpf.CreateReachUint64TupleDpfParameters(int32(fn.KeyBitSize))
 	key1, key2, err := incrementaldpf.GenerateReachTupleKeys(params, uint128.From64(report.LLRegister), reachReportToTuple(report))
 	if err != nil {
 		return err
 	}
-	encryptedReport1, encryptedReport2, err := dpfdataconverter.EncryptPartialReports(key1, key2, fn.PublicKeys1, fn.PublicKeys2, nil, true /*encryptOutput*/)
+	encryptedReport1, encryptedReport2, err := dpfdataconverter.EncryptPartialReports(key1, key2, fn.PublicKeys1, fn.PublicKeys2, "", true /*encryptOutput*/)
 	if err != nil {
 		return err
 	}

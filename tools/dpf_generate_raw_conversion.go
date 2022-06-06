@@ -25,9 +25,9 @@ import (
 	log "github.com/golang/glog"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 var (
@@ -40,7 +40,7 @@ var (
 	logElementSizeSum = flag.Uint64("log_element_size_sum", 6, "Bits of element size for SUM aggregation.")
 )
 
-func writeConversions(ctx context.Context, filename string, conversions []reporttypes.RawReport) error {
+func writeConversions(ctx context.Context, filename string, conversions []pipelinetypes.RawReport) error {
 	lines := make([]string, len(conversions))
 	for i, conversion := range conversions {
 		lines[i] = fmt.Sprintf("%d,%d", conversion.Bucket, conversion.Value)
@@ -72,13 +72,13 @@ func main() {
 		log.Exit(err)
 	}
 
-	var conversions []reporttypes.RawReport
+	var conversions []pipelinetypes.RawReport
 	for i := uint64(0); i < *totalCount; i++ {
 		index, err := dpfdataconverter.CreateConversionIndex(prefixes[len(prefixes)-1], prefixDomainBits[len(prefixDomainBits)-1], *logN, true /*hasPrefix*/)
 		if err != nil {
 			log.Exit(err)
 		}
-		conversions = append(conversions, reporttypes.RawReport{Bucket: index, Value: 1})
+		conversions = append(conversions, pipelinetypes.RawReport{Bucket: index, Value: 1})
 	}
 	if err := writeConversions(ctx, *rawConversionOutputURI, conversions); err != nil {
 		log.Exit(err)

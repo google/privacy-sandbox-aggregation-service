@@ -60,8 +60,8 @@ go_library(
     deps = [
         ":crypto_go_proto",
         ":standardencrypt",
-        "//pipeline:reporttypes",
-        "//utils",
+        "//shared:reporttypes",
+        "//shared:utils",
         "@com_github_google_tink_go//aead:go_default_library",
         "@com_github_google_tink_go//core/registry:go_default_library",
         "@com_github_google_tink_go//integration/gcpkms:go_default_library",
@@ -83,13 +83,15 @@ go_test(
     embed = [":cryptoio"],
     deps = [
         ":crypto_go_proto",
+        ":incrementaldpf",
         ":standardencrypt",
-        "//pipeline:reporttypes",
-        "//utils",
+        "//shared:reporttypes",
+        "//shared:utils",
         "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
+        "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
     ],
 )

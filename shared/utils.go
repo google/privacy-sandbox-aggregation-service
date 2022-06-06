@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -314,6 +315,39 @@ func StringToUint128(str string) (uint128.Uint128, error) {
 		return uint128.Uint128{}, fmt.Errorf("function SetString(%s) failed", str)
 	}
 	return uint128.FromBig(n), nil
+}
+
+// BigEndianBytesToUint128 converts a big-ending byte string to a 128-bit integer.
+func BigEndianBytesToUint128(b []byte) (uint128.Uint128, error) {
+	if want, got := 16, len(b); want != got {
+		return uint128.Uint128{}, fmt.Errorf("expect %d bytes, got %d", want, got)
+	}
+	return uint128.New(binary.BigEndian.Uint64(b[8:16]), binary.BigEndian.Uint64(b[0:8])), nil
+}
+
+// Uint128ToBigEndianBytes encodes a 128-bit integer to a big-ending byte string.
+func Uint128ToBigEndianBytes(i uint128.Uint128) []byte {
+	lo := make([]byte, 8)
+	binary.BigEndian.PutUint64(lo, i.Lo)
+	hi := make([]byte, 8)
+	binary.BigEndian.PutUint64(hi, i.Hi)
+	hi = append(hi, lo...)
+	return hi
+}
+
+// BigEndianBytesToUint32 converts a big-ending byte string to a 32-bit integer.
+func BigEndianBytesToUint32(b []byte) (uint32, error) {
+	if want, got := 4, len(b); want != got {
+		return uint32(0), fmt.Errorf("expect %d bytes, got %d", want, got)
+	}
+	return binary.BigEndian.Uint32(b), nil
+}
+
+// Uint32ToBigEndianBytes encodes a 32-bit integer to a big-ending byte string.
+func Uint32ToBigEndianBytes(i uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, i)
+	return b
 }
 
 // RunfilesPath gets the paths of files based on a rooted file system for the tests.

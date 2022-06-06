@@ -26,7 +26,7 @@ go_binary(
     deps = [
         "//service:aggregatorservice",
         "//service:query",
-        "//utils",
+        "//shared:utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",
         "@com_github_pborman_uuid//:uuid",
@@ -40,10 +40,11 @@ go_binary(
     x_defs = {"build": "{BUILD_TIMESTAMP}"},
     deps = [
         "//encryption:cryptoio",
-        "//pipeline:reporttypes",
+        "//pipeline:pipelinetypes",
+        "//shared:reporttypes",
+        "//shared:utils",
         "//test:dpfdataconverter",
         "//test:onepartydataconverter",
-        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hashicorp_go_retryablehttp//:go_default_library",
     ],
@@ -72,7 +73,7 @@ go_binary(
     srcs = ["create_hybrid_key_pair.go"],
     deps = [
         "//encryption:cryptoio",
-        "//utils",
+        "//shared:utils",
         "@com_github_golang_glog//:go_default_library",
     ],
 )
@@ -82,9 +83,9 @@ go_binary(
     srcs = ["dpf_generate_raw_conversion.go"],
     deps = [
         "//encryption:cryptoio",
-        "//pipeline:reporttypes",
+        "//pipeline:pipelinetypes",
+        "//shared:utils",
         "//test:dpfdataconverter",
-        "//utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
     ],
@@ -95,7 +96,7 @@ go_binary(
     srcs = ["dpf_merge_partial_aggregation_pipeline.go"],
     deps = [
         "//pipeline:dpfaggregator",
-        "//utils",
+        "//shared:utils",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",

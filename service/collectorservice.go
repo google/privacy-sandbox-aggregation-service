@@ -17,8 +17,9 @@
 package collectorservice
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -26,17 +27,19 @@ import (
 
 	log "github.com/golang/glog"
 	"golang.org/x/sync/errgroup"
-	"github.com/ugorji/go/codec"
-	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
-
-	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
-/* 20% reportsChannel buffer to allow for reports being processed while writing batches but
-limiting outstanding reports to cap memory consumption */
-const reportsChannelBufferFactor = 0.2
+const (
+	/* 20% reportsChannel buffer to allow for reports being processed while writing batches but
+	limiting outstanding reports to cap memory consumption */
+	reportsChannelBufferFactor = 0.2
+
+	// Supported URL paths.
+	reportPath      = "/.well-known/attribution-reporting/report-aggregate-attribution"
+	debugReportPath = "/.well-known/attribution-reporting/debug/report-aggregate-attribution"
+)
 
 // CollectorHandler handles the HTTPS requests with incoming reports.
 //
@@ -53,7 +56,7 @@ func NewHandler(ctx context.Context, batchSize int, batchDir string) *CollectorH
 		batchSize: batchSize,
 		batchDir:  batchDir,
 		wg:        &sync.WaitGroup{},
-		reportsCh: make(chan *reporttypes.AggregationReport, int(float64(batchSize)*reportsChannelBufferFactor)),
+		reportsCh: make(chan *reporttypes.AggregatableReport, int(float64(batchSize)*reportsChannelBufferFactor)),
 	}
 	brw.start(ctx, brw.reportsCh)
 
@@ -68,26 +71,32 @@ func (h *CollectorHandler) Handler() http.Handler {
 }
 
 func (h *CollectorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		log.Info("GET Request received.")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
-	report := &reporttypes.AggregationReport{}
-	if err := codec.NewDecoder(req.Body, &codec.CborHandle{}).Decode(report); err != nil {
-		errMsg := "Failed in decoding CBOR message"
+	if req.URL.Path != reportPath && req.URL.Path != debugReportPath {
+		errMsg := "Unsupported path"
+		http.Error(w, errMsg, http.StatusNotFound)
+		log.Error(errMsg)
+	}
+
+	report := &reporttypes.AggregatableReport{}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(req.Body)
+	if err := json.Unmarshal(buf.Bytes(), report); err != nil {
+		errMsg := "Failed in decoding aggregation report"
 		http.Error(w, errMsg, http.StatusBadRequest)
 		log.Error(errMsg, err)
 		return
 	}
 
-	if got, want := len(report.AggregationServicePayloads), 2; got != want {
-		errMsg := fmt.Sprintf("expected %d payloads, got %d", want, got)
-		http.Error(w, errMsg, http.StatusBadRequest)
-		log.Error(errMsg)
-	}
-
-	origin1, origin2 := report.AggregationServicePayloads[0].Origin, report.AggregationServicePayloads[1].Origin
-	if origin1 == origin2 {
-		errMsg := fmt.Sprintf("secret shares sending to the same helper %q", origin1)
-		http.Error(w, errMsg, http.StatusBadRequest)
-		log.Error(errMsg)
+	if err := report.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Error(err)
 	}
 
 	h.bufferedReportWriter.reportsCh <- report
@@ -105,83 +114,72 @@ type bufferedReportWriter struct {
 	bufferSize int
 	batchDir   string
 	wg         *sync.WaitGroup
-	reportsCh  chan *reporttypes.AggregationReport
+	reportsCh  chan *reporttypes.AggregatableReport
 }
 
-func getBatchKey(report *reporttypes.AggregationReport) (string, error) {
-	switch len(report.AggregationServicePayloads) {
-	case 1:
-		return report.AggregationServicePayloads[0].Origin, nil
-	case 2:
-		origin1, origin2 := report.AggregationServicePayloads[0].Origin, report.AggregationServicePayloads[1].Origin
-		if origin1 == origin2 {
-			return "", fmt.Errorf("expect different origins, got both equals to %q", origin1)
-		}
-		if origin1 > origin2 {
-			origin1, origin2 = origin2, origin1
-		}
-		return fmt.Sprintf("%s+%s", origin1, origin2), nil
-	default:
-		return "", fmt.Errorf("expect 1 or 2 payloads, got %d", len(report.AggregationServicePayloads))
-	}
-}
-
-// ConvertReport converts the report from the browser into the format that can be processed by the aggregators.
-func ConvertReport(report *reporttypes.AggregationReport) (map[string]string, error) {
-	output := make(map[string]string)
-	itemsCount := 0
-	for _, payload := range report.AggregationServicePayloads {
-		encryptedPayload, err := cryptoio.SerializeEncryptedReport(&pb.EncryptedReport{
-			EncryptedReport: &pb.StandardCiphertext{Data: payload.Payload},
-			ContextInfo:     report.SharedInfo,
-			KeyId:           payload.KeyID,
-		})
-		if err != nil {
-			log.Error(err)
-			break
-		}
-		output[payload.Origin] = encryptedPayload
-		itemsCount++
-	}
-	// Skip shares where not all payloads could be processed
-	if len(report.AggregationServicePayloads) != itemsCount {
-		return nil, errors.New("Error during processing of payload")
-	}
-	return output, nil
-}
-
-func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *reporttypes.AggregationReport) {
+func (brw *bufferedReportWriter) start(ctx context.Context, reportsCh <-chan *reporttypes.AggregatableReport) {
 	log.Infof("Starting buffered report writer with %v batch size", brw.batchSize)
 
 	batches := make(map[string]map[string][]string)
 	brw.wg.Add(1)
 	go func() {
 		for report := range reportsCh {
-			batchKey, err := getBatchKey(report)
+			protocol, err := report.GetProtocol()
 			if err != nil {
 				log.Error(err)
 				continue
 			}
-			if batches[batchKey] == nil {
-				batches[batchKey] = make(map[string][]string)
-			}
-			tempMap, err := ConvertReport(report)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-
-			isBatchFull := false
-			for origin, encryptedPayload := range tempMap {
-				batches[batchKey][origin] = append(batches[batchKey][origin], encryptedPayload)
-				isBatchFull = len(batches[batchKey][origin]) == brw.batchSize
-			}
-
-			// TODO: harden against batchKey attacks
-			if isBatchFull {
-				brw.writeBatchKeyBatches(ctx, batchKey, batches[batchKey])
-				// reset batchKey map
-				batches[batchKey] = make(map[string][]string)
+			if !report.IsDebugReport() {
+				tempMap, err := report.GetSerializedEncryptedRecords()
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				batchKey := protocol
+				if batches[batchKey] == nil {
+					batches[batchKey] = make(map[string][]string)
+				}
+				isBatchFull := false
+				for index, payload := range tempMap {
+					batches[batchKey][index] = append(batches[batchKey][index], payload)
+					isBatchFull = len(batches[batchKey][index]) == brw.batchSize
+				}
+				if isBatchFull {
+					brw.writeBatchKeyBatches(ctx, batchKey, batches[batchKey])
+					batches[batchKey] = make(map[string][]string)
+				}
+			} else {
+				// For debug reports, the encrypted payloads and cleartext payloads are both collected.
+				// The payloads are only added to the batches when they are all converted successfully,
+				// which ensures the "debug" and "cleartext" batches contain the same data.
+				tempDebugMap, err := report.GetSerializedEncryptedRecords()
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				tempClearTextMap, err := report.GetSerializedCleartextRecords()
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				debugBatchKey := protocol + "-debug-encrypted"
+				cleartextBatchKey := protocol + "-debug-cleartext"
+				if batches[debugBatchKey] == nil {
+					batches[debugBatchKey] = make(map[string][]string)
+					batches[cleartextBatchKey] = make(map[string][]string)
+				}
+				isBatchFull := false
+				for index := range tempDebugMap {
+					batches[debugBatchKey][index] = append(batches[debugBatchKey][index], tempDebugMap[index])
+					batches[cleartextBatchKey][index] = append(batches[cleartextBatchKey][index], tempClearTextMap[index])
+					isBatchFull = len(batches[debugBatchKey][index]) == brw.batchSize
+				}
+				if isBatchFull {
+					brw.writeBatchKeyBatches(ctx, debugBatchKey, batches[debugBatchKey])
+					brw.writeBatchKeyBatches(ctx, cleartextBatchKey, batches[cleartextBatchKey])
+					batches[debugBatchKey] = make(map[string][]string)
+					batches[cleartextBatchKey] = make(map[string][]string)
+				}
 			}
 		}
 		log.Info("Buffered Report Writer channel closed, flushing remaining reports...")
@@ -196,12 +194,12 @@ func (brw *bufferedReportWriter) writeBatchKeyBatches(ctx context.Context, batch
 	start := time.Now()
 	timestamp := start.Format(time.RFC3339Nano)
 	g, ctx := errgroup.WithContext(ctx)
-	for origin, encryptedReports := range reports {
-		origin, encryptedReports := origin, encryptedReports // https://golang.org/doc/faq#closures_and_goroutines
+	for index, encryptedReports := range reports {
+		index, encryptedReports := index, encryptedReports // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
 			if len(encryptedReports) > 0 {
-				batchedReportsURI := utils.JoinPath(brw.batchDir, fmt.Sprintf("%s/%s+%s+%s", batchKey, batchKey, origin, timestamp))
-				log.Infof("Writing %v records in batch for %v to: %v", len(encryptedReports), origin, batchedReportsURI)
+				batchedReportsURI := utils.JoinPath(brw.batchDir, fmt.Sprintf("%s/%s+%s+%s", batchKey, batchKey, index, timestamp))
+				log.Infof("Writing %v records in batch for %v to: %v", len(encryptedReports), index, batchedReportsURI)
 				return utils.WriteLines(ctx, encryptedReports, batchedReportsURI)
 			}
 			log.Infof("Empty batch, nothing to write!")

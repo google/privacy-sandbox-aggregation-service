@@ -43,7 +43,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
 var (

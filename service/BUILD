@@ -28,7 +28,7 @@ go_library(
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/query",
     deps = [
         "//pipeline:dpfaggregator",
-        "//utils",
+        "//shared:utils",
         "@com_lukechampine_uint128//:go_default_library",
         "@org_gonum_v1_gonum//floats:go_default_library",
     ],
@@ -42,7 +42,7 @@ go_test(
     deps = [
         "//encryption:crypto_go_proto",
         "//pipeline:dpfaggregator",
-        "//utils",
+        "//shared:utils",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
@@ -54,12 +54,9 @@ go_library(
     srcs = ["collectorservice.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/collectorservice",
     deps = [
-        "//encryption:crypto_go_proto",
-        "//encryption:cryptoio",
-        "//pipeline:reporttypes",
-        "//utils",
+        "//shared:reporttypes",
+        "//shared:utils",
         "@com_github_golang_glog//:go_default_library",
-        "@com_github_ugorji_go_codec//:go_default_library",
         "@org_golang_x_sync//errgroup:go_default_library",
     ],
 )
@@ -103,7 +100,7 @@ go_test(
     embed = [":collectorservice"],
     deps = [
         "//encryption:crypto_go_proto",
-        "//pipeline:reporttypes",
+        "//shared:reporttypes",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
@@ -133,7 +130,7 @@ go_library(
         ":query",
         "//pipeline:dpfaggregator",
         "//pipeline:onepartyaggregator",
-        "//utils",
+        "//shared:utils",
         "@com_github_golang_glog//:go_default_library",
         "@com_google_cloud_go_pubsub//:go_default_library",
         "@com_google_cloud_go_storage//:go_default_library",

@@ -26,7 +26,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
 var (

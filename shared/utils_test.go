@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"lukechampine.com/uint128"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
@@ -217,5 +218,27 @@ func TestIsFileGlobExist(t *testing.T) {
 		t.Fatal(err)
 	} else if want, got := false, exist; want != got {
 		t.Fatalf("glob existence wrong, want %v got %v", want, got)
+	}
+}
+
+func TestIntegerToByteString(t *testing.T) {
+	want128 := uint128.New(123, 456)
+	b128 := Uint128ToBigEndianBytes(want128)
+	got128, err := BigEndianBytesToUint128(b128)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !want128.Equals(got128) {
+		t.Errorf("uint128 conversion failed: want %s, got %s", want128.String(), got128.String())
+	}
+
+	want32 := uint32(123)
+	b32 := Uint32ToBigEndianBytes(want32)
+	got32, err := BigEndianBytesToUint32(b32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want32 != got32 {
+		t.Errorf("uint32 conversion failed: want %d, got %d", want32, got32)
 	}
 }

@@ -34,7 +34,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/service/query"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
 // DataflowCfg contains parameters necessary for running pipelines on Dataflow.
@@ -336,7 +336,7 @@ func (h *QueryHandler) runPipeline(ctx context.Context, binary string, args []st
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		log.Errorf("%s: %s", err, stderr.String())
+		log.Errorf("err: %s, stderr: %s", err, stderr.String())
 		return err
 	}
 	log.Infof("output of cmd: %s", out.String())
@@ -396,22 +396,6 @@ func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, r
 			"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
 			"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
 			"--runner=" + h.PipelineRunner,
-		}
-
-		if h.PipelineRunner == "dataflow" {
-			args = append(args,
-				"--project="+h.DataflowCfg.Project,
-				"--region="+h.DataflowCfg.Region,
-				"--zone="+h.DataflowCfg.Zone,
-				"--temp_location="+h.DataflowCfg.TempLocation,
-				"--staging_location="+h.DataflowCfg.StagingLocation,
-				// set jobname to queryID-level-origin
-				"--job_name="+fmt.Sprintf("%s-%v-%s", request.QueryID, request.QueryLevel, h.Origin),
-				"--num_workers="+fmt.Sprint(request.NumWorkers),
-				"--worker_binary="+h.ServerCfg.DpfAggregatePartialReportBinary,
-				"--max_num_workers="+strconv.Itoa(h.DataflowCfg.MaxNumWorkers),
-				"--worker_machine_type="+h.DataflowCfg.WorkerMachineType,
-			)
 		}
 
 		if err := h.runPipeline(ctx, h.ServerCfg.DpfAggregatePartialReportBinary, args, request); err != nil {

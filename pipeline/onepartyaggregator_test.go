@@ -17,7 +17,6 @@ package onepartyaggregator
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"math/rand"
 	"testing"
 
@@ -27,8 +26,9 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 
@@ -48,15 +48,12 @@ type encryptReportFn struct {
 	PublicKeys []cryptoio.PublicKeyInfo
 }
 
-func (fn *encryptReportFn) ProcessElement(ctx context.Context, report *reporttypes.RawReport, emit func(*pb.EncryptedReport)) error {
-	b, err := json.Marshal(report)
-	if err != nil {
-		return err
-	}
-
+func (fn *encryptReportFn) ProcessElement(ctx context.Context, report *pipelinetypes.RawReport, emit func(*pb.AggregatablePayload)) error {
 	payload := reporttypes.Payload{
 		Operation: "one-party",
-		DPFKey:    b,
+		Data: []reporttypes.Contribution{
+			{Bucket: utils.Uint128ToBigEndianBytes(report.Bucket), Value: utils.Uint32ToBigEndianBytes(uint32(report.Value))},
+		},
 	}
 	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
@@ -71,7 +68,7 @@ func (fn *encryptReportFn) ProcessElement(ctx context.Context, report *reporttyp
 	if err != nil {
 		return err
 	}
-	emit(&pb.EncryptedReport{EncryptedReport: encrypted, ContextInfo: nil, KeyId: keyID})
+	emit(&pb.AggregatablePayload{Payload: encrypted, SharedInfo: "", KeyId: keyID})
 
 	return nil
 }
@@ -80,28 +77,28 @@ type standardEncryptFn struct {
 	PublicKeys []cryptoio.PublicKeyInfo
 }
 
-func (fn *standardEncryptFn) ProcessElement(report *reporttypes.RawReport, emit func(*pb.EncryptedReport)) error {
-	b, err := json.Marshal(report)
-	if err != nil {
-		return err
+func (fn *standardEncryptFn) ProcessElement(report *pipelinetypes.RawReport, emit func(*pb.AggregatablePayload)) error {
+	payload := &reporttypes.Payload{
+		Data: []reporttypes.Contribution{
+			{Bucket: utils.Uint128ToBigEndianBytes(report.Bucket), Value: utils.Uint32ToBigEndianBytes(uint32(report.Value))},
+		},
 	}
 
-	payload := &reporttypes.Payload{DPFKey: b}
 	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
 		return err
 	}
 
-	contextInfo := []byte("context")
+	sharedInfo := "context"
 	keyID, publicKey, err := getRandomPublicKey(fn.PublicKeys)
 	if err != nil {
 		return err
 	}
-	result, err := standardencrypt.Encrypt(bPayload, contextInfo, publicKey)
+	result, err := standardencrypt.Encrypt(bPayload, []byte(sharedInfo), publicKey)
 	if err != nil {
 		return err
 	}
-	emit(&pb.EncryptedReport{EncryptedReport: result, ContextInfo: contextInfo, KeyId: keyID})
+	emit(&pb.AggregatablePayload{Payload: result, SharedInfo: sharedInfo, KeyId: keyID})
 	return nil
 }
 
@@ -112,7 +109,7 @@ func TestDecryptPartialReport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reports := []*reporttypes.RawReport{
+	reports := []*pipelinetypes.RawReport{
 		{Bucket: uint128.From64(1), Value: 1},
 		{Bucket: uint128.From64(2), Value: 2},
 	}
@@ -122,8 +119,8 @@ func TestDecryptPartialReport(t *testing.T) {
 	wantReports := beam.CreateList(scope, reports)
 	encryptedReports := beam.ParDo(scope, &standardEncryptFn{PublicKeys: pubKeysInfo}, wantReports)
 	got := DecryptReport(scope, encryptedReports, privKeys)
-	gotReports := beam.ParDo(scope, func(key uint128.Uint128, value uint64) *reporttypes.RawReport {
-		return &reporttypes.RawReport{Bucket: key, Value: value}
+	gotReports := beam.ParDo(scope, func(key uint128.Uint128, value uint64) *pipelinetypes.RawReport {
+		return &pipelinetypes.RawReport{Bucket: key, Value: value}
 	}, got)
 
 	passert.Equals(scope, gotReports, wantReports)
@@ -144,14 +141,14 @@ func TestAggregationPipelineOneParty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var rawReports []*reporttypes.RawReport
+	var rawReports []*pipelinetypes.RawReport
 	wantSum := make(map[uint128.Uint128]uint64)
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
 			index := uint128.From64(uint64(i) << 27)
 			value := uint64(i)
 			wantSum[index] += value
-			rawReports = append(rawReports, &reporttypes.RawReport{Bucket: index, Value: value})
+			rawReports = append(rawReports, &pipelinetypes.RawReport{Bucket: index, Value: value})
 		}
 	}
 	var wantResult []*keyValue
@@ -183,13 +180,13 @@ func TestFilterResults(t *testing.T) {
 		6: true,
 	}
 
-	var rawReports []*reporttypes.RawReport
+	var rawReports []*pipelinetypes.RawReport
 	wantSum := make(map[uint128.Uint128]uint64)
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
 			index := uint128.From64(uint64(i) << 27)
 			value := uint64(i)
-			rawReports = append(rawReports, &reporttypes.RawReport{Bucket: index, Value: value})
+			rawReports = append(rawReports, &pipelinetypes.RawReport{Bucket: index, Value: value})
 			if _, ok := targetBuckets[i]; ok {
 				wantSum[index] += value
 			}
@@ -216,7 +213,7 @@ func TestFilterResults(t *testing.T) {
 		return v.Key, v.Value
 	}, bucket)
 	report := beam.CreateList(scope, rawReports)
-	reportTable := beam.ParDo(scope, func(r *reporttypes.RawReport) (uint128.Uint128, uint64) {
+	reportTable := beam.ParDo(scope, func(r *pipelinetypes.RawReport) (uint128.Uint128, uint64) {
 		return r.Bucket, r.Value
 	}, report)
 

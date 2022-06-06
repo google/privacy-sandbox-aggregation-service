@@ -17,7 +17,7 @@ package onepartydataconverter
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -27,15 +27,16 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 //ParseRawReport parses a raw conversion into RawReport.
-func ParseRawReport(line string) (*reporttypes.RawReport, error) {
+func ParseRawReport(line string) (*pipelinetypes.RawReport, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
 		return nil, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
@@ -50,19 +51,16 @@ func ParseRawReport(line string) (*reporttypes.RawReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &reporttypes.RawReport{Bucket: key128, Value: value64}, nil
+	return &pipelinetypes.RawReport{Bucket: key128, Value: value64}, nil
 }
 
 // EncryptReport encrypts an input report with given public keys.
-func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, error) {
-	b, err := json.Marshal(report)
-	if err != nil {
-		return nil, err
-	}
-
+func EncryptReport(report *pipelinetypes.RawReport, keys []cryptoio.PublicKeyInfo, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, error) {
 	payload := reporttypes.Payload{
-		Operation: "one-party",
-		DPFKey:    b,
+		Operation: "histogram",
+		Data: []reporttypes.Contribution{
+			{Bucket: utils.Uint128ToBigEndianBytes(report.Bucket), Value: utils.Uint32ToBigEndianBytes(uint32(report.Value))},
+		},
 	}
 	bPayload, err := utils.MarshalCBOR(payload)
 	if err != nil {
@@ -75,27 +73,27 @@ func EncryptReport(report *reporttypes.RawReport, keys []cryptoio.PublicKeyInfo,
 	}
 
 	if !encryptOutput {
-		return &pb.EncryptedReport{
-			EncryptedReport: &pb.StandardCiphertext{Data: bPayload},
-			ContextInfo:     contextInfo,
-			KeyId:           keyID,
+		return &pb.AggregatablePayload{
+			Payload:    &pb.StandardCiphertext{Data: bPayload},
+			SharedInfo: sharedInfo,
+			KeyId:      keyID,
 		}, nil
 	}
 
-	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
+	encrypted, err := standardencrypt.Encrypt(bPayload, []byte(sharedInfo), key)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.EncryptedReport{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
+	return &pb.AggregatablePayload{Payload: encrypted, SharedInfo: sharedInfo, KeyId: keyID}, nil
 }
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.AggregatablePayload)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 
 	beam.RegisterType(reflect.TypeOf((*encryptReportFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawReportFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*reporttypes.RawReport)(nil)))
+	beam.RegisterType(reflect.TypeOf((*pipelinetypes.RawReport)(nil)))
 	beam.RegisterFunction(formatEncryptedReportFn)
 }
 
@@ -108,7 +106,7 @@ func (fn *parseRawReportFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("aggregation", "parserawReportFn_report_count")
 }
 
-func (fn *parseRawReportFn) ProcessElement(ctx context.Context, line string, emit func(*reporttypes.RawReport)) error {
+func (fn *parseRawReportFn) ProcessElement(ctx context.Context, line string, emit func(*pipelinetypes.RawReport)) error {
 	conversion, err := ParseRawReport(line)
 	if err != nil {
 		return err
@@ -130,10 +128,10 @@ func (fn *encryptReportFn) Setup(ctx context.Context) {
 	fn.countReport = beam.NewCounter("aggregation", "encryptReportFn_report_count")
 }
 
-func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *reporttypes.RawReport, emit func(*pb.EncryptedReport)) error {
+func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *pipelinetypes.RawReport, emit func(*pb.AggregatablePayload)) error {
 	fn.countReport.Inc(ctx, 1)
 
-	encrypted, err := EncryptReport(c, fn.PublicKeys, nil, fn.EncryptOutput)
+	encrypted, err := EncryptReport(c, fn.PublicKeys, "", fn.EncryptOutput)
 	if err != nil {
 		return err
 	}
@@ -143,8 +141,8 @@ func (fn *encryptReportFn) ProcessElement(ctx context.Context, c *reporttypes.Ra
 }
 
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
-func formatEncryptedReportFn(encrypted *pb.EncryptedReport, emit func(string)) error {
-	encryptedStr, err := cryptoio.SerializeEncryptedReport(encrypted)
+func formatEncryptedReportFn(encrypted *pb.AggregatablePayload, emit func(string)) error {
+	encryptedStr, err := reporttypes.SerializeAggregatablePayload(encrypted)
 	if err != nil {
 		return err
 	}
@@ -186,22 +184,21 @@ func GenerateEncryptedReport(scope beam.Scope, params *GenerateEncryptedReportPa
 
 // GenerateBrowserReportParams contains required parameters for function GenerateReport().
 type GenerateBrowserReportParams struct {
-	RawReport     reporttypes.RawReport
-	Origin        string
+	RawReport     pipelinetypes.RawReport
 	PublicKeys    []cryptoio.PublicKeyInfo
-	ContextInfo   []byte
+	SharedInfo    string
 	EncryptOutput bool
 }
 
 // GenerateBrowserReport creates an aggregation report from the browser.
-func GenerateBrowserReport(params *GenerateBrowserReportParams) (*reporttypes.AggregationReport, error) {
-	encrypted, err := EncryptReport(&params.RawReport, params.PublicKeys, params.ContextInfo, params.EncryptOutput)
+func GenerateBrowserReport(params *GenerateBrowserReportParams) (*reporttypes.AggregatableReport, error) {
+	encrypted, err := EncryptReport(&params.RawReport, params.PublicKeys, params.SharedInfo, params.EncryptOutput)
 	if err != nil {
 		return nil, err
 	}
-	payload := &reporttypes.AggregationServicePayload{Origin: params.Origin, Payload: encrypted.EncryptedReport.Data, KeyID: encrypted.KeyId}
-	return &reporttypes.AggregationReport{
-		SharedInfo:                 params.ContextInfo,
+	payload := &reporttypes.AggregationServicePayload{Payload: base64.StdEncoding.EncodeToString(encrypted.Payload.Data), KeyID: encrypted.KeyId}
+	return &reporttypes.AggregatableReport{
+		SharedInfo:                 params.SharedInfo,
 		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload},
 	}, nil
 }

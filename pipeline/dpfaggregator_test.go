@@ -38,8 +38,8 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -60,7 +60,7 @@ type standardEncryptFn struct {
 	PublicKeys []cryptoio.PublicKeyInfo
 }
 
-func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.EncryptedReport)) error {
+func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.AggregatablePayload)) error {
 	b, err := proto.Marshal(report.SumKey)
 	if err != nil {
 		return err
@@ -72,16 +72,16 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 		return err
 	}
 
-	contextInfo := []byte("context")
+	contextInfo := "context"
 	keyID, publicKey, err := getRandomPublicKey(fn.PublicKeys)
 	if err != nil {
 		return err
 	}
-	result, err := standardencrypt.Encrypt(bPayload, contextInfo, publicKey)
+	result, err := standardencrypt.Encrypt(bPayload, []byte(contextInfo), publicKey)
 	if err != nil {
 		return err
 	}
-	emit(&pb.EncryptedReport{EncryptedReport: result, ContextInfo: contextInfo, KeyId: keyID})
+	emit(&pb.AggregatablePayload{Payload: result, SharedInfo: contextInfo, KeyId: keyID})
 	return nil
 }
 
@@ -239,7 +239,7 @@ func (fn *splitConversionFn) ProcessElement(ctx context.Context, c rawConversion
 	for i := range valueSum {
 		valueSum[i] = c.Value
 	}
-	ctxParams, err := GetDefaultDPFParameters(fn.KeyBitSize)
+	ctxParams, err := incrementaldpf.GetDefaultDPFParameters(fn.KeyBitSize)
 	if err != nil {
 		return err
 	}
@@ -274,7 +274,7 @@ func TestAggregationAndMerge(t *testing.T) {
 	pipeline, scope := beam.NewPipelineWithRoot()
 	conversions := beam.CreateList(scope, reports)
 
-	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := incrementaldpf.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func TestHierarchicalAggregationAndMerge(t *testing.T) {
 	combineParams := &CombineParams{
 		DirectCombine: true,
 	}
-	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := incrementaldpf.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestDirectAggregationAndMerge(t *testing.T) {
 	combineParams := &CombineParams{
 		DirectCombine: true,
 	}
-	ctxParams, err := GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := incrementaldpf.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,14 +22,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
@@ -37,13 +36,13 @@ import (
 func TestCollectPayloads(t *testing.T) {
 	flag.Parse()
 
-	contextInfo := []byte("shared_info")
+	contextInfo := "shared_info"
 	payload1, payload2 := []byte("payload1"), []byte("payload2")
-	report := &reporttypes.AggregationReport{
+	report := &reporttypes.AggregatableReport{
 		SharedInfo: contextInfo,
 		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
-			{Origin: "helper2", Payload: payload2},
-			{Origin: "helper1", Payload: payload1},
+			{Payload: base64.StdEncoding.EncodeToString(payload1)},
+			{Payload: base64.StdEncoding.EncodeToString(payload2)},
 		},
 	}
 
@@ -57,7 +56,7 @@ func TestCollectPayloads(t *testing.T) {
 		batchSize: 1,
 		batchDir:  dir,
 		wg:        &sync.WaitGroup{},
-		reportsCh: make(chan *reporttypes.AggregationReport),
+		reportsCh: make(chan *reporttypes.AggregatableReport),
 	}
 	ctx := context.Background()
 	brw.start(ctx, brw.reportsCh)
@@ -67,11 +66,11 @@ func TestCollectPayloads(t *testing.T) {
 	brw.wg.Wait()
 
 	// Verify the right data was written to the batches
-	want1 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
-	want2 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
+	want1 := &pb.AggregatablePayload{Payload: &pb.StandardCiphertext{Data: payload1}, SharedInfo: contextInfo}
+	want2 := &pb.AggregatablePayload{Payload: &pb.StandardCiphertext{Data: payload2}, SharedInfo: contextInfo}
 
 	filesWritten := false
-	dir = dir + "/helper1+helper2"
+	dir = dir + "/mpc"
 	fileInfo, err := ioutil.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -101,115 +100,14 @@ func TestCollectPayloads(t *testing.T) {
 	}
 }
 
-func TestCollectPayloadsMultipleOriginCombos(t *testing.T) {
-	flag.Parse()
-
-	contextInfo := []byte("shared_info")
-	payload1, payload2, payload3 := []byte("payload1"), []byte("payload2"), []byte("payload2")
-	reporth1h2 := &reporttypes.AggregationReport{
-		SharedInfo: contextInfo,
-		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
-			{Origin: "helper2", Payload: payload2},
-			{Origin: "helper1", Payload: payload1},
-		},
-	}
-
-	reporth1h3 := &reporttypes.AggregationReport{
-		SharedInfo: contextInfo,
-		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{
-			{Origin: "helper1", Payload: payload1},
-			{Origin: "helper3", Payload: payload3},
-		},
-	}
-
-	dir, err := ioutil.TempDir("", "example")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir) // clean up
-
-	brw := &bufferedReportWriter{
-		batchSize: 1,
-		batchDir:  dir,
-		wg:        &sync.WaitGroup{},
-		reportsCh: make(chan *reporttypes.AggregationReport),
-	}
-	ctx := context.Background()
-	brw.start(ctx, brw.reportsCh)
-
-	brw.reportsCh <- reporth1h2
-	brw.reportsCh <- reporth1h3
-	close(brw.reportsCh)
-	brw.wg.Wait()
-
-	// Verify the right data was written to the batches
-	want1 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload1}, ContextInfo: contextInfo}
-	want2 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload2}, ContextInfo: contextInfo}
-	want3 := &pb.EncryptedReport{EncryptedReport: &pb.StandardCiphertext{Data: payload3}, ContextInfo: contextInfo}
-
-	originCombos := map[string][]*pb.EncryptedReport{
-		"helper1+helper2": {want1, want2},
-		"helper1+helper3": {want1, want3},
-	}
-
-	matchedOriginCombo := map[string]bool{
-		"helper1+helper2": false,
-		"helper1+helper3": false,
-	}
-
-	filesWritten := false
-
-	for key, expected := range originCombos {
-		bdir := dir + "/" + key
-		fileInfo, err := ioutil.ReadDir(bdir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, file := range fileInfo {
-			filesWritten = true
-			matchedFile := false
-			partialReports, err := readFile(bdir, file.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.HasPrefix(file.Name(), key) {
-				matchedFile = true
-				matchedOriginCombo[key] = true
-				for _, pr := range partialReports {
-					diff1 := cmp.Diff(expected[0], pr, protocmp.Transform())
-					diff2 := cmp.Diff(expected[1], pr, protocmp.Transform())
-
-					if diff1 != "" && diff2 != "" {
-						t.Errorf("encrypted report mismatched both reports - 1 (-want +got):\n%s", diff1)
-						t.Errorf("encrypted report mismatched both reports - 2 (-want +got):\n%s", diff2)
-					}
-				}
-			}
-			if !matchedFile {
-				t.Errorf("No matching expected originCombo for file %s", file.Name())
-			}
-		}
-	}
-
-	if !filesWritten {
-		t.Errorf("No batch files found!")
-	}
-
-	for key, found := range matchedOriginCombo {
-		if !found {
-			t.Errorf("No files for originCombo '%s' found", key)
-		}
-	}
-}
-
-func readFile(dir, filename string) ([]*pb.EncryptedReport, error) {
+func readFile(dir, filename string) ([]*pb.AggregatablePayload, error) {
 	file, err := os.Open(path.Join(dir, filename))
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var batch []*pb.EncryptedReport
+	var batch []*pb.AggregatablePayload
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		partialReport, err := readPartialReport(scanner.Text())
@@ -226,13 +124,13 @@ func readFile(dir, filename string) ([]*pb.EncryptedReport, error) {
 	return batch, nil
 }
 
-func readPartialReport(line string) (*pb.EncryptedReport, error) {
+func readPartialReport(line string) (*pb.AggregatablePayload, error) {
 	bsc, err := base64.StdEncoding.DecodeString(line)
 	if err != nil {
 		return nil, err
 	}
 
-	partialReport := &pb.EncryptedReport{}
+	partialReport := &pb.AggregatablePayload{}
 	if err := proto.Unmarshal(bsc, partialReport); err != nil {
 		return nil, err
 	}

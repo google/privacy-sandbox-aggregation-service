@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )

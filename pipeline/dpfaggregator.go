@@ -51,8 +51,8 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -66,7 +66,7 @@ const numberOfHelpers = 2
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*dpfpb.EvaluationContext)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.AggregatablePayload)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReportDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregationDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
@@ -107,8 +107,8 @@ func (fn *parseEncryptedPartialReportFn) Setup() {
 	fn.partialReportCounter = beam.NewCounter("aggregation-prototype", "encrypted-partial-report-count")
 }
 
-func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedReport)) error {
-	encrypted, err := cryptoio.DeserializeEncryptedReport(line)
+func (fn *parseEncryptedPartialReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.AggregatablePayload)) error {
+	encrypted, err := reporttypes.DeserializeAggregatablePayload(line)
 	if err != nil {
 		return err
 	}
@@ -139,9 +139,9 @@ func (fn *decryptPartialReportFn) Setup() {
 	fn.nonencryptedCounter = beam.NewCounter("aggregation", "unpack-nonencrypted-count")
 }
 
-func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted *pb.EncryptedReport, emit func(*pb.PartialReportDpf)) error {
+func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted *pb.AggregatablePayload, emit func(*pb.PartialReportDpf)) error {
 	privateKey, ok := fn.StandardPrivateKeys[encrypted.KeyId]
-	if !ok {
+	if !ok && encrypted.KeyId != "" {
 		return fmt.Errorf("no private key found for keyID = %q", encrypted.KeyId)
 	}
 
@@ -160,7 +160,7 @@ func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted 
 			fn.isEncryptedBundle = false
 		}
 	} else {
-		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+		if err := utils.UnmarshalCBOR(encrypted.Payload.Data, payload); err != nil {
 			return fmt.Errorf("failed in deserializing non-encrypted data: %s", encrypted.String())
 		}
 		fn.nonencryptedCounter.Inc(ctx, 1)
@@ -178,27 +178,6 @@ func (fn *decryptPartialReportFn) ProcessElement(ctx context.Context, encrypted 
 func DecryptPartialReport(s beam.Scope, encryptedReport beam.PCollection, standardPrivateKeys map[string]*pb.StandardPrivateKey) beam.PCollection {
 	s = s.Scope("DecryptPartialReport")
 	return beam.ParDo(s, &decryptPartialReportFn{StandardPrivateKeys: standardPrivateKeys}, encryptedReport)
-}
-
-// GetDefaultDPFParameters generates the DPF parameters for creating DPF keys or evaluation context for all possible prefix lengths.
-func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
-	if keyBitSize <= 0 {
-		return nil, fmt.Errorf("keyBitSize should be positive, got %d", keyBitSize)
-	}
-	allParams := make([]*dpfpb.DpfParameters, keyBitSize)
-	for i := int32(1); i <= int32(keyBitSize); i++ {
-		allParams[i-1] = &dpfpb.DpfParameters{
-			LogDomainSize: i,
-			ValueType: &dpfpb.ValueType{
-				Type: &dpfpb.ValueType_Integer_{
-					Integer: &dpfpb.ValueType_Integer{
-						Bitsize: incrementaldpf.DefaultElementBitSize,
-					},
-				},
-			},
-		}
-	}
-	return allParams, nil
 }
 
 type createEvalCtxFn struct {
@@ -553,7 +532,7 @@ type getBucketIDsFn struct {
 func (fn *getBucketIDsFn) Setup() error {
 	fn.bucketIDsCounter = beam.NewCounter("aggregation-prototype", "bucket-id-count")
 	var err error
-	fn.dpfParams, err = GetDefaultDPFParameters(fn.KeyBitSize)
+	fn.dpfParams, err = incrementaldpf.GetDefaultDPFParameters(fn.KeyBitSize)
 	return err
 }
 
@@ -626,7 +605,7 @@ type AggregatePartialReportParams struct {
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
 func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportParams) error {
-	dpfParams, err := GetDefaultDPFParameters(params.KeyBitSize)
+	dpfParams, err := incrementaldpf.GetDefaultDPFParameters(params.KeyBitSize)
 	if err != nil {
 		return err
 	}

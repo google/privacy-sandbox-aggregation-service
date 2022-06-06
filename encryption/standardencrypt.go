@@ -17,6 +17,7 @@ package standardencrypt
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/google/tink/go/hybrid"
 	"github.com/google/tink/go/insecurecleartextkeyset"
@@ -75,6 +76,9 @@ func Encrypt(message, context []byte, publicKey *pb.StandardPublicKey) (*pb.Stan
 
 // Decrypt decrypts the message with the given private key.
 func Decrypt(encrypted *pb.StandardCiphertext, context []byte, privateKey *pb.StandardPrivateKey) ([]byte, error) {
+	if privateKey == nil {
+		return nil, errors.New("empty private key")
+	}
 	bPriv := bytes.NewBuffer(privateKey.Key)
 	priv, err := insecurecleartextkeyset.Read(keyset.NewBinaryReader(bPriv))
 	if err != nil {

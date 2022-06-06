@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -31,23 +32,22 @@ import (
 	log "github.com/golang/glog"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/test/onepartydataconverter"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
 )
 
 // TODO: Store some of the flag values in manifest files.
 var (
 	address              = flag.String("address", "", "Address of the server.")
 	helperPublicKeysURI1 = flag.String("helper_public_keys_uri1", "", "A file that contains the public encryption key from helper1.")
-	helperPublicKeysURI2 = flag.String("helper_public_keys_uri2", "", "A file that contains the public encryption key from helper2. Required if helper_origin2 is set.")
+	helperPublicKeysURI2 = flag.String("helper_public_keys_uri2", "", "A file that contains the public encryption key from helper2. Ignore to use the one-party protocol.")
 	keyBitSize           = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 	conversionURI        = flag.String("conversion_uri", "", "Input raw conversion data.")
 	conversionRaw        = flag.String("conversion_raw", "2684354560,20", "Raw conversion.")
 	sendCount            = flag.Int("send_count", 1, "How many times to send each conversion.")
-	helperOrigin1        = flag.String("helper_origin1", "", "Origin of helper1.")
-	helperOrigin2        = flag.String("helper_origin2", "", "Origin of helper2. Ignore to use the one-party protocol.")
 	concurrency          = flag.Int("concurrency", 10, "Concurrent requests.")
 
 	encryptOutput = flag.Bool("encrypt_output", true, "Generate reports with encryption. This should only be false for integration test before HPKE is ready in Go Tink.")
@@ -75,7 +75,6 @@ func main() {
 	log.Infof("Helper public key file locations. 1: %v, 2: %v", *helperPublicKeysURI1, *helperPublicKeysURI2)
 	log.Infof("Key Bit size %v", *keyBitSize)
 	log.Infof("Conversions file uri: %v", *conversionURI)
-	log.Infof("Helper origins. 1: %v, 2: %v", *helperOrigin1, *helperOrigin2)
 
 	client := retryablehttp.NewClient().StandardClient()
 
@@ -86,7 +85,7 @@ func main() {
 		log.Errorf("Couldn't get Auth Bearer IdToken: %s", err)
 	}
 
-	isMPC := *helperOrigin2 != ""
+	isMPC := *helperPublicKeysURI2 != ""
 
 	var conversionsSent uint64
 	requestCh := make(chan *bytes.Buffer)
@@ -112,12 +111,12 @@ func main() {
 	}
 
 	// Empty context information for demo.
-	contextInfo, err := utils.MarshalCBOR(&reporttypes.SharedInfo{})
+	sharedInfo, err := json.Marshal(&reporttypes.SharedInfo{})
 	if err != nil {
 		log.Exit(err)
 	}
 
-	var conversions []reporttypes.RawReport
+	var conversions []pipelinetypes.RawReport
 	if *conversionURI != "" {
 		var err error
 		conversions, err = dpfdataconverter.ReadRawConversions(ctx, *conversionURI, *keyBitSize)
@@ -139,26 +138,23 @@ func main() {
 	for i := 0; i < *sendCount; i++ {
 		for _, c := range conversions {
 			var (
-				report *reporttypes.AggregationReport
+				report *reporttypes.AggregatableReport
 				err    error
 			)
 			if isMPC {
 				report, err = dpfdataconverter.GenerateBrowserReport(&dpfdataconverter.GenerateBrowserReportParams{
 					RawReport:     c,
 					KeyBitSize:    *keyBitSize,
-					Origin1:       *helperOrigin1,
-					Origin2:       *helperOrigin2,
 					PublicKeys1:   publicKeyInfo1,
 					PublicKeys2:   publicKeyInfo2,
-					ContextInfo:   contextInfo,
+					SharedInfo:    string(sharedInfo),
 					EncryptOutput: *encryptOutput,
 				})
 			} else {
 				report, err = onepartydataconverter.GenerateBrowserReport(&onepartydataconverter.GenerateBrowserReportParams{
 					RawReport:     c,
-					Origin:        *helperOrigin1,
 					PublicKeys:    publicKeyInfo1,
-					ContextInfo:   contextInfo,
+					SharedInfo:    string(sharedInfo),
 					EncryptOutput: *encryptOutput,
 				})
 			}

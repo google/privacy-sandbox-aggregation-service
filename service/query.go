@@ -24,7 +24,7 @@ import (
 	"gonum.org/v1/gonum/floats"
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
 const elementBitSize = 64

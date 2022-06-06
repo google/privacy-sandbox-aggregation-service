@@ -17,7 +17,6 @@ package onepartyaggregator
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -31,8 +30,8 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
@@ -40,7 +39,7 @@ import (
 const numberOfHelpers = 1
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.AggregatablePayload)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 
 	beam.RegisterType(reflect.TypeOf((*addNoiseFn)(nil)).Elem())
@@ -89,8 +88,8 @@ func (fn *parseEncryptedReportFn) Setup() {
 	fn.reportCounter = beam.NewCounter("one-party", "parse-encrypted-report-count")
 }
 
-func (fn *parseEncryptedReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.EncryptedReport)) error {
-	encrypted, err := cryptoio.DeserializeEncryptedReport(line)
+func (fn *parseEncryptedReportFn) ProcessElement(ctx context.Context, line string, emit func(*pb.AggregatablePayload)) error {
+	encrypted, err := reporttypes.DeserializeAggregatablePayload(line)
 	if err != nil {
 		return err
 	}
@@ -120,7 +119,7 @@ func (fn *decryptReportFn) Setup() {
 	fn.nonencryptedCounter = beam.NewCounter("one-party", "decrypt-nonencrypted-count")
 }
 
-func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.EncryptedReport, emit func(uint128.Uint128, uint64)) error {
+func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.AggregatablePayload, emit func(uint128.Uint128, uint64)) error {
 	privateKey, ok := fn.StandardPrivateKeys[encrypted.KeyId]
 	if !ok {
 		return fmt.Errorf("no private key found for keyID = %q", encrypted.KeyId)
@@ -141,18 +140,24 @@ func (fn *decryptReportFn) ProcessElement(ctx context.Context, encrypted *pb.Enc
 			fn.isEncryptedBundle = false
 		}
 	} else {
-		if err := utils.UnmarshalCBOR(encrypted.EncryptedReport.Data, payload); err != nil {
+		if err := utils.UnmarshalCBOR(encrypted.Payload.Data, payload); err != nil {
 			return fmt.Errorf("failed in deserializing non-encrypted data: %s", encrypted.String())
 		}
 		fn.nonencryptedCounter.Inc(ctx, 1)
 	}
 
-	report := &reporttypes.RawReport{}
-	if err := json.Unmarshal(payload.DPFKey, report); err != nil {
-		return err
+	for _, contribution := range payload.Data {
+		bucket, err := utils.BigEndianBytesToUint128(contribution.Bucket)
+		if err != nil {
+			return err
+		}
+		value, err := utils.BigEndianBytesToUint32(contribution.Value)
+		if err != nil {
+			return err
+		}
+		emit(bucket, uint64(value))
 	}
-	emit(report.Bucket, report.Value)
-	fn.reportCounter.Inc(ctx, 1)
+
 	return nil
 }
 

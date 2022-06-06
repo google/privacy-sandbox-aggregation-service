@@ -30,9 +30,9 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 
@@ -41,10 +41,10 @@ import (
 )
 
 func TestReadInputConversions(t *testing.T) {
-	var conversions []reporttypes.RawReport
+	var conversions []pipelinetypes.RawReport
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
-			conversions = append(conversions, reporttypes.RawReport{Bucket: uint128.From64(uint64(i)).Lsh(27), Value: uint64(i)})
+			conversions = append(conversions, pipelinetypes.RawReport{Bucket: uint128.From64(uint64(i)).Lsh(27), Value: uint64(i)})
 		}
 	}
 
@@ -64,7 +64,7 @@ func TestReadInputConversions(t *testing.T) {
 }
 
 type dpfTestData struct {
-	Conversions []reporttypes.RawReport
+	Conversions []pipelinetypes.RawReport
 	WantResults [][]dpfaggregator.CompleteHistogram
 	SumParams   *pb.IncrementalDpfParameters
 	Prefixes    [][]uint128.Uint128
@@ -103,7 +103,7 @@ func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestD
 	sumParams := CalculateParameters(prefixDomainBits, int32(logN), 1<<logElementSizeSum)
 
 	aggResult := make(map[uint128.Uint128]uint64)
-	var conversions []reporttypes.RawReport
+	var conversions []pipelinetypes.RawReport
 	// Generate conversions with indices that contain one of the given prefixes. These conversions are counted in the aggregation.
 	prefixesLen := len(prefixes)
 	for i := uint64(0); i < totalCount-4; i++ {
@@ -111,7 +111,7 @@ func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestD
 		if err != nil {
 			return nil, err
 		}
-		conversions = append(conversions, reporttypes.RawReport{Bucket: index, Value: 1})
+		conversions = append(conversions, pipelinetypes.RawReport{Bucket: index, Value: 1})
 		aggResult[index]++
 	}
 	// Generate conversions with indices that do not contain any of the given prefixes. These conversions will not be counted in the aggregation.
@@ -120,7 +120,7 @@ func createConversionsDpf(logN, logElementSizeSum, totalCount uint64) (*dpfTestD
 		if err != nil {
 			return nil, err
 		}
-		conversions = append(conversions, reporttypes.RawReport{Bucket: index, Value: 1})
+		conversions = append(conversions, pipelinetypes.RawReport{Bucket: index, Value: 1})
 		aggResult[index]++
 	}
 
@@ -159,7 +159,7 @@ func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 		t.Fatal(err)
 	}
 
-	ctxParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
+	ctxParams, err := incrementaldpf.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,14 +225,14 @@ func TestWriteReadPartialReports(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	want := []*pb.EncryptedReport{
+	want := []*pb.AggregatablePayload{
 		{
-			EncryptedReport: &pb.StandardCiphertext{Data: []byte("encrypted1")},
-			ContextInfo:     []byte("context1"),
+			Payload:    &pb.StandardCiphertext{Data: []byte("encrypted1")},
+			SharedInfo: "context1",
 		},
 		{
-			EncryptedReport: &pb.StandardCiphertext{Data: []byte("encrypted2")},
-			ContextInfo:     []byte("context2"),
+			Payload:    &pb.StandardCiphertext{Data: []byte("encrypted2")},
+			SharedInfo: "context2",
 		},
 	}
 
@@ -288,24 +288,21 @@ func testGenerateReport(t *testing.T, encryptOutput bool) {
 	}
 
 	keyBitSize := 128
-	origin1, origin2 := "aggregator1", "aggregator2"
-	contextInfo := []byte("context info")
-	rawReport := reporttypes.RawReport{Bucket: uint128.From64(123), Value: 789}
+	contextInfo := "context info"
+	rawReport := pipelinetypes.RawReport{Bucket: uint128.From64(123), Value: 789}
 	report, err := GenerateBrowserReport(&GenerateBrowserReportParams{
 		RawReport:     rawReport,
 		KeyBitSize:    keyBitSize,
-		Origin1:       origin1,
-		Origin2:       origin2,
 		PublicKeys1:   publicKeys1,
 		PublicKeys2:   publicKeys2,
-		ContextInfo:   contextInfo,
+		SharedInfo:    contextInfo,
 		EncryptOutput: encryptOutput,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	lines, err := collectorservice.ConvertReport(report)
+	lines, err := report.GetSerializedEncryptedRecords()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,18 +310,11 @@ func testGenerateReport(t *testing.T, encryptOutput bool) {
 		t.Fatalf("want %d lines, got %d", want, got)
 	}
 
-	if _, ok := lines[origin1]; !ok {
-		t.Fatalf("missing origin %q", origin1)
-	}
-	if _, ok := lines[origin2]; !ok {
-		t.Fatalf("missing origin %q", origin2)
-	}
-
-	encrypted1, err := cryptoio.DeserializeEncryptedReport(lines[origin1])
+	encrypted1, err := reporttypes.DeserializeAggregatablePayload(lines["0"])
 	if err != nil {
 		t.Fatal(err)
 	}
-	encrypted2, err := cryptoio.DeserializeEncryptedReport(lines[origin2])
+	encrypted2, err := reporttypes.DeserializeAggregatablePayload(lines["1"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +336,7 @@ func testGenerateReport(t *testing.T, encryptOutput bool) {
 		t.Fatal(err)
 	}
 
-	dpfParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
+	dpfParams, err := incrementaldpf.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,12 +42,14 @@ message PartialReportDpf {
   distributed_point_functions.DpfKey sum_key = 1;
 }
 
-// EncryptedReport contains the encrypted report for both the one-party and
-// MPC designs.
-message EncryptedReport {
-  StandardCiphertext encrypted_report = 1;
-  bytes context_info = 2;
-  // The ID to find the corresponding private key for decryption.
+// AggregatablePayload contains the encrypted or debug payload for both the
+// one-party and MPC designs.
+message AggregatablePayload {
+  StandardCiphertext payload = 1;
+  // Context info for decrypting the payload if it is encrypted.
+  string shared_info = 2;
+  // The ID to find the corresponding private key for decryption, which is
+  // empty for debug cleartext payloads.
   string key_id = 3;
 }
 

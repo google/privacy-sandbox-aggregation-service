@@ -13,11 +13,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reachaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
 )
 
-func createReachRecords(keyBitSize, count uint64) ([]reporttypes.RawReachReport, map[uint64]*reachaggregator.ReachResult) {
+func createReachRecords(keyBitSize, count uint64) ([]pipelinetypes.RawReachReport, map[uint64]*reachaggregator.ReachResult) {
 	maxKey := int64(1) << int64(keyBitSize)
 
 	result := make(map[uint64]*reachaggregator.ReachResult)
@@ -25,11 +25,11 @@ func createReachRecords(keyBitSize, count uint64) ([]reporttypes.RawReachReport,
 		result[i] = &reachaggregator.ReachResult{}
 	}
 
-	var record []reporttypes.RawReachReport
+	var record []pipelinetypes.RawReachReport
 	for i := uint64(0); i < count; i++ {
 		id := uint64(rand.Int63n(maxKey))
 		// Keep the fingerprint the same for the same register id.
-		record = append(record, reporttypes.RawReachReport{LLRegister: id, Person: id})
+		record = append(record, pipelinetypes.RawReachReport{LLRegister: id, Person: id})
 		result[id].Count++
 	}
 	return record, result

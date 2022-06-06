@@ -26,8 +26,8 @@ import (
 	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/onepartyaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/service/collectorservice"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
 )
 
 func TestAggregationPipelineOneParty(t *testing.T) {
@@ -47,14 +47,14 @@ func testAggregationPipeline(t testing.TB, withEncryption bool) {
 		Value uint64
 	}
 
-	var rawReports []*reporttypes.RawReport
+	var rawReports []*pipelinetypes.RawReport
 	wantSum := make(map[uint128.Uint128]uint64)
 	for i := 5; i <= 20; i++ {
 		for j := 0; j < i; j++ {
 			index := uint128.From64(uint64(i) << 27)
 			value := uint64(i)
 			wantSum[index] += value
-			rawReports = append(rawReports, &reporttypes.RawReport{Bucket: index, Value: value})
+			rawReports = append(rawReports, &pipelinetypes.RawReport{Bucket: index, Value: value})
 		}
 	}
 	var wantResult []*keyValue
@@ -87,32 +87,27 @@ func testGenerateBrowserReport(t *testing.T, encryptOutput bool) {
 		t.Fatal(err)
 	}
 
-	origin := "aggregator"
-	contextInfo := []byte("context info")
-	want := reporttypes.RawReport{Bucket: uint128.From64(123), Value: 789}
+	sharedInfo := "context info"
+	want := pipelinetypes.RawReport{Bucket: uint128.From64(123), Value: 789}
 	report, err := GenerateBrowserReport(&GenerateBrowserReportParams{
 		RawReport:     want,
-		Origin:        origin,
 		PublicKeys:    publicKeys,
-		ContextInfo:   contextInfo,
+		SharedInfo:    sharedInfo,
 		EncryptOutput: encryptOutput,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	lines, err := collectorservice.ConvertReport(report)
+	lines, err := report.GetSerializedEncryptedRecords()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got, want := len(lines), 1; got != want {
 		t.Fatalf("want %d lines, got %d", want, got)
 	}
-	if _, ok := lines[origin]; !ok {
-		t.Fatalf("missing origin %q", origin)
-	}
 
-	encrypted, err := cryptoio.DeserializeEncryptedReport(lines[origin])
+	encrypted, err := reporttypes.DeserializeAggregatablePayload(lines["0"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +117,7 @@ func testGenerateBrowserReport(t *testing.T, encryptOutput bool) {
 		t.Fatal(err)
 	}
 
-	got := &reporttypes.RawReport{}
+	got := &pipelinetypes.RawReport{}
 	if err := json.Unmarshal(payload.DPFKey, report); err != nil {
 		t.Fatal(err)
 	}

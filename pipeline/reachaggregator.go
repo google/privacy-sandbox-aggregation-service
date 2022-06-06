@@ -29,7 +29,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -43,7 +43,7 @@ const numberOfHelpers = 2
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*dpfpb.EvaluationContext)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.AggregatablePayload)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialReportDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.PartialAggregationDpf)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())

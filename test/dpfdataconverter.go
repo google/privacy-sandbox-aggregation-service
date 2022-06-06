@@ -32,21 +32,21 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reporttypes"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
 func init() {
-	beam.RegisterType(reflect.TypeOf((*pb.EncryptedReport)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*pb.AggregatablePayload)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*pb.StandardCiphertext)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*encryptSecretSharesFn)(nil)).Elem())
 	beam.RegisterType(reflect.TypeOf((*parseRawConversionFn)(nil)).Elem())
-	beam.RegisterType(reflect.TypeOf((*reporttypes.RawReport)(nil)))
+	beam.RegisterType(reflect.TypeOf((*pipelinetypes.RawReport)(nil)))
 	beam.RegisterFunction(formatPartialReportFn)
 }
 
@@ -70,28 +70,28 @@ func GetMaxBucketID(keyBitSize int) uint128.Uint128 {
 }
 
 //ParseRawConversion parses a raw conversion.
-func ParseRawConversion(line string, keyBitSize int) (reporttypes.RawReport, error) {
+func ParseRawConversion(line string, keyBitSize int) (pipelinetypes.RawReport, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
-		return reporttypes.RawReport{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
+		return pipelinetypes.RawReport{}, fmt.Errorf("got %d columns in line %q, want %d", got, line, want)
 	}
 
 	key128, err := utils.StringToUint128(cols[0])
 	if err != nil {
-		return reporttypes.RawReport{}, err
+		return pipelinetypes.RawReport{}, err
 	}
 	if key128.Cmp(GetMaxBucketID(keyBitSize)) == 1 {
-		return reporttypes.RawReport{}, fmt.Errorf("key %q overflows the integer with %d bits", key128.String(), keyBitSize)
+		return pipelinetypes.RawReport{}, fmt.Errorf("key %q overflows the integer with %d bits", key128.String(), keyBitSize)
 	}
 
 	value64, err := strconv.ParseUint(cols[1], 10, 64)
 	if err != nil {
-		return reporttypes.RawReport{}, err
+		return pipelinetypes.RawReport{}, err
 	}
-	return reporttypes.RawReport{Bucket: key128, Value: value64}, nil
+	return pipelinetypes.RawReport{Bucket: key128, Value: value64}, nil
 }
 
-func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(reporttypes.RawReport)) error {
+func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string, emit func(pipelinetypes.RawReport)) error {
 	conversion, err := ParseRawConversion(line, fn.KeyBitSize)
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPubl
 	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
 }
 
-func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, error) {
+func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, error) {
 	bDpfKey, err := proto.Marshal(partialReport.SumKey)
 	if err != nil {
 		return nil, err
@@ -141,18 +141,18 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 	}
 	// TODO: Remove the option of aggregating reports without encryption when HPKE is ready in Go tink.
 	if !encryptOutput {
-		return &pb.EncryptedReport{
-			EncryptedReport: &pb.StandardCiphertext{Data: bPayload},
-			ContextInfo:     contextInfo,
-			KeyId:           keyID,
+		return &pb.AggregatablePayload{
+			Payload:    &pb.StandardCiphertext{Data: bPayload},
+			SharedInfo: sharedInfo,
+			KeyId:      keyID,
 		}, nil
 	}
 
-	encrypted, err := standardencrypt.Encrypt(bPayload, contextInfo, key)
+	encrypted, err := standardencrypt.Encrypt(bPayload, []byte(sharedInfo), key)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.EncryptedReport{EncryptedReport: encrypted, ContextInfo: contextInfo, KeyId: keyID}, nil
+	return &pb.AggregatablePayload{Payload: encrypted, SharedInfo: sharedInfo, KeyId: keyID}, nil
 }
 
 func (fn *encryptSecretSharesFn) Setup(ctx context.Context) {
@@ -171,8 +171,8 @@ func putValueForHierarchies(params []*dpfpb.DpfParameters, value uint64) []uint6
 }
 
 // GenerateDPFKeys generates DPF keys for the input report.
-func GenerateDPFKeys(report reporttypes.RawReport, keyBitSize int) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
-	allParams, err := dpfaggregator.GetDefaultDPFParameters(keyBitSize)
+func GenerateDPFKeys(report pipelinetypes.RawReport, keyBitSize int) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
+	allParams, err := incrementaldpf.GetDefaultDPFParameters(keyBitSize)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -181,17 +181,17 @@ func GenerateDPFKeys(report reporttypes.RawReport, keyBitSize int) (*dpfpb.DpfKe
 }
 
 // EncryptPartialReports encrypts the partial reports.
-func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, contextInfo []byte, encryptOutput bool) (*pb.EncryptedReport, *pb.EncryptedReport, error) {
+func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, *pb.AggregatablePayload, error) {
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: key1,
-	}, publicKeys1, contextInfo, encryptOutput)
+	}, publicKeys1, sharedInfo, encryptOutput)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	encryptedReport2, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: key2,
-	}, publicKeys2, contextInfo, encryptOutput)
+	}, publicKeys2, sharedInfo, encryptOutput)
 
 	if err != nil {
 		return nil, nil, err
@@ -200,14 +200,14 @@ func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []
 	return encryptedReport1, encryptedReport2, nil
 }
 
-func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttypes.RawReport, emit1 func(*pb.EncryptedReport), emit2 func(*pb.EncryptedReport)) error {
+func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c pipelinetypes.RawReport, emit1 func(*pb.AggregatablePayload), emit2 func(*pb.AggregatablePayload)) error {
 	fn.countReport.Inc(ctx, 1)
 
 	key1, key2, err := GenerateDPFKeys(c, fn.KeyBitSize)
 	if err != nil {
 		return err
 	}
-	encryptedReport1, encryptedReport2, err := EncryptPartialReports(key1, key2, fn.PublicKeys1, fn.PublicKeys2, nil, fn.EncryptOutput)
+	encryptedReport1, encryptedReport2, err := EncryptPartialReports(key1, key2, fn.PublicKeys1, fn.PublicKeys2, "", fn.EncryptOutput)
 	if err != nil {
 		return err
 	}
@@ -218,8 +218,8 @@ func (fn *encryptSecretSharesFn) ProcessElement(ctx context.Context, c reporttyp
 }
 
 // Since we store and read the data line by line through plain text files, the output is base64-encoded to avoid writing symbols in the proto wire-format that are interpreted as line breaks.
-func formatPartialReportFn(encrypted *pb.EncryptedReport, emit func(string)) error {
-	encryptedStr, err := cryptoio.SerializeEncryptedReport(encrypted)
+func formatPartialReportFn(encrypted *pb.AggregatablePayload, emit func(string)) error {
+	encryptedStr, err := reporttypes.SerializeAggregatablePayload(encrypted)
 	if err != nil {
 		return err
 	}
@@ -405,13 +405,13 @@ func CreateConversionIndex(prefixes []uint128.Uint128, prefixBitSize, totalBitSi
 }
 
 // ReadRawConversions reads conversions from a file. Each line of the file represents a conversion record.
-func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize int) ([]reporttypes.RawReport, error) {
+func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize int) ([]pipelinetypes.RawReport, error) {
 	lines, err := utils.ReadLines(ctx, conversionFile)
 	if err != nil {
 		return nil, err
 	}
 
-	var conversions []reporttypes.RawReport
+	var conversions []pipelinetypes.RawReport
 	for _, l := range lines {
 		conversion, err := ParseRawConversion(l, keyBitSize)
 		if err != nil {
@@ -424,28 +424,28 @@ func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize i
 
 // GenerateBrowserReportParams contains required parameters for function GenerateReport().
 type GenerateBrowserReportParams struct {
-	RawReport                reporttypes.RawReport
+	RawReport                pipelinetypes.RawReport
 	KeyBitSize               int
-	Origin1, Origin2         string
 	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
-	ContextInfo              []byte
+	SharedInfo               string
 	EncryptOutput            bool
 }
 
 // GenerateBrowserReport creates an aggregation report from the browser.
-func GenerateBrowserReport(params *GenerateBrowserReportParams) (*reporttypes.AggregationReport, error) {
+func GenerateBrowserReport(params *GenerateBrowserReportParams) (*reporttypes.AggregatableReport, error) {
 	key1, key2, err := GenerateDPFKeys(params.RawReport, params.KeyBitSize)
 	if err != nil {
 		return nil, err
 	}
-	encrypted1, encrypted2, err := EncryptPartialReports(key1, key2, params.PublicKeys1, params.PublicKeys2, params.ContextInfo, params.EncryptOutput)
+	encrypted1, encrypted2, err := EncryptPartialReports(key1, key2, params.PublicKeys1, params.PublicKeys2, params.SharedInfo, params.EncryptOutput)
 	if err != nil {
 		return nil, err
 	}
-	payload1 := &reporttypes.AggregationServicePayload{Origin: params.Origin1, Payload: encrypted1.EncryptedReport.Data, KeyID: encrypted1.KeyId}
-	payload2 := &reporttypes.AggregationServicePayload{Origin: params.Origin2, Payload: encrypted2.EncryptedReport.Data, KeyID: encrypted2.KeyId}
-	return &reporttypes.AggregationReport{
-		SharedInfo:                 params.ContextInfo,
+
+	payload1 := &reporttypes.AggregationServicePayload{Payload: base64.StdEncoding.EncodeToString(encrypted1.Payload.Data), KeyID: encrypted1.KeyId}
+	payload2 := &reporttypes.AggregationServicePayload{Payload: base64.StdEncoding.EncodeToString(encrypted2.Payload.Data), KeyID: encrypted2.KeyId}
+	return &reporttypes.AggregatableReport{
+		SharedInfo:                 params.SharedInfo,
 		AggregationServicePayloads: []*reporttypes.AggregationServicePayload{payload1, payload2},
 	}, nil
 }

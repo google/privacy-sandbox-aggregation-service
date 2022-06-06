@@ -27,7 +27,7 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/reachaggregator"
-	"github.com/google/privacy-sandbox-aggregation-service/utils/utils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
 var (

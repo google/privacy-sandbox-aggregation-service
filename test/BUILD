@@ -177,3 +177,14 @@ go_test(
         "@com_github_google_go_cmp//cmp:go_default_library",
     ],
 )
+
+go_binary(
+    name = "create_fake_firestore_jobs",
+    srcs = ["create_fake_firestore_jobs.go"],
+    deps = [
+        "//service:jobmonitor",
+        "@com_github_golang_glog//:go_default_library",
+        "@com_github_pborman_uuid//:uuid",
+        "@com_google_cloud_go_firestore//:go_default_library",
+    ],
+)

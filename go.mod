@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	cloud.google.com/go v0.87.0
+  cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/pubsub v1.13.0
 	cloud.google.com/go/storage v1.15.0
 	github.com/apache/beam v2.32.0-RC1+incompatible

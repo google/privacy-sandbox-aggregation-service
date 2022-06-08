@@ -144,11 +144,11 @@ func TestAggregationPipelineDPF(t *testing.T) {
 
 func testAggregationPipelineDPF(t testing.TB, withEncryption bool) {
 	ctx := context.Background()
-	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	privKeys2, pubKeysInfo2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys2, pubKeysInfo2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,11 +278,11 @@ func TestGenerateReport(t *testing.T) {
 
 func testGenerateReport(t *testing.T, encryptOutput bool) {
 	ctx := context.Background()
-	privKeys1, publicKeys1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys1, publicKeys1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	privKeys2, publicKeys2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys2, publicKeys2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

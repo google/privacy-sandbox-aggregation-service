@@ -195,10 +195,10 @@ func TestIsFileGlobExist(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := WriteBytes(ctx, []byte("somedata"), path.Join(fileDir, "input_1.txt")); err != nil {
+	if err := WriteBytes(ctx, []byte("somedata"), path.Join(fileDir, "input_1.txt"), nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteBytes(ctx, []byte("somedata"), path.Join(fileDir, "input_2.txt")); err != nil {
+	if err := WriteBytes(ctx, []byte("somedata"), path.Join(fileDir, "input_2.txt"), nil); err != nil {
 		t.Fatal(err)
 	}
 

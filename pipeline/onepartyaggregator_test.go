@@ -104,7 +104,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pipelinetypes.RawReport, emi
 
 func TestDecryptPartialReport(t *testing.T) {
 	ctx := context.Background()
-	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 1, "", "")
+	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ type keyValue struct {
 
 func TestAggregationPipelineOneParty(t *testing.T) {
 	ctx := context.Background()
-	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

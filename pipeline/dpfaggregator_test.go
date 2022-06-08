@@ -87,7 +87,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 
 func TestDecryptPartialReport(t *testing.T) {
 	ctx := context.Background()
-	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 1, "", "")
+	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

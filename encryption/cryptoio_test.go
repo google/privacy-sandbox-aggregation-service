@@ -135,8 +135,8 @@ func TestSaveReadPublicKeyVersions(t *testing.T) {
 
 	want := map[string][]PublicKeyInfo{
 		"version1": {
-			{ID: "id11", Key: "key11", NotBefore: "not_before1", NotAfter: "not_after1"},
-			{ID: "id12", Key: "key12", NotBefore: "not_before2", NotAfter: "not_after2"},
+			{ID: "id11", Key: "key11"},
+			{ID: "id12", Key: "key12"},
 		},
 		"version2": {{ID: "id21", Key: "key21"}},
 	}
@@ -149,7 +149,7 @@ func TestSaveReadPublicKeyVersions(t *testing.T) {
 		{"env-var", ""},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			if err := SavePublicKeyVersions(ctx, want, tc.filePath); err != nil {
+			if err := SavePublicKeyVersions(ctx, want, tc.filePath, 0); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadPublicKeyVersions(ctx, tc.filePath)

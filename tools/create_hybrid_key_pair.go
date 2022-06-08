@@ -25,15 +25,13 @@ import (
 )
 
 var (
-	kmsKeyURI         = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
-	kmsCredentialFile = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
-	secretProjectID   = flag.String("secret_project_id", "", "ID of the GCP project that provides the SecretManager service.")
-	privateKeyDir     = flag.String("private_key_dir", "", "Output directory for the private keys.")
-	keyCount          = flag.Int("key_count", 10, "Count of key pairs to generate.")
-	notBefore         = flag.String("not_before", "", "Start valid timestamp for the keys.")
-	notAfter          = flag.String("not_after", "", "End valid timestamp for the keys.")
-	versionID         = flag.String("version_id", "", "Version of the key pairs.")
-
+	kmsKeyURI          = flag.String("kms_key_uri", "", "Key URI of the GCP KMS service.")
+	kmsCredentialFile  = flag.String("kms_credential_file", "", "Path of the JSON file that stores the credential information for the KMS service.")
+	secretProjectID    = flag.String("secret_project_id", "", "ID of the GCP project that provides the SecretManager service.")
+	privateKeyDir      = flag.String("private_key_dir", "", "Output directory for the private keys.")
+	keyCount           = flag.Int("key_count", 10, "Count of key pairs to generate.")
+	maxAge             = flag.Int("max_age", 604800, "The maximum age in seconds for the cache control. The default is 7 days.")
+	versionID          = flag.String("version_id", "", "Version of the key pairs.")
 	publicKeyInfoFile  = flag.String("public_key_info_file", "", "Output file that contains the public keys and related info.")
 	privateKeyInfoFile = flag.String("private_key_info_file", "", "Output file that includes information about how to get the private keys.")
 )
@@ -42,7 +40,7 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	privKeys, pubInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, *keyCount, *notBefore, *notAfter)
+	privKeys, pubInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, *keyCount)
 	if err != nil {
 		log.Exit(err)
 	}
@@ -75,7 +73,7 @@ func main() {
 	if err := cryptoio.SavePrivateKeyParamsCollection(ctx, privInfo, *privateKeyInfoFile); err != nil {
 		log.Exit(err)
 	}
-	if err := cryptoio.SavePublicKeyVersions(ctx, map[string][]cryptoio.PublicKeyInfo{*versionID: pubInfo}, *publicKeyInfoFile); err != nil {
+	if err := cryptoio.SavePublicKeyVersions(ctx, map[string][]cryptoio.PublicKeyInfo{*versionID: pubInfo}, *publicKeyInfoFile, *maxAge); err != nil {
 		log.Exit(err)
 	}
 }

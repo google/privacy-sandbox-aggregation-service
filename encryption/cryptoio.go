@@ -48,16 +48,14 @@ const (
 
 // PublicKeyInfo contains the details of a standard public key.
 type PublicKeyInfo struct {
-	ID        string `json:"id"`
-	Key       string `json:"key"`
-	NotBefore string `json:"not_before"`
-	NotAfter  string `json:"not_after"`
+	ID  string `json:"id"`
+	Key string `json:"key"`
 }
 
 // SavePublicKeyVersions saves the standard public keys and corresponding information.
 //
 // Keys are saved as an environment variable when filePath is not empty; otherwise as a local or GCS file.
-func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo, filePath string) error {
+func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo, filePath string, maxAge int) error {
 	bKeys, err := json.Marshal(keys)
 	if err != nil {
 		return err
@@ -66,7 +64,8 @@ func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo,
 		os.Setenv(PublicKeysEnv, base64.StdEncoding.EncodeToString(bKeys))
 		return nil
 	}
-	return utils.WriteBytes(ctx, bKeys, filePath)
+	objAttrs := map[string]string{"CacheControl": fmt.Sprintf("max-age=%d", maxAge)}
+	return utils.WriteBytes(ctx, bKeys, filePath, objAttrs)
 }
 
 // ReadPublicKeyVersions reads the standard public keys and corresponding information.
@@ -205,7 +204,7 @@ func SaveStandardPrivateKey(ctx context.Context, params *SaveStandardPrivateKeyP
 	if params.SecretProjectID != "" {
 		return utils.SaveSecret(ctx, data, params.SecretProjectID, params.SecretID)
 	}
-	return "", utils.WriteBytes(ctx, data, params.FilePath)
+	return "", utils.WriteBytes(ctx, data, params.FilePath, nil)
 }
 
 // SavePrefixes saves prefixes to a file.
@@ -216,7 +215,7 @@ func SavePrefixes(ctx context.Context, filename string, prefixes [][]uint128.Uin
 	if err != nil {
 		return fmt.Errorf("prefixes marshal(%s) failed: %+v", prefixes, err)
 	}
-	return utils.WriteBytes(ctx, bPrefixes, filename)
+	return utils.WriteBytes(ctx, bPrefixes, filename, nil)
 }
 
 // SaveDPFParameters saves the DPF parameters into a file.
@@ -227,7 +226,7 @@ func SaveDPFParameters(ctx context.Context, filename string, params *pb.Incremen
 	if err != nil {
 		return fmt.Errorf("params marshal(%s) failed: %v", params.String(), err)
 	}
-	return utils.WriteBytes(ctx, bParams, filename)
+	return utils.WriteBytes(ctx, bParams, filename, nil)
 }
 
 // ReadPrefixes reads the prefixes from a file.
@@ -266,7 +265,7 @@ func SavePrivateKeyParamsCollection(ctx context.Context, idKeys map[string]*Read
 	if err != nil {
 		return err
 	}
-	return utils.WriteBytes(ctx, b, uri)
+	return utils.WriteBytes(ctx, b, uri, nil)
 }
 
 // ReadPrivateKeyParamsCollection reads the information how the private keys can be read.
@@ -300,7 +299,7 @@ func ReadPrivateKeyCollection(ctx context.Context, filePath string) (map[string]
 }
 
 // GenerateHybridKeyPairs generates encryption key pairs with specified valid time window.
-func GenerateHybridKeyPairs(ctx context.Context, keyCount int, notBefore, notAfter string) (map[string]*pb.StandardPrivateKey, []PublicKeyInfo, error) {
+func GenerateHybridKeyPairs(ctx context.Context, keyCount int) (map[string]*pb.StandardPrivateKey, []PublicKeyInfo, error) {
 	privKeys := make(map[string]*pb.StandardPrivateKey)
 	var pubInfo []PublicKeyInfo
 	for i := 0; i < keyCount; i++ {
@@ -311,10 +310,8 @@ func GenerateHybridKeyPairs(ctx context.Context, keyCount int, notBefore, notAft
 		}
 		privKeys[keyID] = priv
 		pubInfo = append(pubInfo, PublicKeyInfo{
-			ID:        keyID,
-			Key:       base64.StdEncoding.EncodeToString(pub.Key),
-			NotBefore: notBefore,
-			NotAfter:  notAfter,
+			ID:  keyID,
+			Key: base64.StdEncoding.EncodeToString(pub.Key),
 		})
 	}
 	return privKeys, pubInfo, nil

@@ -49,11 +49,11 @@ func TestAggregationPipelineDPF(t *testing.T) {
 	rqFile2 := path.Join(fileDir, "rq2")
 
 	ctx := context.Background()
-	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys1, pubKeysInfo1, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	privKeys2, pubKeysInfo2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys2, pubKeysInfo2, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

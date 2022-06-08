@@ -63,7 +63,7 @@ func WriteHierarchicalResultsFile(ctx context.Context, results []HierarchicalRes
 	if err != nil {
 		return err
 	}
-	return utils.WriteBytes(ctx, br, filename)
+	return utils.WriteBytes(ctx, br, filename, nil)
 }
 
 // ReadHierarchicalResultsFile reads the hierarchical query results from a file.
@@ -85,7 +85,7 @@ func WriteHierarchicalConfigFile(ctx context.Context, config *HierarchicalConfig
 	if err != nil {
 		return err
 	}
-	return utils.WriteBytes(ctx, bc, filename)
+	return utils.WriteBytes(ctx, bc, filename, nil)
 }
 
 // ReadHierarchicalConfigFile reads the HierarchicalConfig from a file and validate it.

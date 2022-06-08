@@ -151,7 +151,7 @@ func WriteLines(ctx context.Context, lines []string, filename string) error {
 }
 
 // TODO: Add a unit test for writing and reading files in GCS buckets
-func writeGCSObject(ctx context.Context, data []byte, filename string) error {
+func writeGCSObject(ctx context.Context, data []byte, filename string, objAttrs map[string]string) error {
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return err
@@ -162,6 +162,11 @@ func writeGCSObject(ctx context.Context, data []byte, filename string) error {
 		return err
 	}
 	writer := client.Bucket(bucket).Object(object).NewWriter(ctx)
+	for k, v := range objAttrs {
+		if k == "CacheControl" {
+			writer.CacheControl = v
+		}
+	}
 	if _, err := writer.Write(data); err != nil {
 		return err
 	}
@@ -188,9 +193,9 @@ func readGCSObject(ctx context.Context, filename string) ([]byte, error) {
 }
 
 // WriteBytes writes bytes into a local or GCS file.
-func WriteBytes(ctx context.Context, data []byte, filename string) error {
+func WriteBytes(ctx context.Context, data []byte, filename string, objAttrs map[string]string) error {
 	if strings.HasPrefix(filename, "gs://") {
-		return writeGCSObject(ctx, data, filename)
+		return writeGCSObject(ctx, data, filename, objAttrs)
 	}
 	return ioutil.WriteFile(filename, data, os.ModePerm)
 }

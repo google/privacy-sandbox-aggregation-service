@@ -37,7 +37,7 @@ func TestAggregationPipelineOneParty(t *testing.T) {
 
 func testAggregationPipeline(t testing.TB, withEncryption bool) {
 	ctx := context.Background()
-	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys, pubKeysInfo, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func testAggregationPipeline(t testing.TB, withEncryption bool) {
 
 func testGenerateBrowserReport(t *testing.T, encryptOutput bool) {
 	ctx := context.Background()
-	privKeys, publicKeys, err := cryptoio.GenerateHybridKeyPairs(ctx, 10, "", "")
+	privKeys, publicKeys, err := cryptoio.GenerateHybridKeyPairs(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

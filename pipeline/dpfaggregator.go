@@ -836,7 +836,7 @@ func SaveExpandParameters(ctx context.Context, params *ExpandParameters, uri str
 	if err != nil {
 		return err
 	}
-	return utils.WriteBytes(ctx, b, uri)
+	return utils.WriteBytes(ctx, b, uri, nil)
 }
 
 // ReadExpandParameters reads the ExpandParams from a file.

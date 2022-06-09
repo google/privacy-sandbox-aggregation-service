@@ -1055,8 +1055,8 @@ def go_dependencies():
         name = "com_google_cloud_go",
         build_file_proto_mode = "disable_global",
         importpath = "cloud.google.com/go",
-        sum = "h1:3DXvAyifywvq64LfkKaMOmkWPS1CikIQdMe2lY9vxU8=",
-        version = "v0.97.0",
+        sum = "h1:8ZtzmY4a2JIO2sljMbpqkDYxA8aJQveYr3AMa+X40oc=",
+        version = "v0.87.0",
     )
     go_repository(
         name = "com_google_cloud_go_bigquery",

@@ -140,6 +140,7 @@ go_binary(
         "//encryption:crypto_go_proto",
         "//encryption:cryptoio",
         "//shared:utils",
+        "//third_party/grte:static_libs_for_go",  # keep
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",

@@ -1,0 +1,50 @@
+{
+  "name": "psas-control-plane",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "webpack serve",
+    "test": "jest --verbose",
+    "build": "NODE_ENV=production webpack",
+    "build-dev": "webpack --watch",
+    "deploy": "npm run build && firebase deploy"
+  },
+  "keywords": [],
+  "author": "Haroon Mohamedali",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.17.8",
+    "@babel/preset-env": "^7.16.11",
+    "babel-jest": "^28.1.1",
+    "babel-loader": "^8.2.4",
+    "css-loader": "^6.7.1",
+    "jest": "^28.1.1",
+    "jest-environment-jsdom": "^28.1.1",
+    "jquery": "^3.6.0",
+    "mini-css-extract-plugin": "^2.6.0",
+    "webpack": "^5.71.0",
+    "webpack-cli": "^4.9.2",
+    "webpack-dev-server": "^4.8.0"
+  },
+  "dependencies": {
+    "firebase": "^9.6.10",
+    "regenerator-runtime": "^0.13.9",
+    "uuid": "^8.3.2"
+  },
+  "jest": {
+    "modulePaths": ["/shared/vendor/modules"],
+    "moduleFileExtensions": ["js", "jsx"],
+    "moduleDirectories": ["node_modules", "bower_components", "shared"],
+    "moduleNameMapper": {
+      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/__mocks__/fileMock.js",
+      "\\.(css|less)$": "<rootDir>/__mocks__/styleMock.js"
+    },
+    "transform": {
+      "\\.[jt]sx?$": "babel-jest"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!@ngrx|(?!deck.gl)|ng-dynamic)"
+    ]
+  }
+}

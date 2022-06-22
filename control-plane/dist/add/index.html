@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.blue-indigo.min.css" />
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,300;1,400;1,500;1,700;1,900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="../main.css">
+    <link rel="shortcut icon" href="../images/chromium.png" type="image/x-icon">
+    <title>GSOC Chromium Control Plane - Add Job</title>
+</head>
+
+<body>
+    <div class="mdl-layout mdl-js-layout
+            mdl-layout--fixed-header">
+        <header class="mdl-layout__header">
+            <div class="mdl-layout__header-row">
+                <div id="returnhome" aria-expanded="false" role="button" tabindex="0" class="mdl-layout__drawer-button">
+                    <i class="material-icons">arrow_back</i>
+                </div>
+                <span class="mdl-layout-title">Add Job</span>
+                <div class="mdl-layout-spacer"></div>
+            </div>
+        </header>
+        <main class="mdl-layout__content">
+            <div class="page-content">
+                <h4>Add New Job</h4>
+                <form id="add-job-form" action="#">
+                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+                        <input class="mdl-textfield__input" type="text" id="job-name-field" required>
+                        <label class="mdl-textfield__label" for="job-name-field">Job Name</label>
+                    </div>
+                    <br>
+
+                    <h4>Aggregator 1</h4>
+                    <button type="button" id="add-level-1"
+                        class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect add-level">
+                        <i class="material-icons">add</i> Add Level
+                    </button>
+                    <br>
+                    <br>
+                    <div id="aggregator-1-levels" class="levels">
+                        <div id="aggregator-1-level-0" class="level">
+                            <div id="aggregator-1-level-0" class="level-header active-level" data-id="aggregator-1-level-0">
+                                <span>Level 0</span>
+                                <i class="material-icons">keyboard_arrow_down</i>
+                            </div>
+                            <div id="aggregator-1-level-0-info" class="mdl-grid level-info">
+                                <div class="mdl-cell mdl-cell--12-col">
+                                    <div class="mdl-textfield mdl-js-textfield">
+                                        <textarea class="mdl-textfield__input" type="text" rows="3"
+                                            id="aggregator-1-level-0-message-field"></textarea>
+                                        <label class="mdl-textfield__label" for="aggregator-1-level-0-message-field">Message</label>
+                                    </div>
+                                    <br>
+                                    <div class="mdl-textfield mdl-js-textfield">
+                                        <textarea class="mdl-textfield__input" type="text" rows="3"
+                                            id="aggregator-1-level-0-result-field"></textarea>
+                                        <label class="mdl-textfield__label" for="aggregator-1-level-0-result-field">Result</label>
+                                    </div>
+                                    <br>
+                                    <h6>Current Status</h6>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-1-level-0-option-1">
+                                        <input type="radio" id="aggregator-1-level-0-option-1" class="mdl-radio__button" name="aggregator-1-level-0-options"
+                                            value="Scheduled" checked>
+                                        <span class="mdl-radio__label">Scheduled</span>
+                                    </label>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-1-level-0-option-2">
+                                        <input type="radio" id="aggregator-1-level-0-option-2" class="mdl-radio__button" name="aggregator-1-level-0-options"
+                                            value="Running">
+                                        <span class="mdl-radio__label">Running</span>
+                                    </label>
+                                    <br>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-1-level-0-option-3">
+                                        <input type="radio" id="aggregator-1-level-0-option-3" class="mdl-radio__button" name="aggregator-1-level-0-options"
+                                            value="Finished">
+                                        <span class="mdl-radio__label">Finished</span>
+                                    </label>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-1-level-0-option-4">
+                                        <input type="radio" id="aggregator-1-level-0-option-4" class="mdl-radio__button" name="aggregator-1-level-0-options"
+                                            value="Failed">
+                                        <span class="mdl-radio__label">Failed</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h4>Aggregator 2</h4>
+                    <button type="button" id="add-level-2"
+                        class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect add-level">
+                        <i class="material-icons">add</i> Add Level
+                    </button>
+                    <br>
+                    <br>
+                    <div id="aggregator-2-levels" class="levels">
+                        <div id="aggregator-2-level-0" class="level">
+                            <div id="aggregator-2-level-0" class="level-header active-level" data-id="aggregator-2-level-0">
+                                <span>Level 0</span>
+                                <i class="material-icons">keyboard_arrow_down</i>
+                            </div>
+                            <div id="aggregator-2-level-0-info" class="mdl-grid level-info">
+                                <div class="mdl-cell mdl-cell--12-col aggregator-2-level-0">
+                                    <div class="mdl-textfield mdl-js-textfield">
+                                        <textarea class="mdl-textfield__input" type="text" rows="3"
+                                            id="aggregator-2-level-0-message-field"></textarea>
+                                        <label class="mdl-textfield__label" for="aggregator-2-level-0-message-field">Message</label>
+                                    </div>
+                                    <br>
+                                    <div class="mdl-textfield mdl-js-textfield">
+                                        <textarea class="mdl-textfield__input" type="text" rows="3"
+                                            id="aggregator-2-level-0-result-field"></textarea>
+                                        <label class="mdl-textfield__label" for="aggregator-2-level-0-result-field">Result</label>
+                                    </div>
+                                    <br>
+                                    <h6>Current Status</h6>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-2-level-0-option-1">
+                                        <input type="radio" id="aggregator-2-level-0-option-1" class="mdl-radio__button" name="aggregator-2-level-0-options"
+                                            value="Scheduled" checked>
+                                        <span class="mdl-radio__label">Scheduled</span>
+                                    </label>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-2-level-0-option-2">
+                                        <input type="radio" id="aggregator-2-level-0-option-2" class="mdl-radio__button" name="aggregator-2-level-0-options"
+                                            value="Running">
+                                        <span class="mdl-radio__label">Running</span>
+                                    </label>
+                                    <br>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-2-level-0-option-3">
+                                        <input type="radio" id="aggregator-2-level-0-option-3" class="mdl-radio__button" name="aggregator-2-level-0-options"
+                                            value="Finished">
+                                        <span class="mdl-radio__label">Finished</span>
+                                    </label>
+                                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-2-level-0-option-4">
+                                        <input type="radio" id="aggregator-2-level-0-option-4" class="mdl-radio__button" name="aggregator-2-level-0-options"
+                                            value="Failed">
+                                        <span class="mdl-radio__label">Failed</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+                    <button type="button" id="submit-job"
+                        class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect">
+                        Submit
+                    </button>
+                </form>
+            </div>
+            <br>
+            <br>
+        </main>
+    </div>
+    <script src="../main.js"></script>
+</body>
+
+</html>

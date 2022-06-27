@@ -1,5 +1,8 @@
 node_modules
 package-lock.json
 firebase-debug.log
-firestore.rules
-firestore.indexes.json
+.firebase
+.github
+dist/404.html
+.firebaserc
+firebase.json

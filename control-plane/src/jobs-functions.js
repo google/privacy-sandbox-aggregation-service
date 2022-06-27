@@ -8,7 +8,7 @@ export async function addJob(db) {
     const jobId = uuidv4();
     const jobDoc = doc(db, "jobs", jobId);
     // get the overall status of the job
-    const overrallStatus = getOverrallStatus(VALUES.currentLevelsOne + 1, VALUES.currentLevelsTwo + 1)
+    const overrallStatus = getOverrallStatusFromInput(VALUES.currentLevelsOne + 1, VALUES.currentLevelsTwo + 1)
 
     // enter into the jobs doc
     await setDoc(jobDoc, {
@@ -30,7 +30,7 @@ export async function addJob(db) {
 export async function updateJob(db, jobId) {
     const jobDoc = doc(db, "jobs", jobId);
     // get the overall status of the job
-    const overrallStatus = getOverrallStatus(VALUES.currentLevelsOne, VALUES.currentLevelsTwo);
+    const overrallStatus = getOverrallStatusFromInput(VALUES.currentLevelsOne, VALUES.currentLevelsTwo);
 
     // update the name, status, and last updated of job doc
     await updateDoc(jobDoc, {
@@ -309,7 +309,7 @@ function getQuery(marker) {
 }
 
 // get the overrall status so that it is easier to grab
-function getOverrallStatus(levelsOne, levelsTwo) {
+function getOverrallStatusFromInput(levelsOne, levelsTwo) {
     // the counts of the different statuses
     const statusCount = { "Running": 0, "Scheduled": 0, "Finished": 0 };
 
@@ -330,6 +330,19 @@ function getOverrallStatus(levelsOne, levelsTwo) {
         statusCount[$("input[type=radio][name=aggregator-2-level-" + i + "-options]:checked").val()] += 1;
     }
 
+    return decideStatus(statusCount);
+}
+
+function getOverrallStatus(logs) {
+    const statusCount = { "Running": 0, "Scheduled": 0, "Finished": 0 };
+    for(let i=0; i < logs.length; i++) {
+        statusCount[logs[i].status] += 1;
+    }
+
+    return decideStatus(statusCount);
+}
+
+function decideStatus(statusCount) {
     if (statusCount['Running'] == 0 && statusCount['Scheduled'] == 0 && statusCount['Finished'] > 0) {
         // if all of them are finished, job is done
         return "Finished";
@@ -343,7 +356,6 @@ function getOverrallStatus(levelsOne, levelsTwo) {
     // return scheduled if not in any of these
     return "Scheduled";
 }
-
 
 // a nice function to calculate how long ago the last update was
 export function timeSince(date) {
@@ -395,15 +407,20 @@ async function populateJobs(db, jobs, querySnapshot) {
         let job = {};
         job.id = doc.id;
         let vals = doc.data();
-        job.name = vals.name;
         job.created = vals.created;
         job.updated = vals.updated;
-        job.status = vals.overrallStatus;
         let levelLogs = [];
         // fill in the levelLogs field with the jobs logs 
         levelLogs = await getLevels(db, doc.id, 'aggregator-1', levelLogs)
         levelLogs = await getLevels(db, doc.id, 'aggregator-2', levelLogs)
         job.logs = levelLogs;
+        if(vals.overrallStatus != null) {
+            // job finished or failed
+            job.status = vals.overrallStatus;
+        } else {
+            // job scheduled or running or top level document hasn't been updated
+            job.status = getOverrallStatus(levelLogs)
+        }
         jobs.push(job);
     }));
 
@@ -545,7 +562,7 @@ function setJobHtml(job, newHtml) {
             <tr id="${job.id}" class="job" data-status="${job.status}">
                 <td class="mdl-data-table__cell--non-numeric">${formatTime(job.created)}</td>
                 <td class="mdl-data-table__cell--non-numeric"><i class="material-icons ${job.status}">${VALUES.jobStatus[job.status]}</i></td>
-                <td class="mdl-data-table__cell--non-numeric">${job.name}</td>
+                <td class="mdl-data-table__cell--non-numeric">${job.id}</td>
                 <td class="mdl-data-table__cell--non-numeric">${formatTime(job.updated, true)}</td>
                 <td>
                     <i class="material-icons">settings</i>

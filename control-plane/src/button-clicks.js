@@ -58,9 +58,7 @@ if (window.location.href.indexOf('add') != -1) {
         }
     });
 
-    // when remove aggregator is clicked remove the level and rename the other levels
-    // this is not finished. I need to update the value attribute so that when
-    // i update the html it doesn't remove the previous value
+    // TODO - update the value attribute so it doesn't remove the previous value when the html gets updated.
     $('.levels').on('click', '.remove-aggregator', function (e) {
         let id = $(this).data('id');
         // split the id to get the aggregator number and the level number
@@ -187,7 +185,7 @@ if (window.location.href.indexOf('add') != -1) {
         let updated = $('#updated').val();
         if (status == "" && created == "" && updated == "") {
             // reset the table to original values
-            makeTable(VALUES.db, query(collection(VALUES.db, "jobs"), orderBy('created', 'desc'), limit(10)))
+            makeTable(VALUES.db, query(collection(VALUES.db, "jobs-test"), orderBy('created', 'desc'), limit(10)))
             $('.filter-side-holder').hide()
         } else {
             let filterQuery = null;
@@ -212,15 +210,15 @@ if (window.location.href.indexOf('add') != -1) {
 
             // the different ways the query can be made
             if(status != "" && created == "" && updated == "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs-test"), where("overrallStatus", "==", status), orderBy('created', 'desc'), limit(10))
             } else if (status != "" && created != "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs-test"), where("overrallStatus", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
             } else if (status != "" && updated != "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs-test"), where("overrallStatus", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
             } else if (updated != "" && created == "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs-test"), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
             } else if (created != "" && updated == "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs-test"), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
             }
 
             // make the table
@@ -250,7 +248,7 @@ if (window.location.href.indexOf('add') != -1) {
         if (e.which == 13) {
             let searchTerm = $('#search').val()
             VALUES.searchTerm = searchTerm;
-            let thequery = query(collection(VALUES.db, "jobs"), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), limit(10))
+            let thequery = query(collection(VALUES.db, "jobs-test"), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), limit(10))
             makeTable(VALUES.db, thequery, true)
             return false;
         }

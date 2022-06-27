@@ -5,4 +5,3 @@ firebase-debug.log
 .github
 dist/404.html
 .firebaserc
-firebase.json

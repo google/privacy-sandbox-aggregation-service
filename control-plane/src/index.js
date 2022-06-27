@@ -1,19 +1,13 @@
 import { initializeApp } from "firebase/app";
-import {  collection, query, orderBy, limit, getFirestore } from "firebase/firestore";
+import {  collection, query, orderBy, limit, getFirestore, collectionGroup } from "firebase/firestore";
 import "./button-clicks";
 import { addJob, validateFields, makeTable, initUpdatePage, updateJob } from "./jobs-functions"
 import "./styles/index.css";
 import VALUES from "./values";
-import regeneratorRuntime from "regenerator-runtime";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyB3PnhacstRYpPwnfk1IiOZXjbCe96i_7A",
-    authDomain: "privacyaggregate-gsoc.firebaseapp.com",
-    projectId: "privacyaggregate-gsoc",
-    storageBucket: "privacyaggregate-gsoc.appspot.com",
-    messagingSenderId: "985023793719",
-    appId: "1:985023793719:web:8b35372118aa53cd230db2"
-};
+// **********************************
+// Add firebaseConfig variable here.
+// **********************************
 
 // Initialize Firebase (Firestore and Analytics)
 const app = initializeApp(firebaseConfig);
@@ -57,5 +51,5 @@ if (window.location.href.indexOf('add') != -1) {
     } 
 
     // make the table with the first 10
-    makeTable(db, query(collection(VALUES.db, "jobs"), orderBy('created', 'desc'), limit(10)), true)
+    makeTable(db, query(collectionGroup(VALUES.db, "jobs"), orderBy('created', 'desc'), limit(10)), true)
 }

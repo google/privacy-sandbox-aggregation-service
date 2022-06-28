@@ -33,11 +33,19 @@ type AggregatorJobs struct {
 type AggregationJob struct {
 	// The aggregator is represented by its origin string.
 	Aggregators map[string]*AggregatorJobs
+	// Overall status of a job.
+	Created int64  `firestore:"created,omitempty"`
 }
 
 // WriteJobs writes a list of jobs to Firestore. The input jobs are keyed by the query IDs.
 func WriteJobs(ctx context.Context, client *firestore.Client, path string, jobs map[string]*AggregationJob) error {
 	for queryID, job := range jobs {
+		_, err := client.Collection(path).Doc(queryID).Set(ctx, map[string]interface{}{
+			"created": job.Created,
+		})
+		if err != nil {
+			return err
+		}
 		for origin, aggjobs := range job.Aggregators {
 			for level, subjob := range aggjobs.LevelJobs {
 				_, err := client.Collection(path).Doc(queryID).Collection(origin).Doc(fmt.Sprintf("level-%d", level)).Set(ctx, subjob)

@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import {  collection, query, orderBy, limit, getFirestore, collectionGroup } from "firebase/firestore";
+import { query, orderBy, limit, getFirestore, collectionGroup } from "firebase/firestore";
 import "./button-clicks";
 import { addJob, validateFields, makeTable, initUpdatePage, updateJob } from "./jobs-functions"
 import "./styles/index.css";
@@ -9,6 +9,15 @@ import VALUES from "./values";
 // Add firebaseConfig variable here.
 // **********************************
 
+const firebaseConfig = {
+    apiKey: "AIzaSyB3PnhacstRYpPwnfk1IiOZXjbCe96i_7A",
+    authDomain: "privacyaggregate-gsoc.firebaseapp.com",
+    projectId: "privacyaggregate-gsoc",
+    storageBucket: "privacyaggregate-gsoc.appspot.com",
+    messagingSenderId: "985023793719",
+    appId: "1:985023793719:web:8b35372118aa53cd230db2"
+};
+
 // Initialize Firebase (Firestore and Analytics)
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -16,7 +25,7 @@ VALUES.db = db;
 
 if (window.location.href.indexOf('add') != -1) {
     // ADD JOB PAGE
-    $('#submit-job').click(function () {
+    $('#submit-job').on('click', function () {
         if (validateFields()) {
             addJob(db);
         }

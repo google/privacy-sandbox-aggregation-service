@@ -1,6 +1,9 @@
 import VALUES from './values.js'
 import { deleteJob, makeTable, nextPage, prevPage, addLevel } from './jobs-functions.js';
 import { query, where, collection, orderBy, limit, Timestamp } from 'firebase/firestore';
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import Levels from './components/Levels.js';
 
 var currentLevelsOne = VALUES.currentLevelsOne;
 var currentLevelsTwo = VALUES.currentLevelsTwo;
@@ -8,6 +11,11 @@ var currentLevelsTwo = VALUES.currentLevelsTwo;
 if (window.location.href.indexOf('add') != -1) {
 
     // ADD JOB BUTTON FUNCTIONS
+
+    const firstAggregator = document.querySelector("#aggregator-1-react");
+    const firstAggregatorRoot = createRoot(firstAggregator) ;
+    const secondAggregator = document.querySelector("#aggregator-2-react");
+    const secondAggregatorRoot = createRoot(secondAggregator);
 
     // return home button
     document.getElementById('returnhome').addEventListener('click', () => {
@@ -40,22 +48,33 @@ if (window.location.href.indexOf('add') != -1) {
             currentLevelsOne += 1;
             currentLevel = currentLevelsOne;
             aggregator = 1;
+            if(window.levelOne == undefined) {
+                firstAggregatorRoot.render(<Levels aggregator={1} />)
+            } else {
+                window.levelOne.addLevel(currentLevel, aggregator)
+            }
         } else {
             // increment the current level for aggregator-2
             VALUES.currentLevelsTwo += 1;
             currentLevelsTwo += 1;
             currentLevel = currentLevelsTwo;
             aggregator = 2;
+            if(window.levelTwo == undefined) {
+                secondAggregatorRoot.render(<Levels aggregator={2} />)
+            } else {
+                window.levelTwo.addLevel(currentLevel, aggregator)
+            }
         }
 
-        let appendHtml = addLevel(currentLevel, aggregator);
+        // let appendHtml = addLevel(currentLevel, aggregator);
 
-        // add html to respective aggregator
-        if (id == "add-level-1") {
-            $('#aggregator-1-levels').append(appendHtml);
-        } else {
-            $('#aggregator-2-levels').append(appendHtml);
-        }
+        // // add html to respective aggregator
+        // if (id == "add-level-1") {
+        //     $('#aggregator-1-levels').append(appendHtml);
+        // } else {
+        //     $('#aggregator-2-levels').append(appendHtml);
+        // }
+
     });
 
     // TODO - update the value attribute so it doesn't remove the previous value when the html gets updated.
@@ -185,7 +204,7 @@ if (window.location.href.indexOf('add') != -1) {
         let updated = $('#updated').val();
         if (status == "" && created == "" && updated == "") {
             // reset the table to original values
-            makeTable(VALUES.db, query(collection(VALUES.db, "jobs-test"), orderBy('created', 'desc'), limit(10)))
+            makeTable(VALUES.db, query(collection(VALUES.db, "jobs"), orderBy('created', 'desc'), limit(10)))
             $('.filter-side-holder').hide()
         } else {
             let filterQuery = null;
@@ -210,15 +229,15 @@ if (window.location.href.indexOf('add') != -1) {
 
             // the different ways the query can be made
             if(status != "" && created == "" && updated == "") {
-                filterQuery = query(collection(VALUES.db, "jobs-test"), where("overrallStatus", "==", status), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), orderBy('created', 'desc'), limit(10))
             } else if (status != "" && created != "") {
-                filterQuery = query(collection(VALUES.db, "jobs-test"), where("overrallStatus", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
             } else if (status != "" && updated != "") {
-                filterQuery = query(collection(VALUES.db, "jobs-test"), where("overrallStatus", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
             } else if (updated != "" && created == "") {
-                filterQuery = query(collection(VALUES.db, "jobs-test"), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs"), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
             } else if (created != "" && updated == "") {
-                filterQuery = query(collection(VALUES.db, "jobs-test"), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, "jobs"), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
             }
 
             // make the table
@@ -248,7 +267,7 @@ if (window.location.href.indexOf('add') != -1) {
         if (e.which == 13) {
             let searchTerm = $('#search').val()
             VALUES.searchTerm = searchTerm;
-            let thequery = query(collection(VALUES.db, "jobs-test"), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), limit(10))
+            let thequery = query(collection(VALUES.db, "jobs"), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), limit(10))
             makeTable(VALUES.db, thequery, true)
             return false;
         }

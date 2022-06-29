@@ -14,9 +14,6 @@ body {
 #aggregation-jobs {
     width: 100%;
 }
-.level:first-of-type {
-    border-top: 1px solid #d5d5d5;
-}
 .level {
     border-bottom: 1px solid #d5d5d5;
 }

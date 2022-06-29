@@ -1,6 +1,22 @@
 import { doc, updateDoc, setDoc, Timestamp, getDocs, getDoc, collection, deleteDoc, query, startAfter, orderBy, limit, startAt, where } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import VALUES from './values.js'
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import Jobs from './components/Jobs';
+import UpdateLevel from "./components/UpdateLevel.js";
+
+let currentHref = window.location.href;
+
+// For the jobs table
+const container = document.querySelector('#aggregation-jobs tbody');
+const tableRoot = currentHref.indexOf('update') == -1 && currentHref.indexOf('add') == -1 ? createRoot(container) : null;
+
+// For update levels
+const firstAggregator = document.querySelector("#aggregator-1-levels");
+const firstAggregatorRoot = currentHref.indexOf('update') != -1 ? createRoot(firstAggregator) : null;
+const secondAggregator = document.querySelector("#aggregator-2-levels");
+const secondAggregatorRoot = currentHref.indexOf('update') != -1 ? createRoot(secondAggregator) : null;
 
 // ADD Job function
 export async function addJob(db) {
@@ -12,7 +28,6 @@ export async function addJob(db) {
 
     // enter into the jobs doc
     await setDoc(jobDoc, {
-        name: $("#job-name-field").val(),
         overrallStatus: overrallStatus,
         created: Timestamp.now(),
         updated: Timestamp.now(),
@@ -34,7 +49,6 @@ export async function updateJob(db, jobId) {
 
     // update the name, status, and last updated of job doc
     await updateDoc(jobDoc, {
-        name: $("#job-name-field").val(),
         overrallStatus: overrallStatus,
         updated: Timestamp.now(),
     });
@@ -79,8 +93,6 @@ export async function makeTable(db, thequery, first) {
     } else {
         // basic no jobs response
         $('#p2').hide();
-
-        console.log("no jobs");
 
         let newHtml = '<td colspan=5><h5 style="text-align: center;">No Jobs</h5></td>';
         $('#aggregation-jobs tbody').html(newHtml)
@@ -216,67 +228,8 @@ function fillInUpdateFields(jobData) {
     // is-dirty indicates that field has a value
     $('#job-name-field').parent().addClass('is-dirty')
     
-    $('#aggregator-1-levels').html(levelHtml(aggregatorOneLevels, 1))
-    $('#aggregator-2-levels').html(levelHtml(aggregatorTwoLevels, 2))
-}
-
-// make the level html code for update page
-function levelHtml(levels, aggregator) {
-    let appendHtml = '';
-    for(let i=0; i < levels.length; i++) {
-
-        // cleans code later on
-        let level = levels[i];
-        let currentLevel = level.level.split('-')[level.level.split('-').length - 1];
-
-        appendHtml += `
-            <div id="aggregator-${aggregator}-level-${currentLevel}" class="level">
-                <div id="aggregator-${aggregator}-level-${currentLevel}-header" class="level-header active-level" data-id="aggregator-${aggregator}-level-${currentLevel}">
-                    <span>Level ${currentLevel}</span>
-                    <i class="material-icons">keyboard_arrow_down</i>
-                </div>
-                <div id="aggregator-${aggregator}-level-${currentLevel}-info" class="mdl-grid level-info">
-                    <div class="mdl-cell mdl-cell--12-col aggregator-${aggregator}-level-${currentLevel}">
-                        <div class="mdl-textfield mdl-js-textfield">
-                            <textarea class="mdl-textfield__input" type="text" rows="3"
-                                id="aggregator-${aggregator}-level-${currentLevel}-message-field" value="${level.message}"></textarea>
-                            <label class="mdl-textfield__label" for="aggregator-${aggregator}-level-${currentLevel}-message-field">Message</label>
-                        </div>
-                        <br>
-                        <div class="mdl-textfield mdl-js-textfield">
-                            <textarea class="mdl-textfield__input" type="text" rows="3"
-                                id="aggregator-${aggregator}-level-${currentLevel}-result-field" value="${level.result}"></textarea>
-                            <label class="mdl-textfield__label" for="aggregator-${aggregator}-level-${currentLevel}-result-field">Result</label>
-                        </div>
-                        <br>
-                        <h6>Current Status</h6>
-                        <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-1">
-                            <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-1" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                                value="Scheduled" ${level.status == "Scheduled" ? "checked" : ""}>
-                            <span class="mdl-radio__label">Scheduled</span>
-                        </label>
-                        <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-2">
-                            <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-2" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                                value="Running" ${level.status == "Running" ? "checked" : ""}>
-                            <span class="mdl-radio__label">Running</span>
-                        </label>
-                        <br>
-                        <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-3">
-                            <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-3" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                                value="Finished" ${level.status == "Finished" ? "checked" : ""}>
-                            <span class="mdl-radio__label">Finished</span>
-                        </label>
-                        <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-4">
-                            <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-4" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                                value="Failed" ${level.status == "Failed" ? "checked" : ""}>
-                            <span class="mdl-radio__label">Failed</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    return appendHtml;
+    firstAggregatorRoot.render(<UpdateLevel levels={aggregatorOneLevels} aggregator={1} />)
+    secondAggregatorRoot.render(<UpdateLevel levels={aggregatorTwoLevels} aggregator={2} />)
 }
 
 // get the specific query for either prevPage or nextPage and startAt or startAfter marker
@@ -509,74 +462,5 @@ function canAdvance(length) {
 }
 
 function setHtml(jobs) {
-    for (let i = 0; i < jobs.length; i++) {
-        let newHtml = '';
-            
-        let job = jobs[i]  // just makes the code cleaner later on
-        
-        // build the job part of the table
-        newHtml = setJobHtml(job, newHtml)
-
-        // build the log part of the table
-        newHtml = setLogHtml(job, newHtml)
-
-        // add the final parts of the tr, td, and div
-        newHtml += `
-                    </div>
-                    <br>
-                </td>
-            </tr>
-        `;
-
-        // append html to table
-        $('#aggregation-jobs tbody').append(newHtml)
-    }
-}
-
-function setLogHtml(job, newHtml) {
-    for(let j = 0; j < job.logs.length; j++) {   // loop through the logs and append them to the html tree
-
-        let log = job.logs[j]   // makes the code cleaner later on
-
-        newHtml += `
-            <div class="log">
-                <div id="${job.id}-${log.level}-header" data-status="${log.status}" class="log-header" data-id="${job.id}-${log.level}">
-                    <span>${log.level}</span>
-                    <i class="material-icons ${log.status}">${VALUES.jobStatus[log.status]}</i>
-                    <i class="material-icons">keyboard_arrow_down</i>
-                </div>
-                <div id="${job.id}-${log.level}-info" class="log-info">
-                    <p><b>Result</b></p>
-                    <p>${log.result=="" ? "N/A" : log.result}</p>
-                    <p><b>Message</b></p>
-                    <p>${log.message=="" ? "N/A" : log.message}</p>
-                </div>
-            </div>
-        `;
-    }
-    return newHtml;
-}
-
-function setJobHtml(job, newHtml) {
-    newHtml += `
-            <tr id="${job.id}" class="job" data-status="${job.status}">
-                <td class="mdl-data-table__cell--non-numeric">${formatTime(job.created)}</td>
-                <td class="mdl-data-table__cell--non-numeric"><i class="material-icons ${job.status}">${VALUES.jobStatus[job.status]}</i></td>
-                <td class="mdl-data-table__cell--non-numeric">${job.id}</td>
-                <td class="mdl-data-table__cell--non-numeric">${formatTime(job.updated, true)}</td>
-                <td>
-                    <i class="material-icons">settings</i>
-                    <div class="settings-dropdown">
-                        <div class="dropdown-setting" data-type="edit" data-id="${job.id}"><i class="material-icons">edit</i> Edit</div>
-                        <div class="dropdown-setting" data-type="delete" data-id="${job.id}"><i class="material-icons">delete</i> Delete</div>
-                    </div>
-                    <i class="material-icons" data-status="${job.status}" id="${job.id}-dropdown">keyboard_arrow_down</i>
-                </td>
-            </tr>
-            <tr id="${job.id}-info" class="logs">
-                <td colspan=5>
-                    <div class="levels-logs">
-                        <h5>Logs</h5>
-        `;
-    return newHtml;
+    tableRoot.render(<Jobs jobs={jobs} />);
 }

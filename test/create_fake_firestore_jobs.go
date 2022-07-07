@@ -79,38 +79,38 @@ func randomTimestamp() time.Time {
 func createSucceededJob() (string, *jobmonitor.AggregationJob) {
 	randTime := randomTimestamp()
 	return uuid.New(), &jobmonitor.AggregationJob{
-		Created: randTime.Add(-20 * time.Minute).Unix(),
+		Created: randTime.Add(-20 * time.Minute),
 		Aggregators: map[string]*jobmonitor.AggregatorJobs{
 			"aggregator1": {LevelJobs: map[int]*jobmonitor.PipelineJob{
 				0: {
-					Created: randTime.Add(-20 * time.Minute).Unix(),
+					Created: randTime.Add(-20 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Add(-10 * time.Minute).Unix(),
+					Updated: randTime.Add(-10 * time.Minute),
 				},
 				1: {
-					Created: randTime.Add(-9 * time.Minute).Unix(),
+					Created: randTime.Add(-9 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Unix(),
+					Updated: randTime,
 				},
 			}},
 			"aggregator2": {LevelJobs: map[int]*jobmonitor.PipelineJob{
 				0: {
-					Created: randTime.Add(-20 * time.Minute).Unix(),
+					Created: randTime.Add(-20 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Add(-10 * time.Minute).Unix(),
+					Updated: randTime.Add(-10 * time.Minute),
 				},
 				1: {
-					Created: randTime.Add(-9 * time.Minute).Unix(),
+					Created: randTime.Add(-9 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Unix(),
+					Updated: randTime,
 				},
 			}},
 		}}
@@ -119,38 +119,38 @@ func createSucceededJob() (string, *jobmonitor.AggregationJob) {
 func createFailJobOneFail() (string, *jobmonitor.AggregationJob) {
 	randTime := time.Now()
 	return uuid.New(), &jobmonitor.AggregationJob{
-		Created: randTime.Add(-20 * time.Minute).Unix(),
+		Created: randTime.Add(-20 * time.Minute),
 		Aggregators: map[string]*jobmonitor.AggregatorJobs{
 			"aggregator1": {LevelJobs: map[int]*jobmonitor.PipelineJob{
 				0: {
-					Created: randTime.Add(-20 * time.Minute).Unix(),
+					Created: randTime.Add(-20 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Add(-10 * time.Minute).Unix(),
+					Updated: randTime.Add(-10 * time.Minute),
 				},
 				1: {
-					Created: randTime.Add(-9 * time.Minute).Unix(),
+					Created: randTime.Add(-9 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Unix(),
+					Updated: randTime,
 				},
 			}},
 			"aggregator2": {LevelJobs: map[int]*jobmonitor.PipelineJob{
 				0: {
-					Created: randTime.Add(-20 * time.Minute).Unix(),
+					Created: randTime.Add(-20 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Add(-10 * time.Minute).Unix(),
+					Updated: randTime.Add(-10 * time.Minute),
 				},
 				1: {
-					Created: randTime.Add(-9 * time.Minute).Unix(),
+					Created: randTime.Add(-9 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "failed",
-					Updated: randTime.Unix(),
+					Updated: randTime,
 				},
 			}},
 		}}
@@ -159,38 +159,38 @@ func createFailJobOneFail() (string, *jobmonitor.AggregationJob) {
 func createRunningJob() (string, *jobmonitor.AggregationJob) {
 	randTime := time.Now()
 	return uuid.New(), &jobmonitor.AggregationJob{
-		Created: randTime.Add(-20 * time.Minute).Unix(),
+		Created: randTime.Add(-20 * time.Minute),
 		Aggregators: map[string]*jobmonitor.AggregatorJobs{
 			"aggregator1": {LevelJobs: map[int]*jobmonitor.PipelineJob{
 				0: {
-					Created: randTime.Add(-20 * time.Minute).Unix(),
+					Created: randTime.Add(-20 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Add(-10 * time.Minute).Unix(),
+					Updated: randTime.Add(-10 * time.Minute),
 				},
 				1: {
-					Created: randTime.Add(-9 * time.Minute).Unix(),
+					Created: randTime.Add(-9 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Unix(),
+					Updated: randTime,
 				},
 			}},
 			"aggregator2": {LevelJobs: map[int]*jobmonitor.PipelineJob{
 				0: {
-					Created: randTime.Add(-20 * time.Minute).Unix(),
+					Created: randTime.Add(-20 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "finished",
-					Updated: randTime.Add(-10 * time.Minute).Unix(),
+					Updated: randTime.Add(-10 * time.Minute),
 				},
 				1: {
-					Created: randTime.Add(-9 * time.Minute).Unix(),
+					Created: randTime.Add(-9 * time.Minute),
 					Message: "TBD",
 					Result:  "TBD",
 					Status:  "running",
-					Updated: randTime.Unix(),
+					Updated: randTime,
 				},
 			}},
 		}}

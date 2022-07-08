@@ -50,6 +50,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 	"github.com/google/privacy-sandbox-aggregation-service/test/onepartydataconverter"
 )
@@ -75,28 +76,19 @@ func main() {
 
 	ctx := context.Background()
 	var (
-		helperPubKeys1, helperPubKeys2 map[string][]cryptoio.PublicKeyInfo
+		helperPubKeys1, helperPubKeys2 *reporttypes.PublicKeys
 		err                            error
 	)
-	helperPubKeys1, err = cryptoio.ReadPublicKeyVersions(ctx, *publicKeysURI1)
+	helperPubKeys1, err = cryptoio.ReadPublicKeys(ctx, *publicKeysURI1)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
 	if *publicKeysURI2 != "" {
-		helperPubKeys2, err = cryptoio.ReadPublicKeyVersions(ctx, *publicKeysURI2)
+		helperPubKeys2, err = cryptoio.ReadPublicKeys(ctx, *publicKeysURI2)
 		if err != nil {
 			log.Exit(ctx, err)
 		}
 
-	}
-
-	// Use any version of the public keys until the version control is designed.
-	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
-	for _, v := range helperPubKeys1 {
-		publicKeyInfo1 = v
-	}
-	for _, v := range helperPubKeys2 {
-		publicKeyInfo2 = v
 	}
 
 	pipeline := beam.NewPipeline()
@@ -109,8 +101,8 @@ func main() {
 			PartialReportURI1: *encryptedReportURI1,
 			PartialReportURI2: *encryptedReportURI2,
 			KeyBitSize:        *keyBitSize,
-			PublicKeys1:       publicKeyInfo1,
-			PublicKeys2:       publicKeyInfo2,
+			PublicKeys1:       helperPubKeys1,
+			PublicKeys2:       helperPubKeys2,
 			Shards:            *fileShards,
 			EncryptOutput:     *encryptOutput,
 		})
@@ -119,7 +111,7 @@ func main() {
 		onepartydataconverter.GenerateEncryptedReport(scope, &onepartydataconverter.GenerateEncryptedReportParams{
 			RawReportURI:       *conversionURI,
 			EncryptedReportURI: *encryptedReportURI1,
-			PublicKeys:         publicKeyInfo1,
+			PublicKeys:         helperPubKeys1,
 			Shards:             *fileShards,
 			EncryptOutput:      *encryptOutput,
 		})

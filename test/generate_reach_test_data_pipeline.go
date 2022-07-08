@@ -44,22 +44,13 @@ func main() {
 	beam.Init()
 
 	ctx := context.Background()
-	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysURI1)
+	helperPubKeys1, err := cryptoio.ReadPublicKeys(ctx, *publicKeysURI1)
 	if err != nil {
 		log.Exit(ctx, err)
 	}
-	helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *publicKeysURI2)
+	helperPubKeys2, err := cryptoio.ReadPublicKeys(ctx, *publicKeysURI2)
 	if err != nil {
 		log.Exit(ctx, err)
-	}
-
-	// Use any version of the public keys until the version control is designed.
-	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
-	for _, v := range helperPubKeys1 {
-		publicKeyInfo1 = v
-	}
-	for _, v := range helperPubKeys2 {
-		publicKeyInfo2 = v
 	}
 
 	pipeline := beam.NewPipeline()
@@ -69,8 +60,8 @@ func main() {
 		ReachReportURI:    *conversionURI,
 		PartialReportURI1: *encryptedReportURI1,
 		PartialReportURI2: *encryptedReportURI2,
-		PublicKeys1:       publicKeyInfo1,
-		PublicKeys2:       publicKeyInfo2,
+		PublicKeys1:       helperPubKeys1,
+		PublicKeys2:       helperPubKeys2,
 		KeyBitSize:        *keyBitSize,
 		Shards:            *fileShards,
 	})

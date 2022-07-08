@@ -46,16 +46,10 @@ const (
 	PublicKeysEnv = "AGGPUBLICKEYS"
 )
 
-// PublicKeyInfo contains the details of a standard public key.
-type PublicKeyInfo struct {
-	ID  string `json:"id"`
-	Key string `json:"key"`
-}
-
-// SavePublicKeyVersions saves the standard public keys and corresponding information.
+// SavePublicKeys saves the standard public keys and corresponding key IDs.
 //
 // Keys are saved as an environment variable when filePath is not empty; otherwise as a local or GCS file.
-func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo, filePath string, maxAge int) error {
+func SavePublicKeys(ctx context.Context, keys *reporttypes.PublicKeys, filePath string, maxAge int) error {
 	bKeys, err := json.Marshal(keys)
 	if err != nil {
 		return err
@@ -68,10 +62,10 @@ func SavePublicKeyVersions(ctx context.Context, keys map[string][]PublicKeyInfo,
 	return utils.WriteBytes(ctx, bKeys, filePath, objAttrs)
 }
 
-// ReadPublicKeyVersions reads the standard public keys and corresponding information.
+// ReadPublicKeys reads the standard public keys and corresponding information.
 //
 // When filePath is empty, keys are read from a environment variable; otherwise from a local or GCS file.
-func ReadPublicKeyVersions(ctx context.Context, filePath string) (map[string][]PublicKeyInfo, error) {
+func ReadPublicKeys(ctx context.Context, filePath string) (*reporttypes.PublicKeys, error) {
 	var (
 		bKeys []byte
 		err   error
@@ -91,7 +85,7 @@ func ReadPublicKeyVersions(ctx context.Context, filePath string) (map[string][]P
 			return nil, err
 		}
 	}
-	keys := make(map[string][]PublicKeyInfo)
+	keys := &reporttypes.PublicKeys{}
 	err = json.Unmarshal(bKeys, &keys)
 	return keys, err
 }
@@ -299,9 +293,9 @@ func ReadPrivateKeyCollection(ctx context.Context, filePath string) (map[string]
 }
 
 // GenerateHybridKeyPairs generates encryption key pairs with specified valid time window.
-func GenerateHybridKeyPairs(ctx context.Context, keyCount int) (map[string]*pb.StandardPrivateKey, []PublicKeyInfo, error) {
+func GenerateHybridKeyPairs(ctx context.Context, keyCount int) (map[string]*pb.StandardPrivateKey, *reporttypes.PublicKeys, error) {
 	privKeys := make(map[string]*pb.StandardPrivateKey)
-	var pubInfo []PublicKeyInfo
+	pubInfo := &reporttypes.PublicKeys{}
 	for i := 0; i < keyCount; i++ {
 		keyID := uuid.New()
 		priv, pub, err := standardencrypt.GenerateStandardKeyPair()
@@ -309,7 +303,7 @@ func GenerateHybridKeyPairs(ctx context.Context, keyCount int) (map[string]*pb.S
 			return nil, nil, err
 		}
 		privKeys[keyID] = priv
-		pubInfo = append(pubInfo, PublicKeyInfo{
+		pubInfo.Keys = append(pubInfo.Keys, reporttypes.PublicKeyInfo{
 			ID:  keyID,
 			Key: base64.StdEncoding.EncodeToString(pub.Key),
 		})
@@ -318,8 +312,8 @@ func GenerateHybridKeyPairs(ctx context.Context, keyCount int) (map[string]*pb.S
 }
 
 // GetRandomPublicKey picks a random public key from a list for the browser simulator.
-func GetRandomPublicKey(keys []PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
-	keyInfo := keys[rand.Intn(len(keys))]
+func GetRandomPublicKey(keys *reporttypes.PublicKeys) (string, *pb.StandardPublicKey, error) {
+	keyInfo := keys.Keys[rand.Intn(len(keys.Keys))]
 	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
 	if err != nil {
 		return "", nil, err

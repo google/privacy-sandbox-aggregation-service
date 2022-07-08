@@ -16,8 +16,6 @@ package onepartyaggregator
 
 import (
 	"context"
-	"encoding/base64"
-	"math/rand"
 	"testing"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
@@ -35,17 +33,8 @@ import (
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
 
-func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
-	keyInfo := keys[rand.Intn(len(keys))]
-	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
-	if err != nil {
-		return "", nil, err
-	}
-	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
-}
-
 type encryptReportFn struct {
-	PublicKeys []cryptoio.PublicKeyInfo
+	PublicKeys *reporttypes.PublicKeys
 }
 
 func (fn *encryptReportFn) ProcessElement(ctx context.Context, report *pipelinetypes.RawReport, emit func(*pb.AggregatablePayload)) error {
@@ -60,7 +49,7 @@ func (fn *encryptReportFn) ProcessElement(ctx context.Context, report *pipelinet
 		return err
 	}
 
-	keyID, key, err := getRandomPublicKey(fn.PublicKeys)
+	keyID, key, err := cryptoio.GetRandomPublicKey(fn.PublicKeys)
 	if err != nil {
 		return err
 	}
@@ -74,7 +63,7 @@ func (fn *encryptReportFn) ProcessElement(ctx context.Context, report *pipelinet
 }
 
 type standardEncryptFn struct {
-	PublicKeys []cryptoio.PublicKeyInfo
+	PublicKeys *reporttypes.PublicKeys
 }
 
 func (fn *standardEncryptFn) ProcessElement(report *pipelinetypes.RawReport, emit func(*pb.AggregatablePayload)) error {
@@ -90,7 +79,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pipelinetypes.RawReport, emi
 	}
 
 	sharedInfo := "context"
-	keyID, publicKey, err := getRandomPublicKey(fn.PublicKeys)
+	keyID, publicKey, err := cryptoio.GetRandomPublicKey(fn.PublicKeys)
 	if err != nil {
 		return err
 	}

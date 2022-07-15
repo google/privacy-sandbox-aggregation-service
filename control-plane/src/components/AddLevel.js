@@ -1,13 +1,13 @@
 import React from "react";
 
+
+// For add job page, which is currently not shown
 const Level = (props) => {
 
     // cleans code later on
     let currentLevel = props.currentLevel;
     let aggregator = props.aggregator;
 
-
-    // TODO - finish converting to proper formatting
     return (
         <div id={"aggregator-" + aggregator + "-level-" + currentLevel} className="level">
             <div id={"aggregator-" + aggregator + "-level-" + currentLevel + "-header"} className="level-header active-level" data-id={"aggregator-" + aggregator + "-level-" + currentLevel}>

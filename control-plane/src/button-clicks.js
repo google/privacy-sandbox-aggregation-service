@@ -1,6 +1,6 @@
 import VALUES from './values.js'
-import { deleteJob, makeTable, nextPage, prevPage, addLevel } from './jobs-functions.js';
-import { query, where, collection, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { deleteJob, makeTable, nextPage, prevPage } from './jobs-functions.js';
+import { query, where, collection, orderBy, limit, Timestamp, collectionGroup } from 'firebase/firestore';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Levels from './components/Levels.js';
@@ -66,15 +66,6 @@ if (window.location.href.indexOf('add') != -1) {
             }
         }
 
-        // let appendHtml = addLevel(currentLevel, aggregator);
-
-        // // add html to respective aggregator
-        // if (id == "add-level-1") {
-        //     $('#aggregator-1-levels').append(appendHtml);
-        // } else {
-        //     $('#aggregator-2-levels').append(appendHtml);
-        // }
-
     });
 
     // TODO - update the value attribute so it doesn't remove the previous value when the html gets updated.
@@ -138,13 +129,13 @@ if (window.location.href.indexOf('add') != -1) {
 
     // HOMEPAGE FUNCTIONS
 
-    // add job button
-    document.getElementById('addjob').addEventListener('click', () => {
-        window.location.href = './add';
-    });
+    // TODO - finish implementing add job functionality
+    // document.getElementById('addjob').addEventListener('click', () => {
+    //     window.location.href = './add';
+    // });
 
     // when a job is clicked open up the logs and change color/icons
-    $('#aggregation-jobs').on('click', '.job', function () {
+    $('#render-table').on('click', '.job', function () {
         let id = $(this).attr('id');
         let infoId = '#' + id + '-info';
         $(infoId).toggle();
@@ -154,23 +145,23 @@ if (window.location.href.indexOf('add') != -1) {
     });
 
     // when the header of a log is clicked open up the info with result/message and change color/icons
-    $('#aggregation-jobs').on('click', '.log-header', function () {
+    $('#render-table').on('click', '.log-header', function () {
         let id = $(this).data('id');
         let infoId = '#' + id + '-info';
-        $(infoId).toggle();
+        $(infoId).toggleClass('active-log');
         let status = $(this).data('status');
         $('#' + id + '-header i:last-of-type').html($('#' + id + '-header i:last-of-type').html() == 'keyboard_arrow_down' ? 'keyboard_arrow_up' : 'keyboard_arrow_down');
         $(this).toggleClass('active-job-' + status);
     });
 
     // when the filter icon is clicked toggle the side panel
-    $('#filter-jobs').click(function () {
+    $('#filter-jobs').on("click", function () {
         $('.page-content').css('display', 'flex')
         $('.filter-side-holder').toggle()
     });
 
     // created and updated cant be true at the same time
-    $('#created').change(function () {
+    $('#created').on("change", function () {
         if ($(this).val() != "" && $('#updated').val() != "") {
             // error bc firebase cant do two range sorts
             $(this).parent().addClass('is-invalid')
@@ -198,13 +189,15 @@ if (window.location.href.indexOf('add') != -1) {
             $('#updated-created-error').hide()
         }
     })
-    $('#filter-jobs-button').click(function () {
+
+    $('#filter-jobs-button').on("click", function () {
         let status = $('#status').val();
         let created = $('#created').val();
         let updated = $('#updated').val();
         if (status == "" && created == "" && updated == "") {
             // reset the table to original values
-            makeTable(VALUES.db, query(collection(VALUES.db, "jobs"), orderBy('created', 'desc'), limit(10)))
+            $('.pages span').html(0);
+            makeTable(VALUES.db, query(collection(VALUES.db, VALUES.collection), orderBy('created', 'desc'), limit(10)))
             $('.filter-side-holder').hide()
         } else {
             let filterQuery = null;
@@ -226,40 +219,44 @@ if (window.location.href.indexOf('add') != -1) {
             VALUES.status = status;
             VALUES.createdTimestamp = createdTimestamp;
             VALUES.updatedTimestamp = updatedTimestamp;
+            VALUES.direction = 0;
 
             // the different ways the query can be made
             if(status != "" && created == "" && updated == "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), orderBy('created', 'desc'), limit(10))
             } else if (status != "" && created != "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
             } else if (status != "" && updated != "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("overrallStatus", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+                filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
             } else if (updated != "" && created == "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, VALUES.collection), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
             } else if (created != "" && updated == "") {
-                filterQuery = query(collection(VALUES.db, "jobs"), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+                filterQuery = query(collection(VALUES.db, VALUES.collection), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
             }
 
             // make the table
             if(filterQuery != null) {
-                makeTable(VALUES.db, filterQuery, true)
+                $('.pages span').html(1);
+                makeTable(VALUES.db, filterQuery, true, status)
             }
         }
     })
 
     // this controls when you click a dropdown item
-    $('#aggregation-jobs').on('click', '.dropdown-setting', function () {
-        let id = $(this).data('id')
-        let type = $(this).data('type')
-        if (type == "delete" && VALUES.db != null) {
-            // delete the job
-            deleteJob(VALUES.db, id)
-            $("#" + id).remove()
-            $("#" + id + "-info").remove()
-        } else if (type == "edit") {
-            // navigate to the update page
-            window.location.href = "./update?id=" + id
-        }
+    $('#render-table').on('click', '.dropdown-setting', function () {
+        // TODO - Implement adding label functionality
+
+        // let id = $(this).data('id')
+        // let type = $(this).data('type')
+        // if (type == "delete" && VALUES.db != null) {
+        //     // delete the job
+        //     deleteJob(VALUES.db, id)
+        //     $("#" + id).remove()
+        //     $("#" + id + "-info").remove()
+        // } else if (type == "edit") {
+        //     // navigate to the update page
+        //     window.location.href = "./update?id=" + id
+        // }
     })
 
     // when you press enter on search refresh the table with new results
@@ -267,21 +264,28 @@ if (window.location.href.indexOf('add') != -1) {
         if (e.which == 13) {
             let searchTerm = $('#search').val()
             VALUES.searchTerm = searchTerm;
-            let thequery = query(collection(VALUES.db, "jobs"), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), limit(10))
-            makeTable(VALUES.db, thequery, true)
+            makeTable(VALUES.db, "", true, "search")
             return false;
         }
+    });
+
+    $('#render-table').on('click', '#delete-job', function() {
+        let id = $(this).data('id')
+        // delete the job
+        deleteJob(VALUES.db, id)
+        $("#" + id).remove()
+        $("#" + id + "-info").remove()
     });
 
     // PAGINATION
 
     // previous button
-    $('#prev-page').click(function () {
+    $('#prev-page').on("click", function () {
         prevPage()
     });
 
     // next button
-    $('#next-page').click(function () {
+    $('#next-page').on("click", function () {
         nextPage()
     });
 }

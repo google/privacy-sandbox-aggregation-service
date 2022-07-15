@@ -1,6 +1,7 @@
 import React from 'react';
 import Log from './log';
 
+// Component that controls all subjobs in a job
 const Logs = (props) => {
     var rows = [];
     let job = props.job;
@@ -12,7 +13,7 @@ const Logs = (props) => {
         <tr id={job.id + "-info"} className="logs">
             <td colSpan={5}>
                 <div className="levels-logs">
-                    <h5>Logs</h5>
+                    <h5>Sub-job Status</h5>
                     {rows}
                 </div>
             </td>

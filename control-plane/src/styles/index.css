@@ -50,16 +50,16 @@ body {
 .job {
     cursor: pointer;
 }
-.Scheduled {
+.scheduled {
     color: #536cfe;
 }
-.Running {
+.running {
     color: grey;
 }
-.Failed {
+.failed {
     color: #c70000;
 }
-.Finished {
+.finished {
     color: green
 }
 .levels-logs {
@@ -82,6 +82,9 @@ body {
 .log-header span {
     flex: 1;
 }
+.active-log {
+    display: flex!important;
+}
 .log-info {
     padding: 5px;
 }
@@ -96,32 +99,32 @@ body {
 .log-info {
     display: none;
 }
-.active-job-Running {
+.active-job-running {
     background-color: grey!important;
     color: white!important;
 }
-.active-job-Running i {
+.active-job-running i {
     color: white!important;
 }
-.active-job-Scheduled {
+.active-job-scheduled {
     background-color: #536cfe!important;
     color: white!important;
 }
-.active-job-Scheduled i {
+.active-job-scheduled i {
     color: white!important;
 }
-.active-job-Failed {
+.active-job-failed {
     background-color: #c70000!important;
     color: white!important;
 }
-.active-job-Failed i {
+.active-job-failed i {
     color: white!important;
 }
-.active-job-Finished {
+.active-job-finished {
     background-color: green!important;
     color: white!important;
 }
-.active-job-Finished i {
+.active-job-finished i {
     color: white!important;
 }
 .mdl-progress {
@@ -195,4 +198,16 @@ body {
 .error-message {
     color: red;
     display: none;
+}
+.message-container {
+    flex: 2
+}
+.result-container {
+    flex: 2
+}
+.created-container {
+    flex: 2
+}
+.updated-container {
+    flex: 1
 }

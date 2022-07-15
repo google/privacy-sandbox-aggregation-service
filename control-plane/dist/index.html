@@ -27,7 +27,7 @@
             mdl-layout--fixed-header">
         <header class="mdl-layout__header">
             <div class="mdl-layout__header-row">
-                <span class="mdl-layout-title">GSOC Control Plane</span>
+                <span class="mdl-layout-title">Control Plane</span>
                 <div class="mdl-layout-spacer"></div>
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--expandable
                         mdl-textfield--floating-label mdl-textfield--align-right">
@@ -51,25 +51,11 @@
                     <div style="text-align:center">
                         <div id="p2" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
                     </div>
-                    <table id="aggregation-jobs" class="mdl-data-table mdl-js-data-table mdl-data-table--selectable mdl-shadow--2dp">
-                        <!-- Created -->
-                        <!-- Status -->
-                        <!-- Title -->
-                        <!-- Last Updated -->
-                        <!-- Dropdown icon -->
-                        <colgroup>
-                            <col width="10%">
-                            <col width="10%">
-                            <col width="50%">
-                            <col width="10%">
-                            <col width="20%">
-                        </colgroup>
-                        <tbody>
-                          
-                        </tbody>
-                    </table>
+                    <div id="render-table">
+
+                    </div>
                     <div class="pages">
-                        <span>0</span>
+                        <span>1</span>
                         <button id="prev-page" class="mdl-button mdl-js-button mdl-button--icon">
                             <i class="material-icons">navigate_before</i>
                         </button>
@@ -78,11 +64,11 @@
                         </button>
                     </div>
     
-                    <!-- Bottom Button -->
-                    <button id="addjob"
+                    <!-- TODO -- Implement add job with Tao and Robert -->
+                    <!-- <button id="addjob"
                         class="mdl-button mdl-js-button mdl-button--fab mdl-js-ripple-effect mdl-button--colored bottom-button">
                         <i class="material-icons">add</i>
-                    </button>
+                    </button> -->
                     
                     <div id="snackbar-container" class="mdl-js-snackbar mdl-snackbar">
                         <div class="mdl-snackbar__text"></div>
@@ -93,10 +79,10 @@
                     <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
                         <select class="mdl-textfield__input" id="status" name="status">
                           <option></option>
-                          <option value="Running">Running</option>
-                          <option value="Scheduled">Scheduled</option>
-                          <option value="Failed">Failed</option>
-                          <option value="Finished">Finished</option>
+                          <option value="running">Running</option>
+                          <option value="scheduled">Scheduled</option>
+                          <option value="failed">Failed</option>
+                          <option value="finished">Finished</option>
                         </select>
                         <label class="mdl-textfield__label" for="status">Status</label>
                     </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 
+// For update page which is not currently implemented.
 const Level = (props) => {
 
     // cleans code later on
@@ -15,13 +16,13 @@ const Level = (props) => {
             </div>
             <div id={"aggregator-" + aggregator + "-level-" + currentLevel + "-info"} className="mdl-grid level-info">
                 <div className={"mdl-cell mdl-cell--12-col aggregator-" + aggregator + "-level-" + currentLevel}>
-                    <div className="mdl-textfield mdl-js-textfield">
+                    <div className="mdl-textfield mdl-js-textfield is-dirty">
                         <textarea className="mdl-textfield__input" type="text" rows="3"
                             id={"aggregator-" + aggregator + "-level-" + currentLevel + "-message-field"} defaultValue={level.message}></textarea>
                         <label className="mdl-textfield__label" htmlFor={"aggregator-" + aggregator + "-level-" + currentLevel + "-message-field"}>Message</label>
                     </div>
                     <br />
-                    <div className="mdl-textfield mdl-js-textfield">
+                    <div className="mdl-textfield mdl-js-textfield is-dirty">
                         <textarea className="mdl-textfield__input" type="text" rows="3"
                             id={"aggregator-" + aggregator + "-level-" + currentLevel + "-result-field"} defaultValue={level.result}></textarea>
                         <label className="mdl-textfield__label" htmlFor={"aggregator-" + aggregator + "-level-" + currentLevel + "-result-field"}>Result</label>
@@ -30,23 +31,23 @@ const Level = (props) => {
                     <h6>Current Status</h6>
                     <label className="mdl-radio mdl-js-radio mdl-js-ripple-effect" htmlFor={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-1"}>
                         <input type="radio" id={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-1"} className="mdl-radio__button" name={"aggregator-" + aggregator + "-level-" + currentLevel + "-options"}
-                            defaultValue="Scheduled" {...level.status == "Scheduled" ? "checked" : ""} />
+                            defaultValue="Scheduled" defaultChecked={level.status == "scheduled"} />
                         <span className="mdl-radio__label">Scheduled</span>
                     </label>
                     <label className="mdl-radio mdl-js-radio mdl-js-ripple-effect" htmlFor={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-2"}>
                         <input type="radio" id={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-2"} className="mdl-radio__button" name={"aggregator-" + aggregator + "-level-" + currentLevel + "-options"}
-                            defaultValue="Running" {...level.status == "Running" ? "checked" : ""} />
+                            defaultValue="Running" defaultChecked={level.status == "running"} />
                         <span className="mdl-radio__label">Running</span>
                     </label>
                     <br />
                     <label className="mdl-radio mdl-js-radio mdl-js-ripple-effect" htmlFor={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-3"}>
                         <input type="radio" id={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-3"} className="mdl-radio__button" name={"aggregator-" + aggregator + "-level-" + currentLevel + "-options"}
-                            defaultValue="Finished" {...level.status == "Finished" ? "checked" : ""} />
+                            defaultValue="Finished" defaultChecked={level.status == "finished"} />
                         <span className="mdl-radio__label">Finished</span>
                     </label>
                     <label className="mdl-radio mdl-js-radio mdl-js-ripple-effect" htmlFor={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-4"}>
                         <input type="radio" id={"aggregator-" + aggregator + "-level-" + currentLevel + "-option-4"} className="mdl-radio__button" name={"aggregator-" + aggregator + "-level-" + currentLevel + "-options"}
-                            defaultValue="Failed" {...level.status == "Failed" ? "checked" : ""} />
+                            defaultValue="Failed" defaultChecked={level.status == "failed"} />
                         <span className="mdl-radio__label">Failed</span>
                     </label>
                 </div>

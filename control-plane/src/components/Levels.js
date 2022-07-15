@@ -1,6 +1,7 @@
 import React from "react"
 import Level from "./AddLevel"
 
+// For update Add Job page which is currently not implemented
 class Levels extends React.Component {
     constructor(props) {
         super(props)
@@ -17,7 +18,7 @@ class Levels extends React.Component {
         } else {
             window.levelTwo = this;
         }
-      }
+    }
 
     addLevel = (currentLevel, aggregator) => {
         this.setState((state, props) => ({

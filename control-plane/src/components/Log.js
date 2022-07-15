@@ -1,9 +1,14 @@
 import React from 'react';
+import { formatTime } from '../jobs-functions.js';
 import VALUES from '../values.js'
 
+
+// Component for an individual subjob.
 const Log = (props) => {
-    let log = props.log;  // cleans code later on
-    let job = props.job;  // cleans code later on
+
+    // cleans code later on
+    let log = props.log;
+    let job = props.job;
 
     return (
         <div className="log">
@@ -13,10 +18,22 @@ const Log = (props) => {
                 <i className="material-icons">keyboard_arrow_down</i>
             </div>
             <div id={job.id + "-" + log.level + "-info"} className="log-info">
-                <p><b>Result</b></p>
-                <p>{log.result=="" ? "N/A" : log.result}</p>
-                <p><b>Message</b></p>
-                <p>{log.message=="" ? "N/A" : log.message}</p>
+                <div className="result-container">
+                    <p><b>Result</b></p>
+                    <p>{log.result=="" ? "N/A" : log.result}</p>
+                </div>
+                <div className="message-container">
+                    <p><b>Message</b></p>
+                    <p>{log.message=="" ? "N/A" : log.message}</p>
+                </div>
+                <div className="created-container">
+                    <p><b>Created</b></p>
+                    <p>{formatTime(log.created)}</p>
+                </div>
+                <div className="updated-container">
+                    <p><b>Last Updated</b></p>
+                    <p>{formatTime(log.updated, true)}</p>
+                </div>
             </div>
         </div>
     )

@@ -1,4 +1,4 @@
-import { doc, updateDoc, setDoc, Timestamp, getDocs, getDoc, collection, deleteDoc, query, startAfter, orderBy, limit, startAt, where } from "firebase/firestore";
+import { doc, updateDoc, setDoc, Timestamp, getDocs, getDoc, collection, deleteDoc, query, startAfter, orderBy, limit, where, endBefore, collectionGroup, limitToLast } from "firebase/firestore";
 import { v4 as uuidv4 } from 'uuid';
 import VALUES from './values.js'
 import React from 'react';
@@ -9,7 +9,7 @@ import UpdateLevel from "./components/UpdateLevel.js";
 let currentHref = window.location.href;
 
 // For the jobs table
-const container = document.querySelector('#aggregation-jobs tbody');
+const container = document.querySelector('#render-table');
 const tableRoot = currentHref.indexOf('update') == -1 && currentHref.indexOf('add') == -1 ? createRoot(container) : null;
 
 // For update levels
@@ -22,7 +22,7 @@ const secondAggregatorRoot = currentHref.indexOf('update') != -1 ? createRoot(se
 export async function addJob(db) {
     // created the uuidv4 id for job
     const jobId = uuidv4();
-    const jobDoc = doc(db, "jobs", jobId);
+    const jobDoc = doc(db, VALUES.collection, jobId);
     // get the overall status of the job
     const overrallStatus = getOverrallStatusFromInput(VALUES.currentLevelsOne + 1, VALUES.currentLevelsTwo + 1)
 
@@ -34,8 +34,8 @@ export async function addJob(db) {
     });
 
     // created the collections and enter the values into the db
-    await enterIntoDb(db, jobId, VALUES.currentLevelsOne + 1, 'aggregator-1')
-    await enterIntoDb(db, jobId, VALUES.currentLevelsTwo + 1, 'aggregator-2')
+    await enterIntoDb(db, jobId, VALUES.currentLevelsOne + 1, 'aggregators')
+    await enterIntoDb(db, jobId, VALUES.currentLevelsTwo + 1, 'aggregators')
 
     // navigate back to home and show success message
     window.location.href = '/?job=success';
@@ -43,19 +43,21 @@ export async function addJob(db) {
 
 // update job function
 export async function updateJob(db, jobId) {
-    const jobDoc = doc(db, "jobs", jobId);
+    const jobDoc = doc(db, VALUES.collection, jobId);
     // get the overall status of the job
-    const overrallStatus = getOverrallStatusFromInput(VALUES.currentLevelsOne, VALUES.currentLevelsTwo);
+    // const overrallStatus = getOverrallStatusFromInput(VALUES.currentLevelsOne, VALUES.currentLevelsTwo);
 
     // update the name, status, and last updated of job doc
     await updateDoc(jobDoc, {
-        overrallStatus: overrallStatus,
+        // overrallStatus: overrallStatus,
         updated: Timestamp.now(),
     });
 
+    const aggregators = await getAggregators(db, jobId, [])
+
     // update the levels 
-    await updateLevels(db, jobId, VALUES.currentLevelsOne, 'aggregator-1')
-    await updateLevels(db, jobId, VALUES.currentLevelsTwo, 'aggregator-2')
+    await updateLevels(db, jobId, VALUES.currentLevelsOne, aggregators[0], 1)
+    await updateLevels(db, jobId, VALUES.currentLevelsTwo, aggregators[1], 2)
 
     // return to home with edit success
     window.location.href = '/?job=editsuccess';
@@ -70,38 +72,41 @@ export function validateFields() {
 }
 
 // build the table using the query passed
-export async function makeTable(db, thequery, first) {
+export async function makeTable(db, thequery, first, status) {
     // show loader
     $('#p2').show();
-    // get all the jobs returned from the query
-    let values = await getJobs(db, thequery)
-    // values[0] is the jobs, values[1] is the last job, values[2] is the first job
-    let jobs = values[0];
-    // set values for pagination
-    setValues(values[1], values[2], first)
+    let jobs;
 
-    // if jobs array is greater than 0, make the table otherwise show no jobs
-    if (jobs.length > 0) {
-        // check if the user can go to the next page
-        canAdvance(jobs.length)
-        // reset the table
-        $('#aggregation-jobs tbody').html("")
-        // hide the loader
-        $('#p2').hide();
-        // set the html of the table
-        setHtml(jobs)
+    // check if it is a status sort if not do a normal query
+    if(status != null && status != "") {
+        if (status == "failed") {
+            jobs = await getFailedJobs(thequery);
+        } else if(status == "search") {
+            jobs = await getSearchJobs();
+        } else {
+            console.log(status)
+            jobs = await getOtherJobs(status, thequery);
+        }
     } else {
-        // basic no jobs response
-        $('#p2').hide();
-
-        let newHtml = '<td colspan=5><h5 style="text-align: center;">No Jobs</h5></td>';
-        $('#aggregation-jobs tbody').html(newHtml)
+         // get all the jobs returned from the query
+        let values = await getJobs(db, thequery)
+        // values[0] is the jobs, values[1] is the last job, values[2] is the first job
+        jobs = values[0];
+        // set values for pagination
+        setValues(values[1], values[2], first)
     }
+
+    // check if the user can go to the next page
+    canAdvance(jobs.length)
+    // hide the loader
+    $('#p2').hide();
+    // set the html of the table
+    setHtml(jobs)
 }
 
 // delete the job with jobId
 export async function deleteJob(db, job) {
-    await deleteDoc(doc(db, "jobs", job));
+    await deleteDoc(doc(db, VALUES.collection, job));
 }
 
 // go to next page
@@ -113,9 +118,11 @@ export function nextPage() {
         // get the specific query and start after the last value in the current table
         nextQuery = getQuery(startAfter(VALUES.last))
 
+        VALUES.direction = 0;
+
         // if query is found then make the table
         if(nextQuery != false) {
-            makeTable(VALUES.db, nextQuery, false)
+            makeTable(VALUES.db, nextQuery, false, VALUES.status)
             // increment the span holding the page number
             $('.pages span').html(parseInt($('.pages span').html()) + 1);
         }
@@ -124,14 +131,16 @@ export function nextPage() {
 
 export function prevPage() {
     let prevQuery = null;
-    // make sure that prevFirst exists and that the page number is not 0
-    if(VALUES.prevFirst != null && parseInt($('.pages span').html()) != 0) {
+    // make sure that prevFirst exists and that the page number is not 1
+    if(VALUES.first != null && parseInt($('.pages span').html()) != 1) {
         // get the query, but this time start at the prev first
-        prevQuery = getQuery(startAt(VALUES.prevFirst))
+        prevQuery = getQuery(endBefore(VALUES.first), limitToLast(10))
 
+        VALUES.direction = 1;
+        
         // if the query is found, then make the table
         if(prevQuery != false) {
-            makeTable(VALUES.db, prevQuery, false)
+            makeTable(VALUES.db, prevQuery, false, VALUES.status)
             // increment the span holding the page number
             $('.pages span').html(parseInt($('.pages span').html()) - 1);
         }
@@ -149,80 +158,28 @@ export async function initUpdatePage(db, jobId) {
     fillInUpdateFields(jobData)
 }
 
-export function addLevel(aggregator, currentLevel) {
-    let appendHtml = `
-        <div id="aggregator-${aggregator}-level-${currentLevel}" class="level">
-            <div id="aggregator-${aggregator}-level-${currentLevel}-header" class="level-header active-level" data-id="aggregator-${aggregator}-level-${currentLevel}">
-                <span>Level ${currentLevel}</span>
-                <i class="material-icons remove-aggregator" data-id="aggregator-${aggregator}-level-${currentLevel}">close</i><i class="material-icons">keyboard_arrow_down</i>
-            </div>
-            <div id="aggregator-${aggregator}-level-${currentLevel}-info" class="mdl-grid level-info">
-                <div class="mdl-cell mdl-cell--12-col aggregator-${aggregator}-level-${currentLevel}">
-                    <div class="mdl-textfield mdl-js-textfield">
-                        <textarea class="mdl-textfield__input" type="text" rows="3"
-                            id="aggregator-${aggregator}-level-${currentLevel}-message-field"></textarea>
-                        <label class="mdl-textfield__label" for="aggregator-${aggregator}-level-${currentLevel}-message-field">Message</label>
-                    </div>
-                    <br>
-                    <div class="mdl-textfield mdl-js-textfield">
-                        <textarea class="mdl-textfield__input" type="text" rows="3"
-                            id="aggregator-${aggregator}-level-${currentLevel}-result-field"></textarea>
-                        <label class="mdl-textfield__label" for="aggregator-${aggregator}-level-${currentLevel}-result-field">Result</label>
-                    </div>
-                    <br>
-                    <h6>Current Status</h6>
-                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-1">
-                        <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-1" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                            value="Scheduled" checked>
-                        <span class="mdl-radio__label">Scheduled</span>
-                    </label>
-                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-2">
-                        <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-2" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                            value="Running">
-                        <span class="mdl-radio__label">Running</span>
-                    </label>
-                    <br>
-                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-3">
-                        <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-3" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                            value="Finished">
-                        <span class="mdl-radio__label">Finished</span>
-                    </label>
-                    <label class="mdl-radio mdl-js-radio mdl-js-ripple-effect" for="aggregator-${aggregator}-level-${currentLevel}-option-4">
-                        <input type="radio" id="aggregator-${aggregator}-level-${currentLevel}-option-4" class="mdl-radio__button" name="aggregator-${aggregator}-level-${currentLevel}-options"
-                            value="Failed">
-                        <span class="mdl-radio__label">Failed</span>
-                    </label>
-                </div>
-            </div>
-        </div>
-    `;
-
-    return appendHtml;
-}
-
 // function to get a specific document's information
 async function getJobData(db, jobId) {
-    let docSnap = await getDoc(doc(VALUES.db, "jobs", jobId));
+    let docSnap = await getDoc(doc(VALUES.db, VALUES.collection, jobId));
     // if document exists get name and level information, else return null
     if(docSnap.exists()) {
-        const jobName = docSnap.data().name;
-        const aggregatorOneLevels = await getLevels(db, jobId, 'aggregator-1', [])
-        const aggregatorTwoLevels = await getLevels(db, jobId, 'aggregator-2', [])
-        return [jobName, aggregatorOneLevels, aggregatorTwoLevels]
+        const aggregators = await getAggregators(db, jobId, []);
+        const aggregatorOneLevels = await getLevels(db, jobId, aggregators[0], [])
+        const aggregatorTwoLevels = await getLevels(db, jobId, aggregators[1], [])
+        VALUES.currentLevelsOne = aggregatorOneLevels.length;
+        VALUES.currentLevelsTwo = aggregatorTwoLevels.length;
+        return [aggregatorOneLevels, aggregatorTwoLevels]
     }
     return null;
 }
 
 // fill in the update page fields
 function fillInUpdateFields(jobData) {
-    const jobName = jobData[0];
-    const aggregatorOneLevels = jobData[1];
-    const aggregatorTwoLevels = jobData[2];
+    const aggregatorOneLevels = jobData[0];
+    const aggregatorTwoLevels = jobData[1];
     VALUES.currentLevelsOne = aggregatorOneLevels.length;
     VALUES.currentLevelsTwo = aggregatorTwoLevels.length;
 
-    // fill in job field
-    $('#job-name-field').val(jobName)
     // field starts with invalid so remove that class
     $('#job-name-field').parent().removeClass('is-invalid')
     // is-dirty indicates that field has a value
@@ -233,7 +190,7 @@ function fillInUpdateFields(jobData) {
 }
 
 // get the specific query for either prevPage or nextPage and startAt or startAfter marker
-function getQuery(marker) {
+function getQuery(marker, limitMarker=limit(10)) {
     // cleans the code later on
     const status = VALUES.status;
     const createdTimestamp = VALUES.createdTimestamp;
@@ -242,34 +199,34 @@ function getQuery(marker) {
     const db = VALUES.db
 
     if(searchTerm == "") {
-        if (status == "" && createdTimestamp == "" && updatedTimestamp == "") {
-            return query(collection(db, "jobs"), orderBy('created', 'desc'), marker, limit(10))
-        } else if(status != "" && createdTimestamp == "" && updated == "") {
-            return query(collection(db, "jobs"), where("overrallStatus", "==", status), orderBy('created', 'desc'), marker, limit(10))
-        } else if (status != "" && createdTimestamp != "") {
-            return query(collection(db, "jobs"), where("overrallStatus", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), marker, limit(10))
-        } else if (status != "" && updatedTimestamp != "") {
-            return query(collection(db, "jobs"), where("overrallStatus", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), marker, limit(10))
-        } else if (updatedTimestamp != "" && createdTimestamp == "") {
-            return query(collection(db, "jobs"), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), marker, limit(10))
-        } else if (createdTimestamp != "" && updatedTimestamp == "") {
-            return query(collection(db, "jobs"), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), marker, limit(10))
+        if (status == "" && createdTimestamp == null && updatedTimestamp == null) {
+            return query(collection(db, VALUES.collection), orderBy('created', 'desc'), marker, limitMarker)
+        } else if(status != "" && createdTimestamp == null && updatedTimestamp == null) {
+            return query(collectionGroup(db, "levels"), where("status", "==", status), orderBy('created', 'desc'), marker, limitMarker)
+        } else if (status != "" && createdTimestamp != null) {
+            return query(collectionGroup(db, "levels"), where("status", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), marker, limitMarker)
+        } else if (status != "" && updatedTimestamp != null) {
+            return query(collectionGroup(db, "levels"), where("status", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), marker, limitMarker)
+        } else if (updatedTimestamp != null && createdTimestamp == null) {
+            return query(collection(db, VALUES.collection), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), marker, limitMarker)
+        } else if (createdTimestamp != null && updatedTimestamp == null) {
+            return query(collection(db, VALUES.collection), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), marker, limitMarker)
         }
         return false
     } else {
-        return query(collection(db, "jobs"), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), marker, limit(10))
+        return query(collection(db, VALUES.collection), where('name', ">=", searchTerm), where("name", "<", searchTerm + 'z'), orderBy('name', 'desc'), marker, limitMarker)
     }
 }
 
 // get the overrall status so that it is easier to grab
 function getOverrallStatusFromInput(levelsOne, levelsTwo) {
     // the counts of the different statuses
-    const statusCount = { "Running": 0, "Scheduled": 0, "Finished": 0 };
+    const statusCount = { "running": 0, "scheduled": 0, "finished": 0 };
 
     for (let i = 0; i <  levelsOne; i++) {
         if ($("input[type=radio][name=aggregator-1-level-" + i + "-options]:checked").val() == "Failed") {
             // if status is failed the job failed
-            return "Failed";
+            return "failed";
         }
         // update status count
         statusCount[$("input[type=radio][name=aggregator-1-level-" + i + "-options]:checked").val()] += 1;
@@ -277,37 +234,40 @@ function getOverrallStatusFromInput(levelsOne, levelsTwo) {
     for (let i = 0; i < levelsTwo; i++) {
         if ($("input[type=radio][name=aggregator-2-level-" + i + "-options]:checked").val() == "Failed") {
             // if status is failed the job failed
-            return "Failed";
+            return "failed";
         }
         // update status count
-        statusCount[$("input[type=radio][name=aggregator-2-level-" + i + "-options]:checked").val()] += 1;
+        statusCount[$("input[type=radio][name=aggregator-2-level-" + i + "-options]:checked").val().toLowerCase()] += 1;
     }
 
     return decideStatus(statusCount);
 }
 
-function getOverrallStatus(logs) {
-    const statusCount = { "Running": 0, "Scheduled": 0, "Finished": 0 };
-    for(let i=0; i < logs.length; i++) {
-        statusCount[logs[i].status] += 1;
+function getOverrallStatus(subjobs) {
+    const statusCount = { "running": 0, "scheduled": 0, "finished": 0 };
+    for(let i=0; i < subjobs.length; i++) {
+        statusCount[subjobs[i].status.toLowerCase()] += 1;
+        if(subjobs[i].status.toLowerCase() == "failed") {
+            return "failed";
+        }
     }
 
     return decideStatus(statusCount);
 }
 
 function decideStatus(statusCount) {
-    if (statusCount['Running'] == 0 && statusCount['Scheduled'] == 0 && statusCount['Finished'] > 0) {
+    if (statusCount['running'] == 0 && statusCount['scheduled'] == 0 && statusCount['finished'] > 0) {
         // if all of them are finished, job is done
-        return "Finished";
-    } else if (statusCount['Running'] > 0) {
+        return "finished";
+    } else if (statusCount['running'] > 0) {
         // if any of the jobs are running, then the job is running
-        return "Running";
-    } else if (statusCount['Running'] == 0 && statusCount['Scheduled'] > 0) {
+        return "running";
+    } else if (statusCount['running'] == 0 && statusCount['scheduled'] > 0) {
         // if no jobs running, then the status is scheduled
-        return "Scheduled";
+        return "scheduled";
     }
     // return scheduled if not in any of these
-    return "Scheduled";
+    return "scheduled";
 }
 
 // a nice function to calculate how long ago the last update was
@@ -339,6 +299,176 @@ export function timeSince(date) {
     return Math.floor(seconds) + " seconds";
 }
 
+async function getSearchJobs() {
+    let jobs = []
+    let docIds = VALUES.searchTerm.split(";")
+    console.log(docIds);
+    for(var i = 0; i < docIds.length;  i++) {
+        console.log(docIds[i])
+        const document = await getDoc(doc(VALUES.db, VALUES.collection, docIds[i]))
+        if(document.exists) {
+            jobs.push(await populateJob(VALUES.db, document))
+        }
+    }
+    return jobs;
+}
+
+async function getOtherJobs(status, thequery) {
+    let filled = false;
+    let jobs = [];
+    let levelDocs = [];
+    let completedDocs = [];  // top level jobs that have already been checked
+    let lastDoc;
+    while(!filled) {
+        let response = await getOtherDocs(jobs, levelDocs, completedDocs, lastDoc, thequery, status);
+        jobs = response[0];
+        levelDocs = response[1];
+        completedDocs = response[2];
+        filled = response[3];
+        lastDoc = response[4];
+    }
+
+    return jobs;
+}
+
+async function getOtherDocs(jobs, levelDocs, completedDocs, lastDoc, thequery, status) {
+    let numberOfDocs = jobs.length;
+    if(lastDoc != null) {
+        if(VALUES.direction != null && VALUES.direction == 1) {
+            thequery = getQuery(endBefore(VALUES.first), limitToLast(10))
+        } else {
+            thequery = getQuery(startAfter(lastDoc));
+        }
+    }
+    const querySnapshot = await getDocs(thequery);
+    let filled = false;
+    let last;
+    if(querySnapshot.empty) {
+        return [jobs, [], [], true]
+    } else {
+        filled = await Promise.all(querySnapshot.docs.map(async (document) => {
+            let parentDoc = document.ref.parent.path.split('/')[1]   // get top level document
+            if(completedDocs.includes(parentDoc) != true) {
+
+                completedDocs.push(parentDoc);
+
+                const aggregators = await getAggregators(VALUES.db, parentDoc, []);
+
+                let subjobs = [];
+                // fill in the subjobs field with the jobs logs
+                subjobs = await getLevels(VALUES.db, parentDoc, aggregators[0], subjobs)
+                subjobs = await getLevels(VALUES.db, parentDoc, aggregators[1], subjobs)
+                
+                if(getOverrallStatus(subjobs) == status) {
+
+                    numberOfDocs += 1;
+
+                    // when # of docs goes over amount stop it
+                    if(numberOfDocs > 10) {
+                        VALUES.last = document;
+                        VALUES.first = levelDocs[0];
+                        return true;
+                    }
+
+                    let job = {};
+                    job.logs = subjobs;
+                    job.status = status;
+                    job.id = parentDoc;
+
+                    const topLevelDoc = await getDoc(doc(VALUES.db, VALUES.collection, parentDoc));
+                    let vals = topLevelDoc.data();
+                    job.created = vals.created;
+                    job.updated = vals.updated;
+                    if(vals.updated == null) {
+                        job.updated = job.created;
+                    }
+
+                    jobs.push(job);
+                    levelDocs.push(document);
+                }
+                
+            }
+        }));
+        filled = filled.at(-1)
+        if(filled == undefined) {
+            filled = false;
+        }
+        if(!filled) {
+            last = querySnapshot.docs[querySnapshot.docs.length-1];
+            VALUES.last = last;
+            if(levelDocs.length >= 1) {
+                VALUES.first = levelDocs[0];
+            }
+        }
+    }
+    
+    return [jobs, levelDocs, completedDocs, filled, last];
+}
+
+
+async function getFailedJobs(thequery) {
+    let filled = false
+    let docs = [];
+    let levelDocs = [];
+    let lastDoc;
+    while(!filled) {
+        let response = await getFailedDocs(docs, levelDocs, lastDoc, thequery);
+        docs = response[0];
+        levelDocs = response[1];
+        filled = response[2];
+        lastDoc = response[3];
+    }
+    let jobs = [];
+    for(var i = 0; i < docs.length; i++) {
+        const document = await getDoc(doc(VALUES.db, VALUES.collection, docs[i]))
+        jobs.push(await populateJob(VALUES.db, document));
+    }
+
+    return jobs;
+}
+
+async function getFailedDocs(failedDocs, levelDocs, lastDoc, thequery) {
+    let numberOfFailedDocs = failedDocs.length;
+    if(lastDoc != null){
+        if(VALUES.direction != null && VALUES.direction == 1) {
+            thequery = getQuery(endBefore(VALUES.first), limitToLast(10))
+        } else {
+            thequery = getQuery(startAfter(lastDoc));
+        }
+    }
+    const querySnapshot = await getDocs(thequery);
+    let filled = false;
+    let last;
+    if(querySnapshot.empty) {
+        return [failedDocs, [], true]
+    } else {
+        filled = await Promise.all(querySnapshot.docs.map(async (document) => {
+            let parentDoc = document.ref.parent.path.split('/')[1]   // get top level document
+            if(failedDocs.includes(parentDoc) != true) {
+                failedDocs.push(parentDoc);
+                levelDocs.push(document);
+                numberOfFailedDocs += 1;
+                // when # of failed docs reaches ten, exit promise and save position
+                if(numberOfFailedDocs >= 10) {
+                    VALUES.last = document;
+                    VALUES.first = levelDocs[0];
+                    return true;
+                }
+            }
+        }));
+        filled = filled.at(-1)
+        if(filled == undefined) {
+            filled = false;
+        }
+        if(!filled) {
+            last = querySnapshot.docs[querySnapshot.docs.length-1];
+            VALUES.last = last;
+            VALUES.first = levelDocs[0];
+        }
+    }
+
+    return [failedDocs, levelDocs, filled, last];
+}
 
 // get the 10 jobs that are requested and the last document
 async function getJobs(db, thequery) {
@@ -357,34 +487,48 @@ async function getJobs(db, thequery) {
 // populate the jobs variable using an async method and in parallel
 async function populateJobs(db, jobs, querySnapshot) {
     await Promise.all(querySnapshot.docs.map(async (doc) => {
-        let job = {};
-        job.id = doc.id;
-        let vals = doc.data();
-        job.created = vals.created;
-        job.updated = vals.updated;
-        let levelLogs = [];
-        // fill in the levelLogs field with the jobs logs 
-        levelLogs = await getLevels(db, doc.id, 'aggregator-1', levelLogs)
-        levelLogs = await getLevels(db, doc.id, 'aggregator-2', levelLogs)
-        job.logs = levelLogs;
-        if(vals.overrallStatus != null) {
-            // job finished or failed
-            job.status = vals.overrallStatus;
-        } else {
-            // job scheduled or running or top level document hasn't been updated
-            job.status = getOverrallStatus(levelLogs)
-        }
-        jobs.push(job);
+        jobs.push(await populateJob(db, doc));
     }));
 
     return jobs;
 }
 
-// a nice function to get the logs for a given document and aggregator
-// and fill in the levelLogs array and return it back
-async function getLevels(db, docId, aggregator, levelLogs) {
-    const aggregatorSnapshot = await getDocs(collection(db, "jobs", docId, aggregator));
-    aggregatorSnapshot.forEach((doc) => {
+async function populateJob(db, doc) {
+    let job = {};
+    job.id = doc.id;
+    let vals = doc.data();
+    job.created = vals.created;
+    job.updated = vals.updated;
+    if(vals.updated == null) {
+        job.updated = job.created;
+    }
+
+    // fill in the aggregators field with the aggregators
+    const aggregators = await getAggregators(db, doc.id, []);
+
+
+    let subjobs = [];
+    // fill in the subjobs field with the jobs logs 
+    subjobs = await getLevels(db, doc.id, aggregators[0], subjobs)
+    subjobs = await getLevels(db, doc.id, aggregators[1], subjobs)
+    job.logs = subjobs;
+
+    if(vals.overrallStatus != null) {
+        // job finished or failed
+        job.status = vals.overrallStatus;
+    } else {
+        // job scheduled or running or top level document hasn't been updated
+        job.status = getOverrallStatus(subjobs)
+    }
+
+    return job;
+}
+
+// function to get the logs for a given document and aggregator
+// and fill in the subjobs array and return it back
+async function getLevels(db, docId, aggregator, subjobs) {
+    const levelSnapshot = await getDocs(collection(db, VALUES.collection, docId, "aggregators", aggregator, "levels"));
+    levelSnapshot.forEach((doc) => {
         let log = {};
         log.level = aggregator+"-"+doc.id;
         let vals = doc.data();
@@ -394,14 +538,23 @@ async function getLevels(db, docId, aggregator, levelLogs) {
         log.status = vals.status;
         log.total_levels = vals.total_levels;
         log.updated = vals.updated;
-        levelLogs.push(log)
+        subjobs.push(log)
     });
-    return levelLogs;
+    return subjobs;
+}
+
+async function getAggregators(db, docId, aggregators) {
+    const aggregatorSnapshot = await getDocs(collection(db, VALUES.collection, docId, "aggregators"));
+    aggregatorSnapshot.forEach((doc) => {
+        aggregators.push(doc.id);
+    })
+    return aggregators;
 }
 
 // change a firestore timestamp to a date and then format it
 export function formatTime(timestamp, updated) {
     let date = timestamp.toDate();
+
     // if updated get the amount of time it has been since the timestamp
     if (updated) {
         return timeSince(date) + " ago";
@@ -409,13 +562,16 @@ export function formatTime(timestamp, updated) {
     let day = date.getDate();
     let month = date.getMonth() + 1;
     let year = date.getFullYear();
-    return month + "/" + day + "/" + year
+    let hour = date.getHours();
+    let minute = date.getMinutes();
+    let seconds = date.getSeconds();
+    return month + "/" + day + "/" + year + " at " + hour + ":" + minute + ":" + seconds
 }
 
 // enter all the level documents into the db
 async function enterIntoDb(db, jobId, levels, aggregator) {
     for (let i = 0; i < levels; i++) {
-        const levelDoc = doc(db, "jobs", jobId, aggregator, "level-" + i);
+        const levelDoc = doc(db, VALUES.collection, jobId, 'aggregators', aggregator, "levels", "level-" + i);
         await setDoc(levelDoc, {
             created: Timestamp.now(),
             updated: Timestamp.now(),
@@ -428,14 +584,14 @@ async function enterIntoDb(db, jobId, levels, aggregator) {
 }
 
 // update all the level documents
-async function updateLevels(db, jobId, levels, aggregator) {
+async function updateLevels(db, jobId, levels, aggregator, number) {
     for (let i = 0; i < levels; i++) {
-        const levelDoc = doc(db, "jobs", jobId, aggregator, "level-" + i);
+        const levelDoc = doc(db, VALUES.collection, jobId, "aggregators", aggregator, "levels", "level-" + i);
         await updateDoc(levelDoc, {
             updated: Timestamp.now(),
-            status: $("input[type=radio][name="+aggregator+"-level-" + i + "-options]:checked").val(),
-            result: $("#"+aggregator+"-level-" + i + "-result-field").val(),
-            message: $("#"+aggregator+"-level-" + i + "-message-field").val()
+            status: $("input[type=radio][name=aggregator-"+number+"-level-" + i + "-options]:checked").val().toLowerCase(),
+            result: $("#aggregator-"+number+"-level-" + i + "-result-field").val(),
+            message: $("#aggregator-"+number+"-level-" + i + "-message-field").val()
         });
     }
 }
@@ -462,5 +618,9 @@ function canAdvance(length) {
 }
 
 function setHtml(jobs) {
-    tableRoot.render(<Jobs jobs={jobs} />);
+    if(window.jobsTable == undefined) {
+        tableRoot.render(<Jobs jobs={jobs} />);
+    } else {
+        window.jobsTable.updateJobs(jobs)
+    }
 }

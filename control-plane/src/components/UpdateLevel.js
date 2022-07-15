@@ -1,6 +1,8 @@
 import React from 'react';
 import Level from './Level';
 
+
+// For Update page which is currently not implemented.
 const UpdateLevel = (props) => {
     let levels = [];
     for(let i=0; i < props.levels.length; i++) {

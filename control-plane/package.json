@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "webpack serve",
+    "start": "NODE_ENV=development webpack serve",
     "test": "jest --verbose",
     "build": "NODE_ENV=production webpack",
-    "build-dev": "webpack --watch",
-    "deploy": "npm run build && firebase deploy"
+    "build-dev": "NODE_ENV=development webpack",
+    "deploy": "npm run build && firebase deploy",
+    "deploy-dev": "npm run build-dev && firebase deploy"
   },
   "keywords": [],
   "author": "Haroon Mohamedali",

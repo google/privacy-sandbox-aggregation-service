@@ -1,6 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
+
+
+  // TODO - add authentication so only authenticated users can read/write
+
+  match /dabases/{database}/documents {
     match /{document=**} {
       allow read, write: if
           request.time < timestamp.date(2022, 7, 21);

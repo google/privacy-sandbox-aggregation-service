@@ -34,6 +34,18 @@ const (
 // The struct tags in the following structs need to be consistent with the field names defined in:
 // https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#aggregate-attribution-reports
 
+// PublicKeyInfo contains the details of a standard public key.
+type PublicKeyInfo struct {
+	ID string `json:"id"`
+	// Base64 encoded public key bytes.
+	Key string `json:"key"`
+}
+
+// PublicKeys contains a set of public keys and their IDs.
+type PublicKeys struct {
+	Keys []PublicKeyInfo `json:"keys"`
+}
+
 // AggregationServicePayload contains the payload for a specific aggregation server.
 type AggregationServicePayload struct {
 	// Payload is a encrypted CBOR serialized instance of struct Payload, which is base64 encoded.

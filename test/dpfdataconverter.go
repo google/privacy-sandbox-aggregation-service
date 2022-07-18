@@ -69,7 +69,7 @@ func GetMaxBucketID(keyBitSize int) uint128.Uint128 {
 	return maxKey
 }
 
-//ParseRawConversion parses a raw conversion.
+// ParseRawConversion parses a raw conversion.
 func ParseRawConversion(line string, keyBitSize int) (pipelinetypes.RawReport, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
@@ -103,24 +103,14 @@ func (fn *parseRawConversionFn) ProcessElement(ctx context.Context, line string,
 }
 
 type encryptSecretSharesFn struct {
-	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
+	PublicKeys1, PublicKeys2 *reporttypes.PublicKeys
 	KeyBitSize               int
 	EncryptOutput            bool
 
 	countReport beam.Counter
 }
 
-// TODO: Check if the chosen public key is out of date.
-func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
-	keyInfo := keys[rand.Intn(len(keys))]
-	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
-	if err != nil {
-		return "", nil, err
-	}
-	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
-}
-
-func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.PublicKeyInfo, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, error) {
+func encryptPartialReport(partialReport *pb.PartialReportDpf, keys *reporttypes.PublicKeys, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, error) {
 	bDpfKey, err := proto.Marshal(partialReport.SumKey)
 	if err != nil {
 		return nil, err
@@ -135,7 +125,7 @@ func encryptPartialReport(partialReport *pb.PartialReportDpf, keys []cryptoio.Pu
 		return nil, err
 	}
 
-	keyID, key, err := getRandomPublicKey(keys)
+	keyID, key, err := cryptoio.GetRandomPublicKey(keys)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +171,7 @@ func GenerateDPFKeys(report pipelinetypes.RawReport, keyBitSize int) (*dpfpb.Dpf
 }
 
 // EncryptPartialReports encrypts the partial reports.
-func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 []cryptoio.PublicKeyInfo, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, *pb.AggregatablePayload, error) {
+func EncryptPartialReports(key1, key2 *dpfpb.DpfKey, publicKeys1, publicKeys2 *reporttypes.PublicKeys, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, *pb.AggregatablePayload, error) {
 	encryptedReport1, err := encryptPartialReport(&pb.PartialReportDpf{
 		SumKey: key1,
 	}, publicKeys1, sharedInfo, encryptOutput)
@@ -250,7 +240,7 @@ func splitRawConversion(s beam.Scope, reports beam.PCollection, params *Generate
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
 	ConversionURI, PartialReportURI1, PartialReportURI2 string
-	PublicKeys1, PublicKeys2                            []cryptoio.PublicKeyInfo
+	PublicKeys1, PublicKeys2                            *reporttypes.PublicKeys
 	KeyBitSize                                          int
 	Shards                                              int64
 
@@ -426,7 +416,7 @@ func ReadRawConversions(ctx context.Context, conversionFile string, keyBitSize i
 type GenerateBrowserReportParams struct {
 	RawReport                pipelinetypes.RawReport
 	KeyBitSize               int
-	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
+	PublicKeys1, PublicKeys2 *reporttypes.PublicKeys
 	SharedInfo               string
 	EncryptOutput            bool
 }

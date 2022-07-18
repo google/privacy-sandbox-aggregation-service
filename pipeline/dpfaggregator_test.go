@@ -16,7 +16,6 @@ package dpfaggregator
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -47,17 +46,8 @@ import (
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 )
 
-func getRandomPublicKey(keys []cryptoio.PublicKeyInfo) (string, *pb.StandardPublicKey, error) {
-	keyInfo := keys[rand.Intn(len(keys))]
-	bKey, err := base64.StdEncoding.DecodeString(keyInfo.Key)
-	if err != nil {
-		return "", nil, err
-	}
-	return keyInfo.ID, &pb.StandardPublicKey{Key: bKey}, nil
-}
-
 type standardEncryptFn struct {
-	PublicKeys []cryptoio.PublicKeyInfo
+	PublicKeys *reporttypes.PublicKeys
 }
 
 func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit func(*pb.AggregatablePayload)) error {
@@ -73,7 +63,7 @@ func (fn *standardEncryptFn) ProcessElement(report *pb.PartialReportDpf, emit fu
 	}
 
 	contextInfo := "context"
-	keyID, publicKey, err := getRandomPublicKey(fn.PublicKeys)
+	keyID, publicKey, err := cryptoio.GetRandomPublicKey(fn.PublicKeys)
 	if err != nil {
 		return err
 	}

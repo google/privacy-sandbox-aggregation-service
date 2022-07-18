@@ -26,10 +26,10 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
 	"lukechampine.com/uint128"
-	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
-	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
+	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -93,7 +93,7 @@ func (fn *parseRawReachReportFn) ProcessElement(ctx context.Context, line string
 }
 
 type createEncryptedPartialReportsFn struct {
-	PublicKeys1, PublicKeys2 []cryptoio.PublicKeyInfo
+	PublicKeys1, PublicKeys2 *reporttypes.PublicKeys
 	KeyBitSize               int
 
 	countReport beam.Counter
@@ -149,7 +149,7 @@ func createEncryptedPartialReports(s beam.Scope, reports beam.PCollection, param
 // GeneratePartialReportParams contains required parameters for generating partial reports.
 type GeneratePartialReportParams struct {
 	ReachReportURI, PartialReportURI1, PartialReportURI2 string
-	PublicKeys1, PublicKeys2                             []cryptoio.PublicKeyInfo
+	PublicKeys1, PublicKeys2                             *reporttypes.PublicKeys
 	KeyBitSize                                           int
 	Shards                                               int64
 }

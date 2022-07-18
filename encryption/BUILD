@@ -78,7 +78,8 @@ go_test(
     size = "small",
     srcs = ["cryptoio_test.go"],
     data = [
-        "@tink_base//testdata:credentials",
+        "testdata/chrome/private_key.txt",
+        "testdata/chrome/public_key.json",
     ],
     embed = [":cryptoio"],
     deps = [
@@ -87,9 +88,11 @@ go_test(
         ":standardencrypt",
         "//shared:reporttypes",
         "//shared:utils",
-        "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
         "@com_github_google_distributed_point_functions//dpf:distributed_point_function_go_proto",
         "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_google_tink_go//insecurecleartextkeyset:go_default_library",
+        "@com_github_google_tink_go//keyset:go_default_library",
+        "@com_github_google_tink_go//testutil/hybrid:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
@@ -103,8 +106,10 @@ go_library(
     deps = [
         ":crypto_go_proto",
         "@com_github_google_tink_go//hybrid:go_default_library",
+        "@com_github_google_tink_go//hybrid/subtle:go_default_library",
         "@com_github_google_tink_go//insecurecleartextkeyset:go_default_library",
         "@com_github_google_tink_go//keyset:go_default_library",
+        "@com_github_google_tink_go//proto/tink_go_proto:go_default_library",
     ],
 )
 

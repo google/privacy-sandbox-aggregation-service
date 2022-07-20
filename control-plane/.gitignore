@@ -1,8 +1,14 @@
-node_modules
-package-lock.json
-firebase-debug.log
-.firebase
-.github
-dist/404.html
-.firebaserc
-yarn.lock
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log*
+firebase-debug.*.log*
+
+# Firebase cache
+.firebase/
+
+node_modules/
+
+.DS_Store

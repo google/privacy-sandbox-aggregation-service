@@ -2,9 +2,7 @@
 const collection = process.env.NODE_ENV === 'production' ? 'jobs' : 'jobs-test'
 
 export default {
-    currentLevelsOne: 0,
-    currentLevelsTwo: 0,
-    jobStatus: {
+    jobStatusIcons: {
         "running": "directions_run",
         "failed": "error",
         "scheduled": "calendar_month",
@@ -19,5 +17,8 @@ export default {
     updatedTimestamp: null,
     searchTerm: "",
     collection: collection,
-    direction: null
+    direction: null,
+    firebaseConfig: {
+        // TODO: Replace the following with your app's Firebase project configuration
+    }
 }

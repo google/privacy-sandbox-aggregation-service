@@ -4,15 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "NODE_ENV=development webpack serve",
+    "start": "firebase emulators:start --only hosting",
+    "start-webpack": "NODE_ENV=development webpack serve",
     "test": "jest --verbose",
     "build": "NODE_ENV=production webpack",
     "build-dev": "NODE_ENV=development webpack",
-    "deploy": "npm run build && firebase deploy",
-    "deploy-dev": "npm run build-dev && firebase deploy"
+    "deploy": "yarn build && firebase deploy",
+    "deploy-dev": "yarn build-dev && firebase deploy"
   },
   "keywords": [],
-  "author": "Haroon Mohamedali",
+  "author": "Haroon Mohamedal4",
   "license": "ISC",
   "devDependencies": {
     "@babel/core": "^7.18.6",

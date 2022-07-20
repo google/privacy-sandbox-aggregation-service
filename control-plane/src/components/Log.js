@@ -14,7 +14,7 @@ const Log = (props) => {
         <div className="log">
             <div id={job.id + "-" + log.level + "-header"} data-status={log.status} className="log-header" data-id={job.id + "-" + log.level}>
                 <span>{log.level}</span>
-                <i className={"material-icons " + log.status}>{VALUES.jobStatus[log.status]}</i>
+                <i className={"material-icons " + log.status}>{VALUES.jobStatusIcons[log.status]}</i>
                 <i className="material-icons">keyboard_arrow_down</i>
             </div>
             <div id={job.id + "-" + log.level + "-info"} className="log-info">

@@ -15,7 +15,9 @@
 package cryptoio
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -30,38 +32,13 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/standardencrypt"
 	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
+	"github.com/google/tink/go/insecurecleartextkeyset"
+	"github.com/google/tink/go/keyset"
+	testutilhybrid "github.com/google/tink/go/testutil/hybrid"
 
 	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
-
-// TestKMSEncryptDecryptStandardPrivateKey can be tested with 'blaze run', but fails with 'blaze test'.
-func testKMSEncryptDecryptStandardPrivateKey(t *testing.T) {
-	wantKey, _, err := standardencrypt.GenerateStandardKeyPair()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	keyURI := "gcp-kms://projects/tink-test-infrastructure/locations/global/keyRings/unit-and-integration-testing/cryptoKeys/aead-key"
-	credFile := "../../tink_base/testdata/credential.json"
-
-	ctx := context.Background()
-	encrypted, err := KMSEncryptData(ctx, keyURI, credFile, wantKey.Key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(wantKey.Key, encrypted); diff == "" {
-		t.Error("Key bytes should be different after KMS encryption.")
-	}
-
-	decrypted, err := KMSDecryptData(ctx, keyURI, credFile, encrypted)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(wantKey, &pb.StandardPrivateKey{Key: decrypted}, protocmp.Transform()); diff != "" {
-		t.Errorf("Decrypted and original private key mismatch (-want +got):\n%s", diff)
-	}
-}
 
 func TestReadWriteDPFparameters(t *testing.T) {
 	baseDir, err := ioutil.TempDir("/tmp", "test-private")
@@ -126,19 +103,18 @@ func TestReadWriteDPFparameters(t *testing.T) {
 	}
 }
 
-func TestSaveReadPublicKeyVersions(t *testing.T) {
+func TestSaveReadPublicKeys(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "keys")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	want := map[string][]PublicKeyInfo{
-		"version1": {
+	want := &reporttypes.PublicKeys{
+		Keys: []reporttypes.PublicKeyInfo{
 			{ID: "id11", Key: "key11"},
 			{ID: "id12", Key: "key12"},
 		},
-		"version2": {{ID: "id21", Key: "key21"}},
 	}
 
 	ctx := context.Background()
@@ -149,10 +125,10 @@ func TestSaveReadPublicKeyVersions(t *testing.T) {
 		{"env-var", ""},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			if err := SavePublicKeyVersions(ctx, want, tc.filePath, 0); err != nil {
+			if err := SavePublicKeys(ctx, want, tc.filePath, 0); err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadPublicKeyVersions(ctx, tc.filePath)
+			got, err := ReadPublicKeys(ctx, tc.filePath)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -337,5 +313,69 @@ func TestExtractPayloadsFromAggregatableReportMPCNoEncryption(t *testing.T) {
 	}
 	if diff := cmp.Diff([]uint64{5, 0}, got); diff != "" {
 		t.Errorf("results mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func importPrivateKeyRawBytes(privB, pubB []byte) (*pb.StandardPrivateKey, error) {
+	privHandle, err := testutilhybrid.KeysetHandleFromSerializedPrivateKey(privB, pubB, standardencrypt.KeyTemplate())
+	if err != nil {
+		return nil, err
+	}
+	bPriv := new(bytes.Buffer)
+	err = insecurecleartextkeyset.Write(privHandle, keyset.NewBinaryWriter(bPriv))
+	if err != nil {
+		return nil, err
+	}
+	return &pb.StandardPrivateKey{Key: bPriv.Bytes()}, nil
+}
+
+func TestChromeEncryptionKeys(t *testing.T) {
+	pubFile, err := utils.RunfilesPath("encryption/testdata/chrome/public_key.json", false /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	pubKeys, err := ReadPublicKeys(ctx, pubFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Get the only public key in the file.
+	_, pubKey, err := GetRandomPublicKey(pubKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	privFile, err := utils.RunfilesPath("encryption/testdata/chrome/private_key.txt", false /*isBinary*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privStr, err := ioutil.ReadFile(privFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privB, err := base64.StdEncoding.DecodeString(string(privStr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	privKey, err := importPrivateKeyRawBytes(privB, pubKey.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "message"
+	sharedInfo := "shared info"
+
+	encrypted, err := standardencrypt.Encrypt([]byte(want), []byte(sharedInfo), pubKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := standardencrypt.Decrypt(encrypted, []byte(sharedInfo), privKey)
+	if err != nil {
+		t.Fatalf("decrypt: err %q", err)
+	}
+	if want != string(got) {
+		t.Fatalf("want decrypted message %s, got %s", want, string(got))
 	}
 }

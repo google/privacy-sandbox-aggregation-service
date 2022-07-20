@@ -73,7 +73,7 @@ func main() {
 	if err := cryptoio.SavePrivateKeyParamsCollection(ctx, privInfo, *privateKeyInfoFile); err != nil {
 		log.Exit(err)
 	}
-	if err := cryptoio.SavePublicKeyVersions(ctx, map[string][]cryptoio.PublicKeyInfo{*versionID: pubInfo}, *publicKeyInfoFile, *maxAge); err != nil {
+	if err := cryptoio.SavePublicKeys(ctx, pubInfo, *publicKeyInfoFile, *maxAge); err != nil {
 		log.Exit(err)
 	}
 }

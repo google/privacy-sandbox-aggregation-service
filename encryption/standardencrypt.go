@@ -20,17 +20,22 @@ import (
 	"errors"
 
 	"github.com/google/tink/go/hybrid"
+	"github.com/google/tink/go/hybrid/subtle"
 	"github.com/google/tink/go/insecurecleartextkeyset"
 	"github.com/google/tink/go/keyset"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
+	tpb "github.com/google/tink/go/proto/tink_go_proto"
 )
 
+// KeyTemplate specifies the parameters for HPKE encryption.
+func KeyTemplate() *tpb.KeyTemplate {
+	return hybrid.DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_CHACHA20_POLY1305_Raw_Key_Template()
+}
+
 // GenerateStandardKeyPair generates a private key and a corresponding public key.
-//
-// TODO: Use Tink exposed HPKE in the aggregation pipelines
 func GenerateStandardKeyPair() (*pb.StandardPrivateKey, *pb.StandardPublicKey, error) {
-	priv, err := keyset.NewHandle(hybrid.ECIESHKDFAES128GCMKeyTemplate())
+	priv, err := keyset.NewHandle(KeyTemplate())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -45,20 +50,18 @@ func GenerateStandardKeyPair() (*pb.StandardPrivateKey, *pb.StandardPublicKey, e
 	if err != nil {
 		return nil, nil, err
 	}
-	bPub := new(bytes.Buffer)
-	err = insecurecleartextkeyset.Write(pub, keyset.NewBinaryWriter(bPub))
+	bPub, err := subtle.SerializePrimaryPublicKey(pub, KeyTemplate())
 	if err != nil {
 		return nil, nil, err
 	}
-	publicKey := &pb.StandardPublicKey{Key: bPub.Bytes()}
+	publicKey := &pb.StandardPublicKey{Key: bPub}
 
 	return privateKey, publicKey, nil
 }
 
 // Encrypt encrypts the input message with the given public key.
 func Encrypt(message, context []byte, publicKey *pb.StandardPublicKey) (*pb.StandardCiphertext, error) {
-	bPub := bytes.NewBuffer(publicKey.Key)
-	pub, err := insecurecleartextkeyset.Read(keyset.NewBinaryReader(bPub))
+	pub, err := subtle.KeysetHandleFromSerializedPublicKey(publicKey.Key, KeyTemplate())
 	if err != nil {
 		return nil, err
 	}

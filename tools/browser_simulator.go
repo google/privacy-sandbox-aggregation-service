@@ -91,22 +91,16 @@ func main() {
 	requestCh := make(chan *bytes.Buffer)
 	done := setupRequestWorkers(client, token, *concurrency, &conversionsSent, requestCh)
 
-	var publicKeyInfo1, publicKeyInfo2 []cryptoio.PublicKeyInfo
+	var helperPubKeys1, helperPubKeys2 *reporttypes.PublicKeys
 	// Use any version of the public keys until the version control is designed.
-	helperPubKeys1, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI1)
+	helperPubKeys1, err = cryptoio.ReadPublicKeys(ctx, *helperPublicKeysURI1)
 	if err != nil {
 		log.Exit(err)
 	}
-	for _, v := range helperPubKeys1 {
-		publicKeyInfo1 = v
-	}
 	if isMPC {
-		helperPubKeys2, err := cryptoio.ReadPublicKeyVersions(ctx, *helperPublicKeysURI2)
+		helperPubKeys2, err = cryptoio.ReadPublicKeys(ctx, *helperPublicKeysURI2)
 		if err != nil {
 			log.Exit(err)
-		}
-		for _, v := range helperPubKeys2 {
-			publicKeyInfo2 = v
 		}
 	}
 
@@ -145,15 +139,15 @@ func main() {
 				report, err = dpfdataconverter.GenerateBrowserReport(&dpfdataconverter.GenerateBrowserReportParams{
 					RawReport:     c,
 					KeyBitSize:    *keyBitSize,
-					PublicKeys1:   publicKeyInfo1,
-					PublicKeys2:   publicKeyInfo2,
+					PublicKeys1:   helperPubKeys1,
+					PublicKeys2:   helperPubKeys2,
 					SharedInfo:    string(sharedInfo),
 					EncryptOutput: *encryptOutput,
 				})
 			} else {
 				report, err = onepartydataconverter.GenerateBrowserReport(&onepartydataconverter.GenerateBrowserReportParams{
 					RawReport:     c,
-					PublicKeys:    publicKeyInfo1,
+					PublicKeys:    helperPubKeys1,
 					SharedInfo:    string(sharedInfo),
 					EncryptOutput: *encryptOutput,
 				})

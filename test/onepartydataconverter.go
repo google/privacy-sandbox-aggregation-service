@@ -35,7 +35,7 @@ import (
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
 )
 
-//ParseRawReport parses a raw conversion into RawReport.
+// ParseRawReport parses a raw conversion into RawReport.
 func ParseRawReport(line string) (*pipelinetypes.RawReport, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
@@ -55,7 +55,7 @@ func ParseRawReport(line string) (*pipelinetypes.RawReport, error) {
 }
 
 // EncryptReport encrypts an input report with given public keys.
-func EncryptReport(report *pipelinetypes.RawReport, keys []cryptoio.PublicKeyInfo, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, error) {
+func EncryptReport(report *pipelinetypes.RawReport, keys *reporttypes.PublicKeys, sharedInfo string, encryptOutput bool) (*pb.AggregatablePayload, error) {
 	payload := reporttypes.Payload{
 		Operation: "histogram",
 		Data: []reporttypes.Contribution{
@@ -118,7 +118,7 @@ func (fn *parseRawReportFn) ProcessElement(ctx context.Context, line string, emi
 }
 
 type encryptReportFn struct {
-	PublicKeys    []cryptoio.PublicKeyInfo
+	PublicKeys    *reporttypes.PublicKeys
 	EncryptOutput bool
 
 	countReport beam.Counter
@@ -160,7 +160,7 @@ func writeEncryptedReport(s beam.Scope, output beam.PCollection, outputTextName 
 type GenerateEncryptedReportParams struct {
 	RawReportURI       string
 	EncryptedReportURI string
-	PublicKeys         []cryptoio.PublicKeyInfo
+	PublicKeys         *reporttypes.PublicKeys
 	Shards             int64
 
 	// EncryptOutput should only be used for integration test before HPKE is ready in Go Tink.
@@ -185,7 +185,7 @@ func GenerateEncryptedReport(scope beam.Scope, params *GenerateEncryptedReportPa
 // GenerateBrowserReportParams contains required parameters for function GenerateReport().
 type GenerateBrowserReportParams struct {
 	RawReport     pipelinetypes.RawReport
-	PublicKeys    []cryptoio.PublicKeyInfo
+	PublicKeys    *reporttypes.PublicKeys
 	SharedInfo    string
 	EncryptOutput bool
 }

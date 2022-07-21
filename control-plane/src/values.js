@@ -17,8 +17,5 @@ export default {
     updatedTimestamp: null,
     searchTerm: "",
     collection: collection,
-    direction: null,
-    firebaseConfig: {
-        // TODO: Replace the following with your app's Firebase project configuration
-    }
+    direction: null
 }

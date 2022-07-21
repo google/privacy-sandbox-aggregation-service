@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "firebase emulators:start --only hosting",
+    "start": "yarn build-dev && firebase emulators:start --only hosting",
     "start-webpack": "NODE_ENV=development webpack serve",
     "test": "jest --verbose",
     "build": "NODE_ENV=production webpack",

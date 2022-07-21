@@ -7,7 +7,7 @@ service cloud.firestore {
   match /dabases/{database}/documents {
     match /{document=**} {
       allow read, write: if
-          request.time < timestamp.date(2022, 7, 21);
+          request.time < timestamp.date(2022, 7, 30);
     }
   }
 }

@@ -22,7 +22,6 @@ export async function makeTable(db, thequery, first, status) {
         } else if(status == "search") {
             jobs = await getSearchJobs();
         } else {
-            console.log(status)
             jobs = await getOtherJobs(status, thequery);
         }
     } else {
@@ -173,9 +172,7 @@ export function timeSince(date) {
 async function getSearchJobs() {
     let jobs = []
     let docIds = VALUES.searchTerm.split(";")
-    console.log(docIds);
     for(var i = 0; i < docIds.length;  i++) {
-        console.log(docIds[i])
         const document = await getDoc(doc(VALUES.db, VALUES.collection, docIds[i]))
         if(document.exists) {
             jobs.push(await populateJob(VALUES.db, document))

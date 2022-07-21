@@ -211,5 +211,5 @@ go_library(
     name = "jobmonitor",
     srcs = ["jobmonitor.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/service/jobmonitor",
-    deps = ["@com_google_cloud_go_firestore//:go_default_library"],
+    deps = ["@com_google_cloud_go_firestore//:go_default_library:firestore"],
 )

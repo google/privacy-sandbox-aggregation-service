@@ -186,6 +186,6 @@ go_binary(
         "//service:jobmonitor",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_pborman_uuid//:uuid",
-        "@com_google_cloud_go_firestore//:go_default_library:firestore",
+        "@com_google_cloud_go_firestore//:go_default_library",
     ],
 )

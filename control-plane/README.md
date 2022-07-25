@@ -6,28 +6,27 @@ The job control plane is used for controlling and monitoring aggregation jobs.
 ## Getting set up
 * Install [nodejs](https://nodejs.org/en/) + [yarn](https://yarnpkg.com/)
 * Clone the repo and run yarn install
-  * ```git clone https://github.com/google/privacy-sandbox-aggregation-service```
+  * `git clone https://github.com/google/privacy-sandbox-aggregation-service`
 * Install [Firebase CLI](https://firebase.google.com/docs/cli#install_the_firebase_cli)
 * Update firebaseConfig variable in src/values.js
-* Run ```yarn start```
+* Run `yarn start`
 
 ## Commands
-* ```yarn start``` - starts firebase emulator
-* ```yarn start-webpack``` - starts webpack development server
-* ```yarn test``` - runs jest tests on functions
-* ```yarn build``` - builds production code to dist folder
-* ```yarn build-dev``` - builds dev code to dist folder
-* ```yarn deploy``` - deploys latest code to firebase hosting
+* `yarn start` - starts firebase emulator
+* `yarn start-webpack` - starts webpack development server
+* `yarn test` - runs jest tests on functions
+* `yarn build` - builds production code to dist folder
+* `yarn build-dev` - builds dev code to dist folder
+* `yarn deploy` - deploys latest code to firebase hosting
   * Requires Firebase to be setup in project
-* ```yarn deploy-dev``` - deploys dev code to firebase hosting
+* `yarn deploy-dev` - deploys dev code to firebase hosting
   * Requires Firebase to be setup in project
 
 ## Deploy to Firebase
 1. [Create Firebase project](https://cloud.google.com/firestore/docs/client/get-firebase) with Hosting and Firestore
 2. Log into Firebase CLI using "firebase login"
 3. Run "firebase use --add" to add an alias. When prompted, select your **Project ID**, then give your Firebase project an alias. For more info, visit this [link](https://firebase.google.com/docs/cli#add_alias).
-4. Finally, run ```yarn deploy``` to deploy to Firebase Hosting. When you run the command, Firebase CLI should give a link to your web app.
-5. Update **.github/workflows** with your **GCP-Project ID** for automatic updates
+4. Finally, run `yarn deploy` to deploy to Firebase Hosting. When you run the command, Firebase CLI should give a link to your web app.
 
 # How it works
 

@@ -1,5 +1,5 @@
 import VALUES from './values.js'
-import { deleteJob, makeTable, nextPage, prevPage } from './jobs-functions.js';
+import { makeTable, nextPage, prevPage } from './jobs-functions.js';
 import { query, where, collection, orderBy, limit, Timestamp, collectionGroup } from 'firebase/firestore';
 
 // BUTTON/CLICK FUNCTIONS
@@ -120,14 +120,6 @@ $('#search').keypress(function (e) {
         makeTable(VALUES.db, "", true, "search")
         return false;
     }
-});
-
-$('#render-table').on('click', '#delete-job', function() {
-    let id = $(this).data('id')
-    // delete the job
-    deleteJob(VALUES.db, id)
-    $("#" + id).remove()
-    $("#" + id + "-info").remove()
 });
 
 // PAGINATION

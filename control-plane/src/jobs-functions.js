@@ -20,17 +20,17 @@ export async function makeTable(db, thequery, first, status) {
         if (status == "failed") {
             jobs = await getFailedJobs(thequery);
         } else if(status == "search") {
-            jobs = await getSearchJobs();
+            if(VALUES.searchTerm.trim() == "") {
+                thequery = query(collectionGroup(VALUES.db, VALUES.collection), orderBy('created', 'desc'), limit(10));
+                jobs = await getNormalJobs(db, thequery, true);
+            } else {
+                jobs = await getSearchJobs();
+            }
         } else {
             jobs = await getOtherJobs(status, thequery);
         }
     } else {
-         // get all the jobs returned from the query
-        let values = await getJobs(db, thequery)
-        // values[0] is the jobs, values[1] is the last job, values[2] is the first job
-        jobs = values[0];
-        // set values for pagination
-        setValues(values[1], values[2], first)
+        jobs = await getNormalJobs(db, thequery, first);
     }
 
     // check if the user can go to the next page
@@ -167,6 +167,17 @@ export function timeSince(date) {
         return Math.floor(interval) + " minutes";
     }
     return Math.floor(seconds) + " seconds";
+}
+
+async function getNormalJobs(db, thequery, first) {
+     // get all the jobs returned from the query
+     let values = await getJobs(db, thequery)
+     // values[0] is the jobs, values[1] is the last job, values[2] is the first job
+     let jobs = values[0];
+     // set values for pagination
+     setValues(values[1], values[2], first)
+
+     return jobs;
 }
 
 async function getSearchJobs() {

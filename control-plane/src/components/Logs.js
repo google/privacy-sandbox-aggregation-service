@@ -1,5 +1,5 @@
 import React from 'react';
-import Log from './log';
+import Log from './Log';
 
 // Component that controls all subjobs in a job
 const Logs = (props) => {

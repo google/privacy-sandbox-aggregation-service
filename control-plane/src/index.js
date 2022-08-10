@@ -45,7 +45,6 @@ fetch('/__/firebase/init.json').then(async response => {
                 return;
             }
 
-            console.log('making table')
             // make the table with the first 10
             makeTable(db, query(collection(db, VALUES.collection), orderBy('created', 'desc'), limit(10)), true) 
         } else {

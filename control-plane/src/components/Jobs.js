@@ -15,7 +15,7 @@
 import React from 'react';
 import JobAndLogs from './JobAndLogs';
 import VALUES from '../values';
-import { signOutUser, showUserManagementPage } from '../auth-functions';
+import { signOutUser } from '../auth-functions';
 import { filterJobs } from '../jobs-functions';
 
 // The main component that controls the table of jobs
@@ -66,7 +66,6 @@ class Jobs extends React.Component {
                             <img src={VALUES.user.photoURL != null ? VALUES.user.photoURL : "./images/profile.png"} />
                             <div className='user-account-dropdown'>
                                 <ul>
-                                    {VALUES.userRole == "admin" ? <><li onClick={ showUserManagementPage }>Users</li><hr /></> : null}
                                     <li onClick={ signOutUser }>Log out</li>
                                 </ul>
                             </div>

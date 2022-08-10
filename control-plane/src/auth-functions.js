@@ -19,7 +19,6 @@ import WaitingScreen from './components/Waiting';
 import './styles/auth.css';
 import VALUES from './values';
 import { signOut } from 'firebase/auth';
-import UserManagement from './components/UserManagement';
 
 export function showAuthScreen() {
     const container = document.querySelector('#render-content');
@@ -31,12 +30,6 @@ export function showWaitingScreen() {
     const container = document.querySelector('#render-content');
     const tableRoot = createRoot(container);
     tableRoot.render(<WaitingScreen />);
-}
-
-export function showUserManagementPage() {
-  const container = document.querySelector('#render-content');
-  const tableRoot = createRoot(container);
-  tableRoot.render(<UserManagement />);
 }
 
 export function signOutUser() {

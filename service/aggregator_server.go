@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This binary hosts the aggregation service.
 package main
 
 import (
@@ -33,9 +34,10 @@ import (
 var (
 	address = flag.String("address", ":8080", "Address of the server.")
 
-	privateKeyParamsURI             = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
-	dpfAggregatePartialReportBinary = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report_pipeline", "Binary for partial report aggregation with DPF protocol.")
-	workspaceURI                    = flag.String("workspace_uri", "", "The Private location to save the intermediate query states.")
+	privateKeyParamsURI                  = flag.String("private_key_params_uri", "", "Input file that stores the required parameters to fetch the private keys.")
+	dpfAggregatePartialReportBinary      = flag.String("dpf_aggregate_partial_report_binary", "/dpf_aggregate_partial_report_pipeline", "Binary for partial report aggregation with DPF protocol.")
+	dpfAggregateReachPartialReportBinary = flag.String("dpf_aggregate_reach_partial_report_binary", "/dpf_aggregate_reach_partial_report_pipeline", "Binary for partial report aggregation for Reach.")
+	workspaceURI                         = flag.String("workspace_uri", "", "The Private location to save the intermediate query states.")
 	// The PubSub subscription should enable the retry policy with a exponential backoff delay.
 	// Recommended retry policy: min_retry_delay=60s, max_retry_delay=600s.
 	// The subscription should also have a dead-letter topic where messages will be forwarded after 10 failed delivery attemps.
@@ -93,9 +95,10 @@ func main() {
 	ctx := context.Background()
 	queryHandler := aggregatorservice.QueryHandler{
 		ServerCfg: aggregatorservice.ServerCfg{
-			PrivateKeyParamsURI:             *privateKeyParamsURI,
-			DpfAggregatePartialReportBinary: *dpfAggregatePartialReportBinary,
-			WorkspaceURI:                    *workspaceURI,
+			PrivateKeyParamsURI:                  *privateKeyParamsURI,
+			DpfAggregatePartialReportBinary:      *dpfAggregatePartialReportBinary,
+			DpfAggregateReachPartialReportBinary: *dpfAggregateReachPartialReportBinary,
+			WorkspaceURI:                         *workspaceURI,
 		},
 		PipelineRunner: *pipelineRunner,
 		DataflowCfg: aggregatorservice.DataflowCfg{

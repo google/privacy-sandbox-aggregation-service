@@ -145,6 +145,7 @@ container_image(
     files = [
         ":aggregator_server",
         "//pipeline:dpf_aggregate_partial_report_pipeline",
+        "//pipeline:dpf_aggregate_reach_partial_report_pipeline",
     ],
     stamp = True,
 )

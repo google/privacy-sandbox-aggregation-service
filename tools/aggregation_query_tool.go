@@ -40,6 +40,7 @@ var (
 	epsilon            = flag.Float64("epsilon", 0.0, "Total privacy budget for the hierarchical query. For experiments, no noise will be added when epsilon is zero.")
 	keyBitSize         = flag.Int("key_bit_size", 32, "Bit size of the data bucket keys. Support up to 128 bit.")
 	resultDir          = flag.String("result_dir", "", "The directory where the final results will be saved. Helpers should only have writing permissions to this directory.")
+	aggType            = flag.String("agg_type", "conversion", "Aggregation type, should be 'conversion' or 'reach'.")
 
 	impersonatedSvcAccount = flag.String("impersonated_svc_account", "", "Service account to impersonate, skipped if empty")
 
@@ -61,6 +62,10 @@ func main() {
 
 	log.Info("- Debugging enabled - \n")
 	log.Infof("Running querier simulator version: %v, build: %v\n", version, buildDate)
+
+	if *aggType == "" {
+		log.Exit("aggregation type empty")
+	}
 
 	ctx := context.Background()
 	client := retryablehttp.NewClient().StandardClient()
@@ -131,6 +136,7 @@ func main() {
 
 	// Request aggregation on helper1.
 	if err := utils.PublishRequest(ctx, pubsubClient1, topic1, &query.AggregateRequest{
+		AggregationType:   *aggType,
 		PartialReportURI:  *partialReportURI1,
 		ExpandConfigURI:   *expansionConfigURI,
 		TotalEpsilon:      *epsilon,
@@ -146,6 +152,7 @@ func main() {
 	if *helperAddress2 != "" {
 		// Request aggregation on helper2.
 		if err := utils.PublishRequest(ctx, pubsubClient2, topic2, &query.AggregateRequest{
+			AggregationType:   *aggType,
 			PartialReportURI:  *partialReportURI2,
 			ExpandConfigURI:   *expansionConfigURI,
 			TotalEpsilon:      *epsilon,

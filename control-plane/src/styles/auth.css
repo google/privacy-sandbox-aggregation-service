@@ -1,0 +1,153 @@
+ /* Copyright 2022 Google LLC 
+  
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+  
+        http://www.apache.org/licenses/LICENSE-2.0
+  
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License. 
+*/
+
+.auth-screen {
+    margin: 0px;
+    background: white;
+    height: 100vh;
+    width: 100%;
+    text-align: center;
+    color: #333;
+}
+#main-icon {
+    height: 50px;
+    border-radius: 300px;
+}
+.auth-block {
+    position: relative;
+    padding: 30px 100px;
+    border: 1px solid #d5d5d5;
+    width: 300px;
+    display: inline-block;
+    top: 50%;
+    -webkit-transform: translateY(-50%);
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+    background: white;
+    border-radius: 4px;
+}
+.login-button {
+    width: 300px;
+}
+.or-text-container {
+    display: inline-block;
+    width: 300px;
+}
+.or-text {
+    overflow: hidden;
+    text-align: center;
+    margin-bottom: 0px;
+}
+.or-text:before,
+.or-text:after {
+    background-color: #333;
+    content: "";
+    display: inline-block;
+    height: 1px;
+    position: relative;
+    vertical-align: middle;
+    width: 50%;
+}
+
+.or-text:before {
+    right: 0.5em;
+    margin-left: -50%;
+}
+
+.or-text:after {
+    left: 0.5em;
+    margin-right: -50%;
+}
+.move-to {
+    text-align: left
+}
+.social-logins button {
+    width: 300px;
+    background: transparent;
+    border: 1px solid #d5d5d5;
+    padding: 10px;
+    font-size: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+.social-logins button {
+    cursor: pointer;
+}
+.social-logins img {
+    height: 22px;
+    margin-right: 10px;
+}
+.social-logins span {
+    position: relative;
+    top: 1px;
+}
+.waiting-card-container {
+    text-align: center;
+    padding: 50px
+}
+.waiting-card {
+    display: inline-block;
+    text-align: left;
+    width: 420px;
+    min-height: 100px;
+}
+.waiting-card .mdl-card__title {
+    background: #eee;
+}
+.user-image img {
+    height: 30px;
+    border-radius: 50%;
+}
+.user-image {
+    position: relative;
+}
+.user-account-dropdown {
+    position: absolute;
+    right: 0px;
+    background: white;
+    color: #333;
+    border: 1px solid #d5d5d5;
+    border-radius: 4px;
+    padding: 10px;
+    display: none;
+}
+.user-account-dropdown ul {
+    padding: 0px;
+    margin: 0px;
+    list-style-type: none;
+    width: 80px;
+}
+.user-account-dropdown li {
+    padding: 5px;
+}
+ul.user-account-dropdown:hover {
+    display: block!important;
+}
+.user-image:hover .user-account-dropdown {
+    display: block!important;
+}
+.user-account-dropdown li:hover {
+    background-color: #eee;
+    cursor: pointer;
+}
+.user-account-dropdown hr {
+    margin: 0px;
+}
+.users-table-container {
+    padding: 30px;
+}
+.users-table {
+    width: 100%;
+}

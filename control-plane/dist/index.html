@@ -12,9 +12,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js"></script>
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.css" />
     <link rel="stylesheet" href="./main.css">
     <link rel="shortcut icon" href="./images/controlplane.png" type="image/x-icon">
-    <title>GSOC Chromium Control Plane</title>
+    <title>Aggregation Jobs Control Plane</title>
     <style>
         .page-content {
             display: flex;
@@ -23,117 +25,7 @@
 </head>
 
 <body>
-    <div class="mdl-layout mdl-js-layout
-            mdl-layout--fixed-header">
-        <header class="mdl-layout__header">
-            <div class="mdl-layout__header-row">
-                <span class="mdl-layout-title">Job Control Plane</span>
-                <div class="mdl-layout-spacer"></div>
-                <div class="mdl-textfield mdl-js-textfield mdl-textfield--expandable
-                        mdl-textfield--floating-label mdl-textfield--align-right">
-                    <label class="mdl-button mdl-js-button mdl-button--icon" for="search">
-                        <i class="material-icons">search</i>
-                    </label>
-                    <div class="mdl-textfield__expandable-holder">
-                        <input class="mdl-textfield__input" type="text" id="search" name="sample">
-                    </div>
-                </div>
-            </div>
-        </header>
-        <main class="mdl-layout__content">
-            <div class="page-content">
-
-                <div class="table-section">
-                    <div class="page-header">
-                        <h3>Aggregation Table</h3><span id="filter-jobs" class="filter-jobs"><i class="material-icons">filter_list</i></span>
-                    </div>
-    
-                    <div style="text-align:center">
-                        <div id="p2" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
-                    </div>
-                    <div id="render-table">
-
-                    </div>
-                    <div class="pages">
-                        <span>1</span>
-                        <button id="prev-page" class="mdl-button mdl-js-button mdl-button--icon">
-                            <i class="material-icons">navigate_before</i>
-                        </button>
-                        <button id="next-page" class="mdl-button mdl-js-button mdl-button--icon">
-                            <i class="material-icons">navigate_next</i>
-                        </button>
-                    </div>
-    
-                    <!-- TODO -- Implement add job with Tao and Robert -->
-                    <!-- <button id="addjob"
-                        class="mdl-button mdl-js-button mdl-button--fab mdl-js-ripple-effect mdl-button--colored bottom-button">
-                        <i class="material-icons">add</i>
-                    </button> -->
-                    
-                    <div id="snackbar-container" class="mdl-js-snackbar mdl-snackbar">
-                        <div class="mdl-snackbar__text"></div>
-                        <button class="mdl-snackbar__action" type="button"></button>
-                    </div>
-                </div>
-                <div class="filter-side-holder">
-                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-                        <select class="mdl-textfield__input" id="status" name="status">
-                          <option></option>
-                          <option value="running">Running</option>
-                          <option value="scheduled">Scheduled</option>
-                          <option value="failed">Failed</option>
-                          <option value="finished">Finished</option>
-                        </select>
-                        <label class="mdl-textfield__label" for="status">Status</label>
-                    </div>
-                    <br>
-                    <h5>Created</h5>
-                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-                        <select class="mdl-textfield__input" id="created" name="created">
-                            <option></option>
-                            <option value="1">1 hour</option>
-                            <option value="2">2 hours</option>
-                            <option value="6">6 hours</option>
-                            <option value="12">12 hours</option>
-                            <option value="24">1 day</option>
-                            <option value="120">5 days</option>
-                            <option value="240">10 days</option>
-                            <option value="720">1 month</option>
-                            <option value="4320">6 months</option>
-                        </select>
-                        <label class="mdl-textfield__label" for="created">Created</label>
-                    </div>
-                    <br>
-                    <h5>Last Updated</h5>
-                    <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-                        <select class="mdl-textfield__input" id="updated" name="updated">
-                          <option></option>
-                          <option value="1">1 hour</option>
-                          <option value="2">2 hours</option>
-                          <option value="6">6 hours</option>
-                          <option value="12">12 hours</option>
-                          <option value="24">1 day</option>
-                          <option value="120">5 days</option>
-                          <option value="240">10 days</option>
-                          <option value="720">1 month</option>
-                          <option value="4320">6 months</option>
-                        </select>
-                        <label class="mdl-textfield__label" for="updated">Last Updated</label>
-                    </div>
-                    <p id="updated-created-error" class="error-message">Last updated and created can't both be set</p>
-                    <br>
-                    <div style="text-align: left;">
-                        <button id="filter-jobs-button" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" type="button">
-                            Go
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <br>
-            <br>
-            <br>
-        </main>
-    </div>
+    <div id="render-content"></div>
     <script src="./main.js"></script>
 </body>
 

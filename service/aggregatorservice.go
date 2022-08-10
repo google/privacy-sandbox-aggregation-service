@@ -51,10 +51,11 @@ type DataflowCfg struct {
 
 // ServerCfg contains file URIs necessary for the service.
 type ServerCfg struct {
-	PrivateKeyParamsURI             string
-	DpfAggregatePartialReportBinary string
-	OnepartyAggregateReportBinary   string
-	WorkspaceURI                    string
+	PrivateKeyParamsURI                  string
+	DpfAggregatePartialReportBinary      string
+	DpfAggregateReachPartialReportBinary string
+	OnepartyAggregateReportBinary        string
+	WorkspaceURI                         string
 }
 
 // SharedInfoHandler handles HTTP requests for the information shared with other helpers.
@@ -250,22 +251,28 @@ func (h *QueryHandler) SetupPullRequests(ctx context.Context) error {
 
 		// no job with "queryId-level-helperId" name --> schedule --> if jobDone schedule next lvl
 		var aggErr error
-		if hierarchicalConfig, err := query.ReadHierarchicalConfigFile(ctx, request.ExpandConfigURI); err == nil {
-			aggErr = h.aggregatePartialReportHierarchical(ctx, request, hierarchicalConfig, jobDone)
-		} else if directConfig, err := query.ReadDirectConfigFile(ctx, request.ExpandConfigURI); err == nil {
-			if jobDone {
-				log.Infof("query %q complete", request.QueryID)
+		if request.AggregationType == query.ConversionType {
+			if hierarchicalConfig, err := query.ReadHierarchicalConfigFile(ctx, request.ExpandConfigURI); err == nil {
+				aggErr = h.aggregatePartialReportHierarchical(ctx, request, hierarchicalConfig, jobDone)
+			} else if directConfig, err := query.ReadDirectConfigFile(ctx, request.ExpandConfigURI); err == nil {
+				if jobDone {
+					log.Infof("query %q complete", request.QueryID)
+				} else {
+					aggErr = h.aggregatePartialReportDirect(ctx, request, directConfig)
+				}
+			} else if err := onepartyaggregator.ValidateTargetBuckets(ctx, request.ExpandConfigURI); err == nil {
+				if jobDone {
+					log.Infof("query %q complete", request.QueryID)
+				} else {
+					aggErr = h.aggregateOnepartyReport(ctx, request)
+				}
 			} else {
-				aggErr = h.aggregatePartialReportDirect(ctx, request, directConfig)
+				log.Errorf("invalid expansion configuration in URI %s", request.ExpandConfigURI)
 			}
-		} else if err := onepartyaggregator.ValidateTargetBuckets(ctx, request.ExpandConfigURI); err == nil {
-			if jobDone {
-				log.Infof("query %q complete", request.QueryID)
-			} else {
-				aggErr = h.aggregateOnepartyReport(ctx, request)
-			}
+		} else if request.AggregationType == query.ReachType {
+			aggErr = h.aggregatePartialReportReach(ctx, request)
 		} else {
-			log.Errorf("invalid expansion configuration in URI %s", request.ExpandConfigURI)
+			aggErr = fmt.Errorf("expect aggregation type 'reach' or 'conversion', got %q", request.AggregationType)
 		}
 
 		if aggErr != nil {
@@ -415,6 +422,26 @@ func (h *QueryHandler) aggregatePartialReportHierarchical(ctx context.Context, r
 		return err
 	}
 	return utils.PublishRequest(ctx, h.PubSubTopicClient, topic, request)
+}
+
+func (h *QueryHandler) aggregatePartialReportReach(ctx context.Context, request *query.AggregateRequest) error {
+	outputResultURI := getFinalPartialResultURI(request.ResultDir, request.QueryID, h.Origin)
+	outputValidityURI := utils.JoinPath(request.ResultDir, fmt.Sprintf("%s_%s_validity", request.QueryID, strings.ReplaceAll(h.Origin, ".", "_")))
+	args := []string{
+		"--partial_report_uri=" + request.PartialReportURI,
+		"--partial_histogram_uri=" + outputResultURI,
+		"--partial_validity_uri=" + outputValidityURI,
+		"--private_key_params_uri=" + h.ServerCfg.PrivateKeyParamsURI,
+		"--key_bit_size=" + fmt.Sprint(request.KeyBitSize),
+		"--runner=" + h.PipelineRunner,
+	}
+
+	if err := h.runPipeline(ctx, h.ServerCfg.DpfAggregateReachPartialReportBinary, args, request); err != nil {
+		return err
+	}
+
+	log.Infof("query %q complete", request.QueryID)
+	return nil
 }
 
 func (h *QueryHandler) aggregatePartialReportDirect(ctx context.Context, request *query.AggregateRequest, config *query.DirectConfig) error {

@@ -198,6 +198,7 @@ go_binary(
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
+        "@com_google_cloud_go_profiler//:go_default_library",
     ],
 )
 

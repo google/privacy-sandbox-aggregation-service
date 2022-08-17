@@ -22,6 +22,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
+	"cloud.google.com/go/profiler"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
@@ -40,13 +41,27 @@ var (
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
 
 	fileShards = flag.Int64("file_shards", 10, "The number of shards for the output file.")
+
+	profilerService        = flag.String("profiler_service", "", "Service name for profiling pipelines.")
+	profilerServiceVersion = flag.String("profiler_service_version", "", "Service version for profiling pipelines.")
 )
 
 func main() {
 	flag.Parse()
-	beam.Init()
 
 	ctx := context.Background()
+	if *profilerService != "" {
+		if err := profiler.Start(
+			profiler.Config{
+				Service:        *profilerService,
+				ServiceVersion: *profilerServiceVersion,
+			}); err != nil {
+			log.Exit(ctx, err)
+		}
+	}
+
+	beam.Init()
+
 	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
 	if err != nil {
 		log.Exit(ctx, err)

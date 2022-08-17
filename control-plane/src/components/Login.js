@@ -69,10 +69,13 @@ function Login({ parent }) {
             <h3>Aggregation Jobs Control Plane</h3>
             <div className="social-logins" id="social-logins">
                 <button onClick={ googleLogin }>
-                    <img src="./images/g-logo.png"/><span>Sign in with Google</span>
+                    <img src="https://developers.google.com/static/identity/images/g-logo.png"/><span>Sign in with Google</span>
                 </button>
                 <button onClick={ githubLogin }>
-                    <img src="./images/github-logo.png"/><span>Sign in with Github</span>
+                    <div className='github-logo-crop'>
+                        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" className='github-logo' />
+                    </div>
+                    <span>Sign in with Github</span>
                 </button>
             </div>
             <br />

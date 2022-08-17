@@ -154,6 +154,22 @@ ul.user-account-dropdown:hover {
 .users-table {
     width: 100%;
 }
+.github-logo-crop {
+    height: 22px;
+    width: 22px;
+    overflow: hidden;
+    display: inline-block;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+.github-logo {
+    height: 26px!important;
+    margin: -2px 0px 0px -2px!important;
+}
+.user-image i {
+    font-size: 30px;
+    color: white;
+}
 /*!************************************************************************!*\
   !*** css ./node_modules/css-loader/dist/cjs.js!./src/styles/index.css ***!
   \************************************************************************/

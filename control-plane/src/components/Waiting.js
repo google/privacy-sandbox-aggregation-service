@@ -41,7 +41,7 @@ class WaitingScreen extends React.Component {
                         <span className="mdl-layout-title">Job Control Plane</span>
                         <div className="mdl-layout-spacer"></div>
                         <div className='user-image'>
-                            <img src={VALUES.user.photoURL != null ? VALUES.user.photoURL : "./images/profile.png"} />
+                            {VALUES.user.photoURL != null ? <img src={VALUES.user.photoURL} /> : <i className='material-icons'>account_circle</i>}
                             <div className='user-account-dropdown'>
                                 <ul>
                                     <li onClick={ signOutUser }>Log out</li>

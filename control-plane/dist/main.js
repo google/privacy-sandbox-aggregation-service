@@ -32057,9 +32057,11 @@ var Jobs = /*#__PURE__*/function (_React$Component) {
         className: "mdl-layout-spacer"
       }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
         className: "user-image"
-      }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
-        src: _values__WEBPACK_IMPORTED_MODULE_2__["default"].user.photoURL != null ? _values__WEBPACK_IMPORTED_MODULE_2__["default"].user.photoURL : "./images/profile.png"
-      }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+      }, _values__WEBPACK_IMPORTED_MODULE_2__["default"].user.photoURL != null ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
+        src: _values__WEBPACK_IMPORTED_MODULE_2__["default"].user.photoURL
+      }) : /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("i", {
+        className: "material-icons"
+      }, "account_circle"), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
         className: "user-account-dropdown"
       }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("ul", null, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("li", {
         onClick: _auth_functions__WEBPACK_IMPORTED_MODULE_3__.signOutUser
@@ -32405,12 +32407,15 @@ function Login(_ref) {
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
     onClick: googleLogin
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
-    src: "./images/g-logo.png"
+    src: "https://developers.google.com/static/identity/images/g-logo.png"
   }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", null, "Sign in with Google")), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
     onClick: githubLogin
+  }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    className: "github-logo-crop"
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
-    src: "./images/github-logo.png"
-  }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", null, "Sign in with Github"))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("br", null), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    src: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+    className: "github-logo"
+  })), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", null, "Sign in with Github"))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("br", null), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
     className: "or-text-container"
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("p", {
     className: "or-text"
@@ -32665,12 +32670,15 @@ function SignUp(_ref) {
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
     onClick: googleSignUp
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
-    src: "./images/g-logo.png"
+    src: "https://developers.google.com/static/identity/images/g-logo.png"
   }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", null, "Sign up with Google")), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
     onClick: githubSignUp
+  }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    className: "github-logo-crop"
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
-    src: "./images/github-logo.png"
-  }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", null, "Sign up with Github"))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("br", null), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    src: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+    className: "github-logo"
+  })), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", null, "Sign up with Github"))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("br", null), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
     className: "or-text-container"
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("p", {
     className: "or-text"
@@ -32799,9 +32807,11 @@ var WaitingScreen = /*#__PURE__*/function (_React$Component) {
         className: "mdl-layout-spacer"
       }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
         className: "user-image"
-      }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
-        src: _values__WEBPACK_IMPORTED_MODULE_1__["default"].user.photoURL != null ? _values__WEBPACK_IMPORTED_MODULE_1__["default"].user.photoURL : "./images/profile.png"
-      }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+      }, _values__WEBPACK_IMPORTED_MODULE_1__["default"].user.photoURL != null ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("img", {
+        src: _values__WEBPACK_IMPORTED_MODULE_1__["default"].user.photoURL
+      }) : /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("i", {
+        className: "material-icons"
+      }, "account_circle"), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
         className: "user-account-dropdown"
       }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("ul", null, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("li", {
         onClick: _auth_functions__WEBPACK_IMPORTED_MODULE_2__.signOutUser

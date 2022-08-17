@@ -77,10 +77,13 @@ function SignUp({ parent }) {
             <h3>Aggregation Jobs Control Plane</h3>
             <div className="social-logins" id="social-logins">
                 <button onClick={ googleSignUp }>
-                    <img src="./images/g-logo.png"/><span>Sign up with Google</span>
+                    <img src="https://developers.google.com/static/identity/images/g-logo.png"/><span>Sign up with Google</span>
                 </button>
                 <button onClick={ githubSignUp }>
-                    <img src="./images/github-logo.png"/><span>Sign up with Github</span>
+                    <div className='github-logo-crop'>
+                        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" className="github-logo"/>
+                    </div>
+                    <span>Sign up with Github</span>
                 </button>
             </div>
             <br />

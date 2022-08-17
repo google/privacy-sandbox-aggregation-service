@@ -151,3 +151,11 @@ ul.user-account-dropdown:hover {
 .users-table {
     width: 100%;
 }
+.remove-user {
+    color: red;
+    cursor: pointer;
+}
+.add-user {
+    color: green;
+    cursor: pointer;
+}

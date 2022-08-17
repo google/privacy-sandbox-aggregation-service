@@ -36,8 +36,8 @@ const PendingUser = (props) => {
             <td className="mdl-data-table__cell--non-numeric">{user.id}</td>
             <td className="mdl-data-table__cell--non-numeric">{user.email}</td>
             <td>
-                <i className="material-icons"  id={user.id + "-remove"}>clear</i>
-                <i className="material-icons"  id={user.id + "-add"}>done</i>
+                <i className="material-icons remove-user"  id={user.id + "-remove"}>clear</i>
+                <i className="material-icons add-user"  id={user.id + "-add"}>done</i>
             </td>
         </tr>
     );

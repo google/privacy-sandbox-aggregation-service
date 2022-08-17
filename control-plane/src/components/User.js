@@ -26,7 +26,7 @@ const User = (props) => {
             <td className="mdl-data-table__cell--non-numeric">{user.id}</td>
             <td className="mdl-data-table__cell--non-numeric">{user.email}</td>
             <td>
-                <i className="material-icons"  id={user.id + "-delete"}>delete</i>
+                {user.email == "admin@chromium.org" ? null : <i className="material-icons"  id={user.id + "-delete"}>delete</i>}
             </td>
         </tr>
     );

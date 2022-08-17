@@ -28,16 +28,6 @@
         <header class="mdl-layout__header">
             <div class="mdl-layout__header-row">
                 <span class="mdl-layout-title">Job Control Plane</span>
-                <div class="mdl-layout-spacer"></div>
-                <div class="mdl-textfield mdl-js-textfield mdl-textfield--expandable
-                        mdl-textfield--floating-label mdl-textfield--align-right">
-                    <label class="mdl-button mdl-js-button mdl-button--icon" for="search">
-                        <i class="material-icons">search</i>
-                    </label>
-                    <div class="mdl-textfield__expandable-holder">
-                        <input class="mdl-textfield__input" type="text" id="search" name="sample">
-                    </div>
-                </div>
             </div>
         </header>
         <main class="mdl-layout__content">
@@ -76,6 +66,11 @@
                     </div>
                 </div>
                 <div class="filter-side-holder">
+                    <div class="mdl-textfield mdl-js-textfield">
+                        <input class="mdl-textfield__input" type="text" id="search">
+                        <label class="mdl-textfield__label" for="search">Search</label>
+                    </div>
+                    <h5>Status</h5>
                     <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
                         <select class="mdl-textfield__input" id="status" name="status">
                           <option></option>

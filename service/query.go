@@ -27,7 +27,14 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 )
 
-const elementBitSize = 64
+const (
+	// ReachType specifies the aggregation type for the Reach/Frequency measurement.
+	ReachType = "reach"
+	// ConversionType specifies the aggregation type for the conversion measurement.
+	ConversionType = "conversion"
+
+	elementBitSize = 64
+)
 
 // HierarchicalConfig contains the parameters for the hierarchical query model.
 type HierarchicalConfig struct {
@@ -131,6 +138,8 @@ type HelperSharedInfo struct {
 
 // AggregateRequest contains infomation that are necessary for the query.
 type AggregateRequest struct {
+	// The type of aggregation, should be "conversion" or "reach".
+	AggregationType  string
 	PartialReportURI string
 	ExpandConfigURI  string
 	QueryID          string

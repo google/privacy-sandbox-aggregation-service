@@ -312,7 +312,6 @@ type AggregatePartialReportParams struct {
 	// The private keys for the standard encryption from the helper server.
 	HelperPrivateKeys map[string]*pb.StandardPrivateKey
 	KeyBitSize        int
-	ExpandParams      *dpfaggregator.ExpandParameters
 	CombineParams     *dpfaggregator.CombineParams
 }
 

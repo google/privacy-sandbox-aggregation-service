@@ -18,11 +18,11 @@ package main
 import (
 	"context"
 	"flag"
-	"math"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
+	"cloud.google.com/go/profiler"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/cryptoio"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
@@ -40,19 +40,28 @@ var (
 	directCombine = flag.Bool("direct_combine", false, "Use direct or segmented combine when aggregating the expanded vectors.")
 	segmentLength = flag.Uint64("segment_length", 32768, "Segment length to split the original vectors.")
 
-	epsilon = flag.Float64("epsilon", 0.0, "Epsilon for the privacy budget.")
-	// The default l1 sensitivity is consistent with:
-	// https://github.com/WICG/conversion-measurement-api/blob/main/AGGREGATE.md#privacy-budgeting
-	l1Sensitivity = flag.Uint64("l1_sensitivity", uint64(math.Pow(2, 16)), "L1-sensitivity for the privacy budget.")
-
 	fileShards = flag.Int64("file_shards", 10, "The number of shards for the output file.")
+
+	profilerService        = flag.String("profiler_service", "", "Service name for profiling pipelines.")
+	profilerServiceVersion = flag.String("profiler_service_version", "", "Service version for profiling pipelines.")
 )
 
 func main() {
 	flag.Parse()
-	beam.Init()
 
 	ctx := context.Background()
+	if *profilerService != "" {
+		if err := profiler.Start(
+			profiler.Config{
+				Service:        *profilerService,
+				ServiceVersion: *profilerServiceVersion,
+			}); err != nil {
+			log.Exit(ctx, err)
+		}
+	}
+
+	beam.Init()
+
 	helperPrivKeys, err := cryptoio.ReadPrivateKeyCollection(ctx, *privateKeyParamsURI)
 	if err != nil {
 		log.Exit(ctx, err)
@@ -82,8 +91,6 @@ func main() {
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
 				SegmentLength: *segmentLength,
-				Epsilon:       *epsilon,
-				L1Sensitivity: *l1Sensitivity,
 			},
 			Shards: *fileShards,
 		}); err != nil {

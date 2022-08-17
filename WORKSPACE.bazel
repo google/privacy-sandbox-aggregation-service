@@ -12,10 +12,10 @@ http_archive(
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "8e968b5fcea1d2d64071872b12737bbb5514524ee5f0a4f54f5920266c261acb",
+    sha256 = "16e9fca53ed6bd4ff4ad76facc9b7b651a89db1689a2877d6fd7b82aa824e366",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.28.0/rules_go-v0.28.0.zip",
-        "https://github.com/bazelbuild/rules_go/releases/download/v0.28.0/rules_go-v0.28.0.zip",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.34.0/rules_go-v0.34.0.zip",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.34.0/rules_go-v0.34.0.zip",
     ],
 )
 
@@ -23,7 +23,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_depe
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.16")
+go_register_toolchains(version = "1.18.4")
 
 http_archive(
     name = "bazel_gazelle",
@@ -91,8 +91,8 @@ grpc_extra_deps()
 
 http_archive(
     name = "tink_base",
-    strip_prefix = "tink-master/",
-    urls = ["https://github.com/google/tink/archive/master.zip"],
+    strip_prefix = "tink-46e9aa6cdcc0976f2a752784998b4e28e4c603db/",
+    urls = ["https://github.com/google/tink/archive/46e9aa6cdcc0976f2a752784998b4e28e4c603db.zip"],
 )
 
 load("@tink_base//:tink_base_deps.bzl", "tink_base_deps")
@@ -105,8 +105,8 @@ tink_base_deps_init()
 
 http_archive(
     name = "com_github_google_tink_go",
-    strip_prefix = "tink-master/go",
-    urls = ["https://github.com/google/tink/archive/master.zip"],
+    strip_prefix = "tink-46e9aa6cdcc0976f2a752784998b4e28e4c603db/go",
+    urls = ["https://github.com/google/tink/archive/46e9aa6cdcc0976f2a752784998b4e28e4c603db.zip"],
 )
 
 load("@com_github_google_tink_go//:tink_go_deps_init.bzl", "tink_go_deps_init")
@@ -196,7 +196,7 @@ http_archive(
 
 git_repository(
     name = "com_github_google_distributed_point_functions",
-    commit = "88c73a78cd61dacba6d8258f13d0f5dc5f1fb0d2",
+    commit = "0f7f758d2c67092c05a3b93ff4ae9ad00cca1487",
     remote = "https://github.com/google/distributed_point_functions.git",
 )
 

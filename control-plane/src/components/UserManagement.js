@@ -50,7 +50,7 @@ class UserManagement extends React.Component {
             user.created = vals.time;
             user.email = vals.email;
             user.role = vals.role;
-            users.push(<User user={user} />);
+            users.push(<User user={user} parent={this} key={user.id} />);
         }));
         this.setState({
             users: users,
@@ -67,7 +67,7 @@ class UserManagement extends React.Component {
             const vals = doc.data();
             user.created = vals.time;
             user.email = vals.email;
-            users.push(<PendingUser user={user} />);
+            users.push(<PendingUser user={user} parent={this} key={user.id} />);
         }));
         this.setState({
             users: users,

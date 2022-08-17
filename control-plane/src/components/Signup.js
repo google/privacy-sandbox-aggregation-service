@@ -59,9 +59,7 @@ function SignUp({ parent }) {
                 // Signed in 
                 const user = userCredential.user;
                 if(user.email == "admin@chromium.org") {
-                    console.log('creating')
                     await setDoc(doc(VALUES.db, "user-management", "users", "existing-users", user.uid), {"role": "admin", "time": Timestamp.now(), "email": user.email})
-                    console.log('created')
                 } else {
                     await setDoc(doc(VALUES.db, "user-management", "users", "pending-users", user.uid), {"time": Timestamp.now(), "email": user.email})
                 }

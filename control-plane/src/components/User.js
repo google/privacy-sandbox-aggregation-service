@@ -14,10 +14,21 @@
 
 import React from 'react';
 import { formatTime } from '../jobs-functions';
+import VALUES from '../values';
+import { doc, deleteDoc } from "firebase/firestore";
 
 // User component for the table
 const User = (props) => {
     let user = props.user;
+    let parent = props.parent;
+
+    async function deleteUser() {
+        await deleteDoc(doc(VALUES.db, "user-management", "users", "existing-users", user.id));
+        parent.setState({users: parent.state.users.filter(function(u) { 
+            return u.key !== user.id
+        })});
+        
+    }
 
     return (
         <tr id={user.id} className="user">
@@ -26,7 +37,7 @@ const User = (props) => {
             <td className="mdl-data-table__cell--non-numeric">{user.id}</td>
             <td className="mdl-data-table__cell--non-numeric">{user.email}</td>
             <td>
-                {user.email == "admin@chromium.org" ? null : <i className="material-icons"  id={user.id + "-delete"}>delete</i>}
+                {user.email == "admin@chromium.org" ? null : <i className="material-icons delete-user" onClick={ deleteUser }  id={user.id + "-delete"}>delete</i>}
             </td>
         </tr>
     );

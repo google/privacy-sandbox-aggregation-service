@@ -36,6 +36,8 @@ type AggregationJob struct {
 	Aggregators map[string]*AggregatorJobs
 	// Overall status of a job.
 	Created time.Time `firestore:"created,omitempty"`
+	// Number of levels required by the job.
+	Levels int `firestore:"levels,omitempty"`
 }
 
 // WriteJobs writes a list of jobs to Firestore. The input jobs are keyed by the query IDs.

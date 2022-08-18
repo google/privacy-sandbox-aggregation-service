@@ -319,14 +319,15 @@ type AggregatePartialReportParams struct {
 func AggregatePartialReport(scope beam.Scope, params *AggregatePartialReportParams) error {
 	scope = scope.Scope("AggregatePartialreportDpf")
 
-	encrypted := dpfaggregator.ReadPartialReport(scope, params.PartialReportURI)
+	encrypted := dpfaggregator.ReadEncryptedPartialReport(scope, params.PartialReportURI)
 	decrypted := dpfaggregator.DecryptPartialReport(scope, encrypted, params.HelperPrivateKeys)
 	partialHistogram, err := ExpandAndCombineHistogram(scope, decrypted, params)
 	if err != nil {
 		return err
 	}
 
-	WriteHistogram(scope, partialHistogram, params.PartialReportURI, params.Shards)
+	WriteReachRQ(scope, partialHistogram, params.PartialValidityURI, params.Shards)
+	WriteHistogram(scope, partialHistogram, params.PartialHistogramURI, params.Shards)
 	return nil
 }
 

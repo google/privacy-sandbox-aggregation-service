@@ -62,3 +62,9 @@ node_modules/
 .env
 
 .DS_Store
+
+# webpack generated files
+dist/main.css
+dist/main.css.map
+dist/main.js
+dist/main.js.map

@@ -708,7 +708,7 @@ func (fn *parsePartialHistogramFn) ProcessElement(ctx context.Context, line stri
 func readPartialHistogram(s beam.Scope, partialHistogramFile string) beam.PCollection {
 	s = s.Scope("ReadPartialHistogram")
 	allFiles := pipelineutils.AddStrInPath(partialHistogramFile, "*")
-	lines := textio.Read(s, allFiles)
+	lines := textio.ReadSdf(s, allFiles)
 	return beam.ParDo(s, &parsePartialHistogramFn{}, lines)
 }
 

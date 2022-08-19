@@ -172,7 +172,7 @@ func GenerateEncryptedReport(scope beam.Scope, params *GenerateEncryptedReportPa
 	scope = scope.Scope("GenerateEncryptedReport")
 
 	allFiles := pipelineutils.AddStrInPath(params.RawReportURI, "*")
-	lines := textio.Read(scope, allFiles)
+	lines := textio.ReadSdf(scope, allFiles)
 
 	rawReports := beam.ParDo(scope, &parseRawReportFn{}, lines)
 	resharded := beam.Reshuffle(scope, rawReports)

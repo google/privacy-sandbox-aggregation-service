@@ -12,7 +12,7 @@ The job control plane is used for controlling and monitoring aggregation jobs.
 * [Create Firebase project](https://cloud.google.com/firestore/docs/client/get-firebase) with Hosting and Firestore
 * Install [Firebase CLI](https://firebase.google.com/docs/cli#install_the_firebase_cli)
 * Log into Firebase CLI using "firebase login"
-* Change .firebaserc.sample -> .firebaserc and update the GCP Project ID
+* Copy .firebaserc.sample to .firebaserc and update the GCP Project ID
 * Run `firebase use --add` to add an alias. When prompted, select your **Project ID**, then give your Firebase project an alias. For more info, visit this [link](https://firebase.google.com/docs/cli#add_alias).
 * Run `yarn start` or `yarn deploy`
 

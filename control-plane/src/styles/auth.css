@@ -175,3 +175,6 @@ ul.user-account-dropdown:hover {
     color: green;
     cursor: pointer;
 }
+.delete-user {
+    cursor: pointer;
+}

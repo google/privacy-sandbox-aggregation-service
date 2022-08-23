@@ -23,16 +23,7 @@ import VALUES from "./values";
 
 // Initialize Firebase (Firestore and Analytics)
 fetch('/__/firebase/init.json').then(async response => {
-    // const app = initializeApp(await response.json());
-    const firebaseConfig = {
-        apiKey: "AIzaSyB3PnhacstRYpPwnfk1IiOZXjbCe96i_7A",
-        authDomain: "privacyaggregate-gsoc.firebaseapp.com",
-        projectId: "privacyaggregate-gsoc",
-        storageBucket: "privacyaggregate-gsoc.appspot.com",
-        messagingSenderId: "985023793719",
-        appId: "1:985023793719:web:8b35372118aa53cd230db2"
-      };
-    const app = initializeApp(firebaseConfig);
+    const app = initializeApp(await response.json());
     const db = getFirestore(app);
     VALUES.db = db;
 

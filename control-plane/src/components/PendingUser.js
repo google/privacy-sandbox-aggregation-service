@@ -14,17 +14,39 @@
 
 import React from 'react';
 import { formatTime } from '../jobs-functions';
+import VALUES from '../values';
+import { doc, deleteDoc, setDoc, Timestamp } from "firebase/firestore";
 
 // User component for the table
 const PendingUser = (props) => {
     let user = props.user;
+    let parent = props.parent
+
+    async function deleteUser() {
+        await deleteDoc(doc(VALUES.db, "user-management", "users", "pending-users", user.id));
+        parent.setState({users: parent.state.users.filter(function(u) { 
+            return u.key !== user.id
+        })});
+    }
+
+    async function upgradeUser() {
+        // get role from role-USERID
+        let role = $("#role-"+user.id).val();
+        // enter into existing-users
+        await setDoc(doc(VALUES.db, "user-management", "users", "existing-users", user.id), {"role": role, "time": Timestamp.now(), "email": user.email})
+        // remove from pending-users
+        await deleteDoc(doc(VALUES.db, "user-management", "users", "pending-users", user.id));
+        parent.setState({users: parent.state.users.filter(function(u) { 
+            return u.key !== user.id
+        })});
+    }
 
     return (
         <tr id={user.id} className="user">
             <td className="mdl-data-table__cell--non-numeric">{formatTime(user.created)}</td>
             <td className="mdl-data-table__cell--non-numeric">
                 <div className="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-                    <select className="mdl-textfield__input" id="role" name="role">
+                    <select className="mdl-textfield__input" id={"role-"+user.id} name="role">
                         <option></option>
                         <option value="viewer">Viewer</option>
                         <option value="editor">Editor</option>
@@ -36,8 +58,8 @@ const PendingUser = (props) => {
             <td className="mdl-data-table__cell--non-numeric">{user.id}</td>
             <td className="mdl-data-table__cell--non-numeric">{user.email}</td>
             <td>
-                <i className="material-icons remove-user"  id={user.id + "-remove"}>clear</i>
-                <i className="material-icons add-user"  id={user.id + "-add"}>done</i>
+                <i className="material-icons remove-user" onClick={ deleteUser }>clear</i>
+                <i className="material-icons add-user" onClick={ upgradeUser }>done</i>
             </td>
         </tr>
     );

@@ -167,3 +167,11 @@ ul.user-account-dropdown:hover {
     font-size: 30px;
     color: white;
 }
+.remove-user {
+    color: red;
+    cursor: pointer;
+}
+.add-user {
+    color: green;
+    cursor: pointer;
+}

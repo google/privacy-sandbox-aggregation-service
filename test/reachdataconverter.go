@@ -159,7 +159,7 @@ func GeneratePartialReport(scope beam.Scope, params *GeneratePartialReportParams
 	scope = scope.Scope("GeneratePartialReports")
 
 	allFiles := pipelineutils.AddStrInPath(params.ReachReportURI, "*")
-	lines := textio.Read(scope, allFiles)
+	lines := textio.ReadSdf(scope, allFiles)
 	records := beam.ParDo(scope, &parseRawReachReportFn{KeyBitSize: params.KeyBitSize}, lines)
 	resharded := beam.Reshuffle(scope, records)
 

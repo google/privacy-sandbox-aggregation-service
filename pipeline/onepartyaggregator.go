@@ -75,7 +75,7 @@ func (fn *parseTargetBucketFn) ProcessElement(ctx context.Context, line string, 
 func ReadTargetBucket(scope beam.Scope, bucketURI string) beam.PCollection {
 	scope = scope.Scope("ReadTargetBucket")
 	allFiles := pipelineutils.AddStrInPath(bucketURI, "*")
-	lines := textio.Read(scope, allFiles)
+	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseTargetBucketFn{}, lines)
 }
 
@@ -102,7 +102,7 @@ func (fn *parseEncryptedReportFn) ProcessElement(ctx context.Context, line strin
 func ReadEncryptedReport(scope beam.Scope, reportFile string) beam.PCollection {
 	scope = scope.Scope("ReadEncryptedReport")
 	allFiles := pipelineutils.AddStrInPath(reportFile, "*")
-	lines := textio.Read(scope, allFiles)
+	lines := textio.ReadSdf(scope, allFiles)
 	return beam.ParDo(scope, &parseEncryptedReportFn{}, lines)
 }
 

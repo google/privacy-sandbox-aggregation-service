@@ -11,8 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { doc, getDocs, getDoc, collection, deleteDoc, query, startAfter, orderBy, limit, where, endBefore, collectionGroup, limitToLast } from "firebase/firestore";
+import { doc, getDocs, getDoc, collection, query, startAfter, orderBy, limit, where, endBefore, collectionGroup, limitToLast } from "firebase/firestore";
 import VALUES from './values.js'
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -53,11 +52,6 @@ export async function makeTable(db, thequery, first, status) {
     $('#p2').hide();
     // set the html of the table
     setHtml(jobs)
-}
-
-// delete the job with jobId
-export async function deleteJob(db, job) {
-    await deleteDoc(doc(db, VALUES.collection, job));
 }
 
 // go to next page

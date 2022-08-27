@@ -27,7 +27,6 @@ const Job = (props) => {
             <td className="mdl-data-table__cell--non-numeric">{job.id}</td>
             <td className="mdl-data-table__cell--non-numeric">{formatTime(job.updated, true)}</td>
             <td>
-                <i className="material-icons" id="delete-job" data-id={job.id}>delete</i>
                 <i className="material-icons" data-status={job.status} id={job.id + "-dropdown"}>keyboard_arrow_down</i>
             </td>
         </tr>

@@ -121,6 +121,7 @@ class Jobs extends React.Component {
                             </div>
                         </div>
                         <div className="filter-side-holder">
+                            <h5>Job Id</h5>
                             <div class="mdl-textfield mdl-js-textfield">
                                 <input class="mdl-textfield__input" type="text" id="search" />
                                 <label class="mdl-textfield__label" for="search">Search</label>

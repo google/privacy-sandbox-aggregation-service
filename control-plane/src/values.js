@@ -31,5 +31,8 @@ export default {
     updatedTimestamp: null,
     searchTerm: "",
     collection: collection,
-    direction: null
+    direction: null,
+    auth: null,
+    user: null,
+    userRole: null,
 }

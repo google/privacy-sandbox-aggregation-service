@@ -19,13 +19,12 @@ import Jobs from './components/Jobs';
 
 
 // For the jobs table
-const container = document.querySelector('#render-table');
+const container = document.querySelector('#render-content');
 const tableRoot = createRoot(container);
 
 // build the table using the query passed
 export async function makeTable(db, thequery, first, status) {
     // show loader
-    $('#p2').show();
     let jobs;
 
     // check if it is a status sort if not do a normal query
@@ -33,23 +32,21 @@ export async function makeTable(db, thequery, first, status) {
         if (status == "failed") {
             jobs = await getFailedJobs(thequery);
         } else if(status == "search") {
-            jobs = await getSearchJobs();
+            if(VALUES.searchTerm.trim() == "") {
+                thequery = query(collectionGroup(VALUES.db, VALUES.collection), orderBy('created', 'desc'), limit(10));
+                jobs = await getNormalJobs(db, thequery, true);
+            } else {
+                jobs = await getSearchJobs();
+            }
         } else {
             jobs = await getOtherJobs(status, thequery);
         }
     } else {
-         // get all the jobs returned from the query
-        let values = await getJobs(db, thequery)
-        // values[0] is the jobs, values[1] is the last job, values[2] is the first job
-        jobs = values[0];
-        // set values for pagination
-        setValues(values[1], values[2], first)
+        jobs = await getNormalJobs(db, thequery, first);
     }
 
     // check if the user can go to the next page
     canAdvance(jobs.length)
-    // hide the loader
-    $('#p2').hide();
     // set the html of the table
     setHtml(jobs)
 }
@@ -67,6 +64,7 @@ export function nextPage() {
 
         // if query is found then make the table
         if(nextQuery != false) {
+            $('#p2').show();
             makeTable(VALUES.db, nextQuery, false, VALUES.status)
             // increment the span holding the page number
             $('.pages span').html(parseInt($('.pages span').html()) + 1);
@@ -85,9 +83,64 @@ export function prevPage() {
         
         // if the query is found, then make the table
         if(prevQuery != false) {
+            $('#p2').show();
             makeTable(VALUES.db, prevQuery, false, VALUES.status)
             // increment the span holding the page number
             $('.pages span').html(parseInt($('.pages span').html()) - 1);
+        }
+    }
+}
+
+export function filterJobs() {
+    let status = $('#status').val();
+    let created = $('#created').val();
+    let updated = $('#updated').val();
+    if (status == "" && created == "" && updated == "") {
+        // reset the table to original values
+        $('.pages span').html(0);
+        $('#p2').show();
+        makeTable(VALUES.db, query(collection(VALUES.db, VALUES.collection), orderBy('created', 'desc'), limit(10)))
+        $('.filter-side-holder').hide()
+    } else {
+        let filterQuery = null;
+        let createdTimestamp = null;
+        let updatedTimestamp = null;
+        if(created != "") {
+            // get the firebase timestamp so it can compare dates
+            let date = new Date();
+            date.setHours(date.getHours() - created)
+            createdTimestamp = Timestamp.fromDate(date)
+        }
+        if(updated != "") {
+            // get the firebase timestamp so it can compare dates
+            let date = new Date();
+            date.setHours(date.getHours() - updated)
+            updatedTimestamp = Timestamp.fromDate(date)
+        }
+
+        VALUES.status = status;
+        VALUES.createdTimestamp = createdTimestamp;
+        VALUES.updatedTimestamp = updatedTimestamp;
+        VALUES.direction = 0;
+
+        // the different ways the query can be made
+        if(status != "" && created == "" && updated == "") {
+            filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), orderBy('created', 'desc'), limit(10))
+        } else if (status != "" && created != "") {
+            filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+        } else if (status != "" && updated != "") {
+            filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+        } else if (updated != "" && created == "") {
+            filterQuery = query(collection(VALUES.db, VALUES.collection), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
+        } else if (created != "" && updated == "") {
+            filterQuery = query(collection(VALUES.db, VALUES.collection), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
+        }
+
+        // make the table
+        if(filterQuery != null) {
+            $('.pages span').html(1);
+            $('#p2').show();
+            makeTable(VALUES.db, filterQuery, true, status)
         }
     }
 }
@@ -175,6 +228,17 @@ export function timeSince(date) {
         return Math.floor(interval) + " minutes";
     }
     return Math.floor(seconds) + " seconds";
+}
+
+async function getNormalJobs(db, thequery, first) {
+     // get all the jobs returned from the query
+     let values = await getJobs(db, thequery)
+     // values[0] is the jobs, values[1] is the last job, values[2] is the first job
+     let jobs = values[0];
+     // set values for pagination
+     setValues(values[1], values[2], first)
+
+     return jobs;
 }
 
 async function getSearchJobs() {

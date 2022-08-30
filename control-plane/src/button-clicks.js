@@ -19,7 +19,7 @@ import { query, where, collection, orderBy, limit, Timestamp, collectionGroup } 
 // BUTTON/CLICK FUNCTIONS
 
 // when a job is clicked open up the logs and change color/icons
-$('#render-table').on('click', '.job', function () {
+$('#render-content').on('click', '.job', function () {
     let id = $(this).attr('id');
     let infoId = '#' + id + '-info';
     $(infoId).toggle();
@@ -29,7 +29,7 @@ $('#render-table').on('click', '.job', function () {
 });
 
 // when the header of a log is clicked open up the info with result/message and change color/icons
-$('#render-table').on('click', '.log-header', function () {
+$('#render-content').on('click', '.log-header', function () {
     let id = $(this).data('id');
     let infoId = '#' + id + '-info';
     $(infoId).toggleClass('active-log');
@@ -39,13 +39,13 @@ $('#render-table').on('click', '.log-header', function () {
 });
 
 // when the filter icon is clicked toggle the side panel
-$('#filter-jobs').on("click", function () {
+$('#render-content').on('click', '#filter-jobs', function () {
     $('.page-content').css('display', 'flex')
     $('.filter-side-holder').toggle()
 });
 
 // created and updated cant be true at the same time
-$('#created').on("change", function () {
+$('#render-content').on('change', '#created', function () {
     if ($(this).val() != "" && $('#updated').val() != "") {
         // error bc firebase cant do two range sorts
         $(this).parent().addClass('is-invalid')
@@ -60,7 +60,7 @@ $('#created').on("change", function () {
 })
 
 // created and updated can't be true at the same time
-$('#updated').on('change', function () {
+$('#render-content').on('change', '#updated', function () {
     if ($(this).val() != "" && $('#created').val() != "") {
         // error bc firebase cant do two range sorts
         $(this).parent().addClass('is-invalid')
@@ -71,58 +71,6 @@ $('#updated').on('change', function () {
         $(this).parent().removeClass('is-invalid')
         $('#created').parent().removeClass('is-invalid')
         $('#updated-created-error').hide()
-    }
-})
-
-$('#filter-jobs-button').on("click", function () {
-    let status = $('#status').val();
-    let created = $('#created').val();
-    let updated = $('#updated').val();
-    if (status == "" && created == "" && updated == "") {
-        // reset the table to original values
-        $('.pages span').html(0);
-        makeTable(VALUES.db, query(collection(VALUES.db, VALUES.collection), orderBy('created', 'desc'), limit(10)))
-        $('.filter-side-holder').hide()
-    } else {
-        let filterQuery = null;
-        let createdTimestamp = null;
-        let updatedTimestamp = null;
-        if(created != "") {
-            // get the firebase timestamp so it can compare dates
-            let date = new Date();
-            date.setHours(date.getHours() - created)
-            createdTimestamp = Timestamp.fromDate(date)
-        }
-        if(updated != "") {
-            // get the firebase timestamp so it can compare dates
-            let date = new Date();
-            date.setHours(date.getHours() - updated)
-            updatedTimestamp = Timestamp.fromDate(date)
-        }
-
-        VALUES.status = status;
-        VALUES.createdTimestamp = createdTimestamp;
-        VALUES.updatedTimestamp = updatedTimestamp;
-        VALUES.direction = 0;
-
-        // the different ways the query can be made
-        if(status != "" && created == "" && updated == "") {
-            filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), orderBy('created', 'desc'), limit(10))
-        } else if (status != "" && created != "") {
-            filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
-        } else if (status != "" && updated != "") {
-            filterQuery = query(collectionGroup(VALUES.db, "levels"), where("status", "==", status), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
-        } else if (updated != "" && created == "") {
-            filterQuery = query(collection(VALUES.db, VALUES.collection), where("updated", ">=", updatedTimestamp), orderBy('updated', 'desc'), limit(10))
-        } else if (created != "" && updated == "") {
-            filterQuery = query(collection(VALUES.db, VALUES.collection), where("created", ">=", createdTimestamp), orderBy('created', 'desc'), limit(10))
-        }
-
-        // make the table
-        if(filterQuery != null) {
-            $('.pages span').html(1);
-            makeTable(VALUES.db, filterQuery, true, status)
-        }
     }
 })
 
@@ -139,11 +87,11 @@ $('#search').keypress(function (e) {
 // PAGINATION
 
 // previous button
-$('#prev-page').on("click", function () {
+$('#render-content').on('click', '#prev-page', function () {
     prevPage()
 });
 
 // next button
-$('#next-page').on("click", function () {
+$('#render-content').on('click', '#next-page', function () {
     nextPage()
 });

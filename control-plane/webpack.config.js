@@ -21,10 +21,6 @@ module.exports = {
     module: {
         rules: [
             {
-                test: /\.(png|jpe?g|gif|svg)$/i,
-                type: "asset/resource"
-            },
-            {
                 test: /\.css$/i,
                 use: [
                     {
@@ -45,7 +41,10 @@ module.exports = {
             }
         ]
     },
-    plugins: [new MiniCssExtractPlugin()],
+    plugins: [new MiniCssExtractPlugin({
+        filename: "[name].css",
+        chunkFilename: "[id].css",
+    })],
     devtool: 'source-map',
     devServer: {
         static: './dist'

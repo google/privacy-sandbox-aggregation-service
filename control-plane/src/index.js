@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import { initializeApp } from "firebase/app";
-import { query, orderBy, limit, getFirestore, collectionGroup } from "firebase/firestore";
+import { query, orderBy, limit, getFirestore, collection, doc, getDoc} from "firebase/firestore";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import "./button-clicks";
-import { makeTable } from "./jobs-functions"
+import { makeTable } from "./jobs-functions";
+import { showAuthScreen, showWaitingScreen } from "./auth-functions";
 import "./styles/index.css";
 import VALUES from "./values";
 
@@ -25,20 +27,30 @@ fetch('/__/firebase/init.json').then(async response => {
     const db = getFirestore(app);
     VALUES.db = db;
 
-    let url = new URL(window.location.href)
-    let jobSuccess = url.searchParams.get('job')
-    if (jobSuccess == "success" || jobSuccess == "editsuccess") {
-        // show the toast after 3 seconds so that the material lite code css and js can load
-        setTimeout(function() {
-            let snackbarContainer = document.querySelector('#snackbar-container');
-            snackbarContainer.MaterialSnackbar.showSnackbar({
-                message: jobSuccess == "success" ? 'Job successfully added!' : 'Job successfully updated!'
-            });
-            // remove the job=success so that when you refresh it doesnt show the messgae again
-            window.history.replaceState(null, null, window.location.pathname)
-        }, 3000);
-    } 
+    // authenticate user
+    const auth = getAuth();
+    VALUES.auth = auth;
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            VALUES.user = user;
 
-    // make the table with the first 10
-    makeTable(db, query(collectionGroup(VALUES.db, VALUES.collection), orderBy('created', 'desc'), limit(10)), true)
+            const docRef = doc(db, "user-management", "users", "existing-users", user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const userData = docSnap.data();
+                VALUES.userRole = userData.role;
+            } else {
+                showWaitingScreen();
+                return;
+            }
+
+            // make the table with the first 10
+            makeTable(db, query(collection(db, VALUES.collection), orderBy('created', 'desc'), limit(10)), true) 
+        } else {
+            // User is signed out
+            showAuthScreen();
+            return;
+        }
+    });
 });

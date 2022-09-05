@@ -1,9 +1,9 @@
 
-# Job Control plane
+# Job Control Plane
 
-The job control plane is used for controlling and monitoring aggregation jobs.
+The job control plane (JCP) is used for controlling and monitoring aggregation jobs.
 
-## Getting set up
+## Getting Set Up
 * Install [nodejs](https://nodejs.org/en/) + [yarn](https://yarnpkg.com/)
 * Clone the repo
   * `git clone https://github.com/google/privacy-sandbox-aggregation-service`
@@ -16,6 +16,19 @@ The job control plane is used for controlling and monitoring aggregation jobs.
 * Run `firebase use --add` to add an alias. When prompted, select your **Project ID**, then give your Firebase project an alias. For more info, visit this [link](https://firebase.google.com/docs/cli#add_alias).
 * Run `yarn start` or `yarn deploy`
 
+## Making an Admin Account
+* After getting set up and deploying the JCP, go to the sign up page and create an account with the email "admin@chromium.org" and a password of your choice.
+* This should create an admin account. Refresh the page if you are not directed to the jobs table
+* To add or remove users, navigate to your user icon at the top right of the screen and a dropdown should appear. Click the users tab.
+
+## Allowing Google Sign In
+* Navigate to the **Auth** tab, in the [Firebase Console](https://console.firebase.google.com/)
+* **Enable** Google sign in and click **Save**
+
+## Allowing GitHub Sign In
+* [Register your app](https://github.com/settings/applications/new) as a Developer Application on GitHub and get your app's **Client ID** and **Client Secret**.
+* Make sure your Firebase **OAuth redirect URI** (e.g. my-app-12345.firebaseapp.com/__/auth/handler) is set as your Authorization callback URL in your app's settings page on your [GitHub app's config](https://github.com/settings/developers).
+
 ## Commands
 * `yarn start` - starts firebase emulator
 * `yarn start-webpack` - starts webpack development server
@@ -27,7 +40,7 @@ The job control plane is used for controlling and monitoring aggregation jobs.
 * `yarn deploy-dev` - deploys dev code to firebase hosting
   * Requires Firebase to be setup in project
 
-# How it works
+# How it Works
 
 ## Main Architecture
 It is a simple javascript web app that is integrated with [react](https://reactjs.org/) to utilize it's components feature. The backend is built with [firestore](https://firebase.google.com/docs/firestore) and [firebase authentication](https://firebase.google.com/docs/auth). The two aggregation servers will update the firestore and the jobs control plane (JCP) will then pull the jobs from firestore.

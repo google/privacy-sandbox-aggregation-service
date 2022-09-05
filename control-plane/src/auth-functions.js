@@ -16,7 +16,6 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Authentication from './components/Auth';
 import WaitingScreen from './components/Waiting';
-import UserManagement from './components/UserManagement';
 import './styles/auth.css';
 import VALUES from './values';
 import { signOut } from 'firebase/auth';
@@ -31,12 +30,6 @@ export function showWaitingScreen() {
     const container = document.querySelector('#render-content');
     const tableRoot = createRoot(container);
     tableRoot.render(<WaitingScreen />);
-}
-
-export function showUserManagementScreen() {
-  const container = document.querySelector('#render-content');
-  const tableRoot = createRoot(container);
-  tableRoot.render(<UserManagement />);
 }
 
 export function signOutUser() {

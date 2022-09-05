@@ -15,7 +15,7 @@
 import React from 'react';
 import JobAndLogs from './JobAndLogs';
 import VALUES from '../values';
-import { signOutUser } from '../auth-functions';
+import { showUserManagementScreen, signOutUser } from '../auth-functions';
 import { filterJobs } from '../jobs-functions';
 
 // The main component that controls the table of jobs
@@ -66,6 +66,7 @@ class Jobs extends React.Component {
                             {VALUES.user.photoURL != null ? <img src={VALUES.user.photoURL} /> : <i className='material-icons'>account_circle</i>}
                             <div className='user-account-dropdown'>
                                 <ul>
+                                    <li onClick={ showUserManagementScreen }>Users</li>
                                     <li onClick={ signOutUser }>Log out</li>
                                 </ul>
                             </div>

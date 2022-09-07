@@ -28,7 +28,7 @@ service cloud.firestore {
     
     match /user-management/users/pending-users/{uid}  {
     	allow read: if request.auth != null && (request.auth.token.email == "admin@chromium.org" || isAdmin(request.auth.uid))
-    	allow create: if request.auth != null && request.auth.uid == request.resource.id && request.resource.data.keys().hasOnly(['time', 'email']);
+    	allow create: if request.auth != null && (request.auth.uid == request.resource.id || request.auth.token.email == "admin@chromium.org" || isAdmin(request.auth.uid)) && request.resource.data.keys().hasOnly(['time', 'email']);
       allow delete: if request.auth != null && (request.auth.token.email == "admin@chromium.org" || isAdmin(request.auth.uid))
     }
     

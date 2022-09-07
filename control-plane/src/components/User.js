@@ -15,7 +15,7 @@
 import React from 'react';
 import { formatTime } from '../jobs-functions';
 import VALUES from '../values';
-import { doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc, setDoc, Timestamp } from "firebase/firestore";
 
 // User component for the table
 const User = (props) => {
@@ -27,7 +27,7 @@ const User = (props) => {
         parent.setState({users: parent.state.users.filter(function(u) { 
             return u.key !== user.id
         })});
-        
+        await setDoc(doc(VALUES.db, "user-management", "users", "pending-users", user.id), {"time": Timestamp.now(), "email": user.email})
     }
 
     return (

@@ -43,14 +43,14 @@ The job control plane (JCP) is used for controlling and monitoring aggregation j
 # How It Works
 
 ## Authentication / Authorization
-Authentication is provided by [Firebase Authentication](https://firebase.google.com/docs/auth) while Authorization lies inside of Cloud Firestore and Firestore Rules. We have four roles for all authenticated users:
+Authentication is provided by [Firebase Authentication](https://firebase.google.com/docs/auth) while Authorization lies inside of [Cloud Firestore](https://firebase.google.com/docs/firestore) and [Firestore Rules](https://firebase.google.com/docs/firestore/security/get-started). We have four roles for all authenticated users:
 
-* Admin - able to view/edit jobs and manage users
-* Editor - able to view/edit jobs
-* Viewer - able to view jobs
-* Pending - able to sign in but not able to view/edit jobs
+* **Admin** - able to view/edit jobs and manage users
+* **Editor** - able to view/edit jobs
+* **Viewer** - able to view jobs
+* **Pending** - able to sign in but not able to view/edit jobs
 
-All authenticated users start as a Pending user and must be assigned a role by an Admin user.
+All authenticated users start as a **Pending** user and must be assigned a role by an **Admin** user.
 
 ## Main Architecture
 It is a simple javascript web app that is integrated with [react](https://reactjs.org/) to utilize it's components feature. The backend is built with [firestore](https://firebase.google.com/docs/firestore) and [firebase authentication](https://firebase.google.com/docs/auth). The two aggregation servers will update the firestore and the jobs control plane (JCP) will then pull the jobs from firestore.

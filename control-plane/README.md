@@ -40,7 +40,7 @@ The job control plane (JCP) is used for controlling and monitoring aggregation j
 * `yarn deploy-dev` - deploys dev code to firebase hosting
   * Requires Firebase to be setup in project
 
-# How it Works
+# How It Works
 
 ## Main Architecture
 It is a simple javascript web app that is integrated with [react](https://reactjs.org/) to utilize it's components feature. The backend is built with [firestore](https://firebase.google.com/docs/firestore) and [firebase authentication](https://firebase.google.com/docs/auth). The two aggregation servers will update the firestore and the jobs control plane (JCP) will then pull the jobs from firestore.

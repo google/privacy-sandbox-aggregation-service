@@ -40,7 +40,7 @@ The job control plane (JCP) is used for controlling and monitoring aggregation j
 * `yarn deploy-dev` - deploys dev code to firebase hosting
   * Requires Firebase to be setup in project
 
-# How It Works
+# How it works
 
 ## Authentication / Authorization
 Authentication is provided by [Firebase Authentication](https://firebase.google.com/docs/auth) while Authorization lies inside of [Cloud Firestore](https://firebase.google.com/docs/firestore) and [Firestore Rules](https://firebase.google.com/docs/firestore/security/get-started). We have four roles for all authenticated users:

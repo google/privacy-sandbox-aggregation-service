@@ -42,3 +42,13 @@ A user can search for jobs by Job ID. To search for multiple jobs, separate with
 
 ## Table
 The table UI is based on [Material Design Lite (MDL)](https://getmdl.io/). The top level of the table contains information about the job. When you click on the job, it will display information about the sub-jobs. 
+
+## Adding new features
+If you want to add new features to the JCP, it is important that only certain users have access to those new features. So, here is a short guide to implementing authorization for new features.
+
+1. For client side authorization, use the userRole variable inside of values.js. Wrap any code that needs certain role permissions in this variable.
+2. For server side authorization, you must implement Firestore Rules for any new table that you create. There are two functions in the current firestore.rules that can be very helpful.
+
+canRead(uid) - takes in a user id and outputs whether they can read jobs
+
+isAdmin(uid) - takes in a user id and outputs whether they are an admin

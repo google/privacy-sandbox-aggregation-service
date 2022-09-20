@@ -1,9 +1,9 @@
 
-# Job Control plane
+# Job Control Plane
 
-The job control plane is used for controlling and monitoring aggregation jobs.
+The job control plane (JCP) is used for controlling and monitoring aggregation jobs.
 
-## Getting set up
+## Prerequisites
 * Install [nodejs](https://nodejs.org/en/) + [yarn](https://yarnpkg.com/)
 * Clone the repo
   * `git clone https://github.com/google/privacy-sandbox-aggregation-service`
@@ -15,6 +15,19 @@ The job control plane is used for controlling and monitoring aggregation jobs.
 * Copy .firebaserc.sample to .firebaserc and update the GCP Project ID
 * Run `firebase use --add` to add an alias. When prompted, select your **Project ID**, then give your Firebase project an alias. For more info, visit this [link](https://firebase.google.com/docs/cli#add_alias).
 * Run `yarn start` or `yarn deploy`
+
+## Set up admin account
+* After getting set up and deploying the JCP, go to the sign up page and create an account with the email "admin@chromium.org" and a password of your choice.
+* This should create an admin account. Refresh the page if you are not directed to the jobs table
+* To add or remove users, navigate to your user icon at the top right of the screen and a dropdown should appear. Click the users tab.
+
+## Allowing Google Auth login
+* Navigate to the **Auth** tab, in the [Firebase Console](https://console.firebase.google.com/)
+* **Enable** Google sign in and click **Save**
+
+## Allowing GitHub Auth login
+* [Register your app](https://github.com/settings/applications/new) as a Developer Application on GitHub and get your app's **Client ID** and **Client Secret**.
+* Make sure your Firebase **OAuth redirect URI** (e.g. my-app-12345.firebaseapp.com/__/auth/handler) is set as your Authorization callback URL in your app's settings page on your [GitHub app's config](https://github.com/settings/developers).
 
 ## Commands
 * `yarn start` - starts firebase emulator
@@ -29,7 +42,17 @@ The job control plane is used for controlling and monitoring aggregation jobs.
 
 # How it works
 
-## Main Architecture
+## Authentication / Authorization
+Authentication is provided by [Firebase Authentication](https://firebase.google.com/docs/auth) while Authorization lies inside of [Cloud Firestore](https://firebase.google.com/docs/firestore) and [Firestore Rules](https://firebase.google.com/docs/firestore/security/get-started). We have four roles for all authenticated users:
+
+* **Admin** - able to view/edit jobs and manage users
+* **Editor** - able to view/edit jobs
+* **Viewer** - able to view jobs
+* **Pending** - able to sign in but not able to view/edit jobs
+
+All authenticated users start as a **Pending** user and must be assigned a role by an **Admin** user.
+
+## Main architecture
 It is a simple javascript web app that is integrated with [react](https://reactjs.org/) to utilize it's components feature. The backend is built with [firestore](https://firebase.google.com/docs/firestore) and [firebase authentication](https://firebase.google.com/docs/auth). The two aggregation servers will update the firestore and the jobs control plane (JCP) will then pull the jobs from firestore.
 
 ## Sorting
@@ -40,5 +63,5 @@ Created and Updated sorts are much simpler and only require a single query to th
 ## Search
 A user can search for jobs by Job ID. To search for multiple jobs, separate with semicolons.
 
-## Table
+## User Table
 The table UI is based on [Material Design Lite (MDL)](https://getmdl.io/). The top level of the table contains information about the job. When you click on the job, it will display information about the sub-jobs. 

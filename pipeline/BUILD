@@ -195,10 +195,10 @@ go_binary(
         ":reachaggregator",
         "//encryption:cryptoio",
         "//shared:utils",
+        "//third_party/golang/cloud_google_com/go/profiler/v/v0:profiler",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/log:go_default_library",
         "@com_github_apache_beam_sdks_v2//go/pkg/beam/x/beamx:go_default_library",
-        "@com_google_cloud_go_profiler//:go_default_library",
     ],
 )
 

@@ -192,6 +192,7 @@ go_binary(
     deps = [
         ":aggregatorservice",
         ":query",
+        "//third_party/grte:static_libs_for_go",  # keep
         "@com_github_golang_glog//:go_default_library",
     ],
 )

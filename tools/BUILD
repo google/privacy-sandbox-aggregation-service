@@ -56,7 +56,7 @@ container_image(
     creation_time = "{BUILD_TIMESTAMP}",
     entrypoint = ["/browser_simulator"],
     files = [":browser_simulator"],
-    stamp = True,
+    stamp = 1,
 )
 
 container_push(

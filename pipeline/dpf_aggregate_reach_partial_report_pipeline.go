@@ -42,6 +42,10 @@ var (
 
 	fileShards = flag.Int64("file_shards", 10, "The number of shards for the output file.")
 
+	expandAtRange = flag.Bool("expand_at_range", false, "Expand the keys generated with full hierarchy in a specific range of bits.")
+	startLevel    = flag.Int("start_level", 0, "Start level of bit range. [0, end_level]")
+	endLevel      = flag.Int("end_level", 0, "End level of bit range. [start_level, key_bit_size - 1]")
+
 	profilerService        = flag.String("profiler_service", "", "Service name for profiling pipelines.")
 	profilerServiceVersion = flag.String("profiler_service_version", "", "Service version for profiling pipelines.")
 )
@@ -88,6 +92,9 @@ func main() {
 			PartialValidityURI:  *partialValidityURI,
 			HelperPrivateKeys:   helperPrivKeys,
 			KeyBitSize:          *keyBitSize,
+			ExpandAtRange:       *expandAtRange,
+			StartLevel:          *startLevel,
+			EndLevel:            *endLevel,
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
 				SegmentLength: *segmentLength,

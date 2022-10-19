@@ -24,9 +24,9 @@ go_library(
     srcs = ["utils.go"],
     importpath = "github.com/google/privacy-sandbox-aggregation-service/shared/utils",
     deps = [
-        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem:go_default_library",
-        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/gcs:go_default_library",
-        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/gcs:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_bazelbuild_rules_go//go/tools/bazel:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_ugorji_go_codec//:go_default_library",
@@ -46,7 +46,7 @@ go_test(
     srcs = ["utils_test.go"],
     embed = [":utils"],
     deps = [
-        "@com_github_apache_beam_sdks_v2//go/pkg/beam/io/filesystem/local:go_default_library",
+        "@com_github_apache_beam//sdks/go/pkg/beam/io/filesystem/local:go_default_library",
         "@com_github_google_go_cmp//cmp:go_default_library",
         "@com_lukechampine_uint128//:go_default_library",
     ],

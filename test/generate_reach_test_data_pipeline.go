@@ -35,6 +35,8 @@ var (
 	publicKeysURI2 = flag.String("public_keys_uri2", "", "Input file containing the public keys from helper 2.")
 	keyBitSize     = flag.Int("key_bit_size", 32, "Bit size of the conversion keys.")
 
+	useFullHierarchy = flag.Bool("use_full_hierarchy", false, "Include all possible prefixes when creating DPF keys.")
+
 	fileShards = flag.Int64("file_shards", 1, "The number of shards for the output file.")
 )
 
@@ -63,6 +65,7 @@ func main() {
 		PublicKeys1:       helperPubKeys1,
 		PublicKeys2:       helperPubKeys2,
 		KeyBitSize:        *keyBitSize,
+		UseFullHierarchy:  *useFullHierarchy,
 		Shards:            *fileShards,
 	})
 

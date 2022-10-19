@@ -52,10 +52,10 @@ http_archive(
 
 http_archive(
     name = "boringssl",
-    sha256 = "8410719cd36c41a96f375a2b868fc24378d86112dcb2be022ffcb2fbfec2432a",
-    strip_prefix = "boringssl-4fb158925f7753d80fb858cb0239dff893ef9f15",
+    sha256 = "0369cbbee0340c42576e760138e0e9a6a749fd570ad1f963ac764584893ca727",
+    strip_prefix = "boringssl-57e74c2c7f76111fda83f8f3955a82ec3a2bde44",
     urls = [
-        "https://github.com/google/boringssl/archive/4fb158925f7753d80fb858cb0239dff893ef9f15.zip",
+        "https://github.com/google/boringssl/archive/57e74c2c7f76111fda83f8f3955a82ec3a2bde44.zip",
     ],
 )
 
@@ -196,7 +196,7 @@ http_archive(
 
 git_repository(
     name = "com_github_google_distributed_point_functions",
-    commit = "0f7f758d2c67092c05a3b93ff4ae9ad00cca1487",
+    commit = "9f11bd0a2dd8187a710d51579321f4c1bf0d2b2d",
     remote = "https://github.com/google/distributed_point_functions.git",
 )
 

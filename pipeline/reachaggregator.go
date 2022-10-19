@@ -21,10 +21,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
+	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/distributednoise"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/dpfaggregator"
@@ -66,6 +66,10 @@ type expandedVec struct {
 // expandDpfKeyFn expands the DPF keys in a PartialReportDpf into two vectors that represent the contribution to the SUM histogram.
 type expandDpfKeyFn struct {
 	KeyBitSize int
+	// Expand keys generated with full hierarchy at specified range of bits.
+	ExpandAtRange        bool
+	StartLevel, EndLevel int
+
 	vecCounter beam.Counter
 }
 
@@ -76,13 +80,27 @@ func (fn *expandDpfKeyFn) Setup() {
 func (fn *expandDpfKeyFn) ProcessElement(ctx context.Context, partialReport *pb.PartialReportDpf, emit func(*expandedVec)) error {
 	fn.vecCounter.Inc(ctx, 1)
 
-	params := incrementaldpf.CreateReachUint64TupleDpfParameters(int32(fn.KeyBitSize))
-	sumCtx, err := incrementaldpf.CreateEvaluationContext([]*dpfpb.DpfParameters{params}, partialReport.GetSumKey())
+	var params []*dpfpb.DpfParameters
+	if fn.ExpandAtRange {
+		var err error
+		params, err = incrementaldpf.GetDefaultTupleDPFParametersFullHierarchy(fn.KeyBitSize)
+		if err != nil {
+			return err
+		}
+	} else {
+		params = []*dpfpb.DpfParameters{incrementaldpf.CreateReachUint64TupleDpfParameters(int32(fn.KeyBitSize))}
+	}
+	sumCtx, err := incrementaldpf.CreateEvaluationContext(params, partialReport.GetSumKey())
 	if err != nil {
 		return err
 	}
 
-	vecSum, err := incrementaldpf.EvaluateReachTuple(sumCtx)
+	var vecSum []*incrementaldpf.ReachTuple
+	if fn.ExpandAtRange {
+		vecSum, err = incrementaldpf.EvaluateReachTupleAtRange(sumCtx, fn.StartLevel, fn.EndLevel)
+	} else {
+		vecSum, err = incrementaldpf.EvaluateReachTuple(sumCtx)
+	}
 	if err != nil {
 		return err
 	}
@@ -143,6 +161,8 @@ func (fn *combineVectorFn) MergeAccumulators(ctx context.Context, a, b *expanded
 }
 
 type alignVectorFn struct {
+	SuffixBitSize int
+
 	inputCounter  beam.Counter
 	outputCounter beam.Counter
 }
@@ -152,12 +172,13 @@ func (fn *alignVectorFn) Setup(ctx context.Context) {
 	fn.outputCounter = beam.NewCounter("combinetest", "flattenVecFn_output_count")
 }
 
-func (fn *alignVectorFn) ProcessElement(ctx context.Context, vec *expandedVec, emit func(uint64, *incrementaldpf.ReachTuple)) {
+func (fn *alignVectorFn) ProcessElement(ctx context.Context, vec *expandedVec, emit func(uint128.Uint128, *incrementaldpf.ReachTuple)) {
 	fn.inputCounter.Inc(ctx, 1)
 
 	for i, sum := range vec.SumVec {
 		fn.outputCounter.Inc(ctx, 1)
-		emit(uint64(i), sum)
+		index := uint128.From64(uint64(i)).Lsh(uint(fn.SuffixBitSize))
+		emit(index, sum)
 	}
 }
 
@@ -207,7 +228,8 @@ func (fn *combineVectorSegmentFn) MergeAccumulators(ctx context.Context, a, b *e
 
 // alignVectorSegmentFn does the same thing with alignVectorFn, except for starting the bucket index with a given value.
 type alignVectorSegmentFn struct {
-	StartIndex uint64
+	StartIndex    uint64
+	SuffixBitSize int
 
 	inputCounter  beam.Counter
 	outputCounter beam.Counter
@@ -218,25 +240,26 @@ func (fn *alignVectorSegmentFn) Setup(ctx context.Context) {
 	fn.outputCounter = beam.NewCounter("aggregation", "alignVectorSegmentFn_output_count")
 }
 
-func (fn *alignVectorSegmentFn) ProcessElement(ctx context.Context, vec *expandedVec, emit func(uint64, *incrementaldpf.ReachTuple)) {
+func (fn *alignVectorSegmentFn) ProcessElement(ctx context.Context, vec *expandedVec, emit func(uint128.Uint128, *incrementaldpf.ReachTuple)) {
 	fn.inputCounter.Inc(ctx, 1)
 
 	for i, sum := range vec.SumVec {
 		fn.outputCounter.Inc(ctx, 1)
-		emit(uint64(i)+fn.StartIndex, sum)
+		index := uint128.From64(uint64(i) + fn.StartIndex).Lsh(uint(fn.SuffixBitSize))
+		emit(index, sum)
 	}
 }
 
 // directCombine aggregates the expanded vectors to a single vector, and then converts it to be a PCollection.
-func directCombine(scope beam.Scope, expanded beam.PCollection, vectorLength uint64) beam.PCollection {
+func directCombine(scope beam.Scope, expanded beam.PCollection, vectorLength uint64, suffixBitSize int) beam.PCollection {
 	scope = scope.Scope("DirectCombine")
 	histogram := beam.Combine(scope, &combineVectorFn{VectorLength: vectorLength}, expanded)
-	return beam.ParDo(scope, &alignVectorFn{}, histogram)
+	return beam.ParDo(scope, &alignVectorFn{SuffixBitSize: suffixBitSize}, histogram)
 }
 
 // There is an issue when combining large vectors (large domain size):  https://issues.apache.org/jira/browse/BEAM-11916
 // As a workaround, we split the vectors into pieces and combine the collection of the smaller vectors instead.
-func segmentCombine(scope beam.Scope, expanded beam.PCollection, vectorLength, segmentLength uint64) beam.PCollection {
+func segmentCombine(scope beam.Scope, expanded beam.PCollection, vectorLength, segmentLength uint64, suffixBitSize int) beam.PCollection {
 	scope = scope.Scope("SegmentCombine")
 	segmentCount := vectorLength / segmentLength
 	var segmentLengths []uint64
@@ -252,7 +275,7 @@ func segmentCombine(scope beam.Scope, expanded beam.PCollection, vectorLength, s
 	results := make([]beam.PCollection, segmentCount)
 	for i := range results {
 		pHistogram := beam.Combine(scope, &combineVectorSegmentFn{StartIndex: uint64(i) * segmentLength, Length: segmentLengths[i]}, expanded)
-		results[i] = beam.ParDo(scope, &alignVectorSegmentFn{StartIndex: uint64(i) * segmentLength}, pHistogram)
+		results[i] = beam.ParDo(scope, &alignVectorSegmentFn{StartIndex: uint64(i) * segmentLength, SuffixBitSize: suffixBitSize}, pHistogram)
 	}
 	return beam.Flatten(scope, results...)
 }
@@ -281,15 +304,26 @@ func addNoise(scope beam.Scope, rawResult beam.PCollection, epsilon float64, l1S
 // ExpandAndCombineHistogram calculates histograms from the DPF keys and combines them.
 func ExpandAndCombineHistogram(scope beam.Scope, partialReport beam.PCollection, params *AggregatePartialReportParams) (beam.PCollection, error) {
 	expanded := beam.ParDo(scope, &expandDpfKeyFn{
-		KeyBitSize: params.KeyBitSize,
+		KeyBitSize:    params.KeyBitSize,
+		ExpandAtRange: params.ExpandAtRange,
+		StartLevel:    params.StartLevel,
+		EndLevel:      params.EndLevel,
 	}, partialReport)
 
-	vectorLength := uint64(1) << uint64(params.KeyBitSize)
+	var vectorLength uint64
+	var suffixBitSize int
+	if params.ExpandAtRange {
+		vectorLength = uint64(1) << uint64(params.EndLevel-params.StartLevel+1)
+		suffixBitSize = params.KeyBitSize - params.EndLevel - 1
+	} else {
+		vectorLength = uint64(1) << uint64(params.KeyBitSize)
+	}
+
 	var rawResult beam.PCollection
 	if params.CombineParams.DirectCombine {
-		rawResult = directCombine(scope, expanded, vectorLength)
+		rawResult = directCombine(scope, expanded, vectorLength, suffixBitSize)
 	} else {
-		rawResult = segmentCombine(scope, expanded, vectorLength, params.CombineParams.SegmentLength)
+		rawResult = segmentCombine(scope, expanded, vectorLength, params.CombineParams.SegmentLength, suffixBitSize)
 	}
 
 	if params.CombineParams.Epsilon > 0 {
@@ -312,7 +346,12 @@ type AggregatePartialReportParams struct {
 	// The private keys for the standard encryption from the helper server.
 	HelperPrivateKeys map[string]*pb.StandardPrivateKey
 	KeyBitSize        int
-	CombineParams     *dpfaggregator.CombineParams
+
+	// Expand keys generated with full hierarchy at specified range of bits.
+	ExpandAtRange        bool
+	StartLevel, EndLevel int
+
+	CombineParams *dpfaggregator.CombineParams
 }
 
 // AggregatePartialReport reads the partial report and calculates partial aggregation results from it.
@@ -344,13 +383,13 @@ func (fn *formatRQFn) Setup(ctx context.Context) {
 	fn.countRQ = beam.NewCounter("aggregation", "formatRQFn_count_rq")
 }
 
-func (fn *formatRQFn) ProcessElement(ctx context.Context, id uint64, result *incrementaldpf.ReachTuple, emit func(string)) error {
+func (fn *formatRQFn) ProcessElement(ctx context.Context, id uint128.Uint128, result *incrementaldpf.ReachTuple, emit func(string)) error {
 	b, err := json.Marshal(&ReachRQ{R: result.R, Q: result.Q})
 	if err != nil {
 		return err
 	}
 	fn.countRQ.Inc(ctx, 1)
-	emit(fmt.Sprintf("%d,%s", id, base64.StdEncoding.EncodeToString(b)))
+	emit(fmt.Sprintf("%s,%s", id.String(), base64.StdEncoding.EncodeToString(b)))
 	return nil
 }
 
@@ -361,36 +400,36 @@ func WriteReachRQ(s beam.Scope, col beam.PCollection, outputName string, shards 
 	pipelineutils.WriteNShardedFiles(s, outputName, shards, formatted)
 }
 
-func parseRQ(line string) (uint64, *ReachRQ, error) {
+func parseRQ(line string) (uint128.Uint128, *ReachRQ, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
-		return 0, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
+		return uint128.Zero, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
 	}
 
-	index, err := strconv.ParseUint(cols[0], 10, 64)
+	index, err := utils.StringToUint128(cols[0])
 	if err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 
 	bResult, err := base64.StdEncoding.DecodeString(cols[1])
 	if err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 
 	rq := &ReachRQ{}
 	if err := json.Unmarshal(bResult, rq); err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 	return index, rq, nil
 }
 
 // ReadReachRQ reads the R and Q values from a file.
-func ReadReachRQ(ctx context.Context, filename string) (map[uint64]*ReachRQ, error) {
+func ReadReachRQ(ctx context.Context, filename string) (map[uint128.Uint128]*ReachRQ, error) {
 	lines, err := utils.ReadLines(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[uint64]*ReachRQ)
+	result := make(map[uint128.Uint128]*ReachRQ)
 	for _, line := range lines {
 		id, rq, err := parseRQ(line)
 		if err != nil {
@@ -410,13 +449,13 @@ func (fn *formatHistogramFn) Setup() {
 	fn.countBucket = beam.NewCounter("aggregation", "formatHistogramFn_bucket_count")
 }
 
-func (fn *formatHistogramFn) ProcessElement(ctx context.Context, index uint64, result *incrementaldpf.ReachTuple, emit func(string)) error {
+func (fn *formatHistogramFn) ProcessElement(ctx context.Context, index uint128.Uint128, result *incrementaldpf.ReachTuple, emit func(string)) error {
 	b, err := json.Marshal(result)
 	if err != nil {
 		return err
 	}
 	fn.countBucket.Inc(ctx, 1)
-	emit(fmt.Sprintf("%d,%s", index, base64.StdEncoding.EncodeToString(b)))
+	emit(fmt.Sprintf("%s,%s", index.String(), base64.StdEncoding.EncodeToString(b)))
 	return nil
 }
 
@@ -427,36 +466,36 @@ func WriteHistogram(s beam.Scope, col beam.PCollection, outputName string, shard
 	pipelineutils.WriteNShardedFiles(s, outputName, shards, formatted)
 }
 
-func parseHistogram(line string) (uint64, *incrementaldpf.ReachTuple, error) {
+func parseHistogram(line string) (uint128.Uint128, *incrementaldpf.ReachTuple, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
-		return 0, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
+		return uint128.Zero, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
 	}
 
-	index, err := strconv.ParseUint(cols[0], 10, 64)
+	index, err := utils.StringToUint128(cols[0])
 	if err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 
 	bResult, err := base64.StdEncoding.DecodeString(cols[1])
 	if err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 
 	aggregation := &incrementaldpf.ReachTuple{}
 	if err := json.Unmarshal(bResult, aggregation); err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 	return index, aggregation, nil
 }
 
 // ReadPartialHistogram reads the partial aggregation result without using a Beam pipeline.
-func ReadPartialHistogram(ctx context.Context, filename string) (map[uint64]*incrementaldpf.ReachTuple, error) {
+func ReadPartialHistogram(ctx context.Context, filename string) (map[uint128.Uint128]*incrementaldpf.ReachTuple, error) {
 	lines, err := utils.ReadLines(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[uint64]*incrementaldpf.ReachTuple)
+	result := make(map[uint128.Uint128]*incrementaldpf.ReachTuple)
 	for _, line := range lines {
 		index, aggregation, err := parseHistogram(line)
 		if err != nil {
@@ -474,12 +513,12 @@ type ReachResult struct {
 }
 
 // CreatePartialResult generates the partial count and verification results with the aggregation generated by the helper itself and the R/Q values from the other helper.
-func CreatePartialResult(otherRQ map[uint64]*ReachRQ, selfResult map[uint64]*incrementaldpf.ReachTuple) (map[uint64]*ReachResult, error) {
+func CreatePartialResult(otherRQ map[uint128.Uint128]*ReachRQ, selfResult map[uint128.Uint128]*incrementaldpf.ReachTuple) (map[uint128.Uint128]*ReachResult, error) {
 	if len(otherRQ) != len(selfResult) {
 		return nil, fmt.Errorf("validity size should be the same with result size %d, got %d", len(selfResult), len(otherRQ))
 	}
 
-	r, q := make(map[uint64]uint64), make(map[uint64]uint64)
+	r, q := make(map[uint128.Uint128]uint64), make(map[uint128.Uint128]uint64)
 	for id, result := range selfResult {
 		var (
 			rq *ReachRQ
@@ -492,7 +531,7 @@ func CreatePartialResult(otherRQ map[uint64]*ReachRQ, selfResult map[uint64]*inc
 		q[id] = rq.Q + result.Q
 	}
 
-	partialResult := make(map[uint64]*ReachResult)
+	partialResult := make(map[uint128.Uint128]*ReachResult)
 	for id, result := range selfResult {
 		partialResult[id] = &ReachResult{
 			Verification: r[id]*result.Qf - q[id]*result.Rf,
@@ -502,16 +541,16 @@ func CreatePartialResult(otherRQ map[uint64]*ReachRQ, selfResult map[uint64]*inc
 	return partialResult, nil
 }
 
-func formatReachResult(id uint64, result *ReachResult) (string, error) {
+func formatReachResult(id uint128.Uint128, result *ReachResult) (string, error) {
 	b, err := json.Marshal(result)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%d,%s", id, base64.StdEncoding.EncodeToString(b)), nil
+	return fmt.Sprintf("%s,%s", id.String(), base64.StdEncoding.EncodeToString(b)), nil
 }
 
 // WriteReachResult writes the count
-func WriteReachResult(ctx context.Context, result map[uint64]*ReachResult, fileURI string) error {
+func WriteReachResult(ctx context.Context, result map[uint128.Uint128]*ReachResult, fileURI string) error {
 	var lines []string
 	for i, v := range result {
 		line, err := formatReachResult(i, v)
@@ -523,37 +562,37 @@ func WriteReachResult(ctx context.Context, result map[uint64]*ReachResult, fileU
 	return utils.WriteLines(ctx, lines, fileURI)
 }
 
-func parseReachResult(line string) (uint64, *ReachResult, error) {
+func parseReachResult(line string) (uint128.Uint128, *ReachResult, error) {
 	cols := strings.Split(line, ",")
 	if got, want := len(cols), 2; got != want {
-		return 0, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
+		return uint128.Zero, nil, fmt.Errorf("got %d number of columns in line %q, expected %d", got, line, want)
 	}
 
-	index, err := strconv.ParseUint(cols[0], 10, 64)
+	index, err := utils.StringToUint128(cols[0])
 	if err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 
 	bResult, err := base64.StdEncoding.DecodeString(cols[1])
 	if err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 
 	aggregation := &ReachResult{}
 	if err := json.Unmarshal(bResult, aggregation); err != nil {
-		return 0, nil, err
+		return uint128.Zero, nil, err
 	}
 	return index, aggregation, nil
 }
 
 // ReadReachResult reads the partial count and verification results from a file.
-func ReadReachResult(ctx context.Context, fileUIR string) (map[uint64]*ReachResult, error) {
+func ReadReachResult(ctx context.Context, fileUIR string) (map[uint128.Uint128]*ReachResult, error) {
 	lines, err := utils.ReadLines(ctx, fileUIR)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[uint64]*ReachResult)
+	result := make(map[uint128.Uint128]*ReachResult)
 	for _, line := range lines {
 		id, aggregation, err := parseReachResult(line)
 		if err != nil {
@@ -565,12 +604,12 @@ func ReadReachResult(ctx context.Context, fileUIR string) (map[uint64]*ReachResu
 }
 
 // MergeReachResults merges the partial counts and the verfications.
-func MergeReachResults(result1, result2 map[uint64]*ReachResult) (map[uint64]*ReachResult, error) {
+func MergeReachResults(result1, result2 map[uint128.Uint128]*ReachResult) (map[uint128.Uint128]*ReachResult, error) {
 	if len(result1) != len(result2) {
 		return nil, fmt.Errorf("expect partial results with same length, got %d and %d", len(result1), len(result2))
 	}
 
-	mergedResult := make(map[uint64]*ReachResult)
+	mergedResult := make(map[uint128.Uint128]*ReachResult)
 	for id, agg1 := range result1 {
 		var (
 			agg2 *ReachResult

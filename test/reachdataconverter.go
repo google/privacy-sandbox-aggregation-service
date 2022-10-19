@@ -23,13 +23,14 @@ import (
 	"strconv"
 	"strings"
 
+	dpfpb "github.com/google/distributed_point_functions/dpf/distributed_point_function_go_proto"
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
-	"lukechampine.com/uint128"
 	"github.com/google/privacy-sandbox-aggregation-service/encryption/incrementaldpf"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelineutils"
 	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
+	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
 	"github.com/google/privacy-sandbox-aggregation-service/test/dpfdataconverter"
 
 	pb "github.com/google/privacy-sandbox-aggregation-service/encryption/crypto_go_proto"
@@ -59,7 +60,7 @@ func parseRawReachReport(line string, keyBitSize int) (pipelinetypes.RawReachRep
 		return pipelinetypes.RawReachReport{}, err
 	}
 
-	llRegister, err := strconv.ParseUint(cols[2], 10, int(keyBitSize))
+	llRegister, err := utils.StringToUint128(cols[2])
 	if err != nil {
 		return pipelinetypes.RawReachReport{}, err
 	}
@@ -95,6 +96,7 @@ func (fn *parseRawReachReportFn) ProcessElement(ctx context.Context, line string
 type createEncryptedPartialReportsFn struct {
 	PublicKeys1, PublicKeys2 *reporttypes.PublicKeys
 	KeyBitSize               int
+	UseFullHierarchy         bool
 
 	countReport beam.Counter
 }
@@ -117,8 +119,25 @@ func (fn *createEncryptedPartialReportsFn) Setup(ctx context.Context) {
 }
 
 func (fn *createEncryptedPartialReportsFn) ProcessElement(ctx context.Context, report pipelinetypes.RawReachReport, emit1 func(*pb.AggregatablePayload), emit2 func(*pb.AggregatablePayload)) error {
-	params := incrementaldpf.CreateReachUint64TupleDpfParameters(int32(fn.KeyBitSize))
-	key1, key2, err := incrementaldpf.GenerateReachTupleKeys(params, uint128.From64(report.LLRegister), reachReportToTuple(report))
+	var params []*dpfpb.DpfParameters
+	var tuples []*incrementaldpf.ReachTuple
+	tuple := reachReportToTuple(report)
+	if fn.UseFullHierarchy {
+		var err error
+		params, err = incrementaldpf.GetDefaultTupleDPFParametersFullHierarchy(fn.KeyBitSize)
+		if err != nil {
+			return err
+		}
+		tuples = make([]*incrementaldpf.ReachTuple, fn.KeyBitSize)
+		for i := range tuples {
+			tuples[i] = tuple
+		}
+	} else {
+		params = []*dpfpb.DpfParameters{incrementaldpf.CreateReachUint64TupleDpfParameters(int32(fn.KeyBitSize))}
+		tuples = []*incrementaldpf.ReachTuple{tuple}
+	}
+
+	key1, key2, err := incrementaldpf.GenerateReachTupleKeys(params, report.LLRegister, tuples)
 	if err != nil {
 		return err
 	}
@@ -140,9 +159,10 @@ func createEncryptedPartialReports(s beam.Scope, reports beam.PCollection, param
 
 	return beam.ParDo2(s,
 		&createEncryptedPartialReportsFn{
-			PublicKeys1: params.PublicKeys1,
-			PublicKeys2: params.PublicKeys2,
-			KeyBitSize:  params.KeyBitSize,
+			PublicKeys1:      params.PublicKeys1,
+			PublicKeys2:      params.PublicKeys2,
+			KeyBitSize:       params.KeyBitSize,
+			UseFullHierarchy: params.UseFullHierarchy,
 		}, reports)
 }
 
@@ -152,6 +172,7 @@ type GeneratePartialReportParams struct {
 	PublicKeys1, PublicKeys2                             *reporttypes.PublicKeys
 	KeyBitSize                                           int
 	Shards                                               int64
+	UseFullHierarchy                                     bool
 }
 
 // GeneratePartialReport splits the raw reports into two shares and encrypts them with public keys from corresponding helpers.

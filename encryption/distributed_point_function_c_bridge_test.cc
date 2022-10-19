@@ -411,8 +411,8 @@ TEST(DistributedPointFunctionBridge, TestReachUint64TupleKeyGenEval) {
 
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, &alpha, &beta, &b_key1, &b_key2,
-                                    &error),
+  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, 1, &alpha, &beta, 1, &b_key1,
+                                    &b_key2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
   CBytes b_eval_ctx1;
@@ -485,8 +485,8 @@ TEST(DistributedPointFunctionBridge, TestReachIntModNTupleKeyGenEval) {
 
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, &alpha, &beta, &b_key1, &b_key2,
-                                    &error),
+  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, 1, &alpha, &beta, 1, &b_key1,
+                                    &b_key2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
   CBytes b_eval_ctx1;
@@ -535,4 +535,99 @@ TEST(DistributedPointFunctionBridge, TestReachIntModNTupleKeyGenEval) {
   free(vec2.vec);
 }
 
+TEST(DistributedPointFunctionBridge, TestReachUint64TupleKeyGenEvalAtRange) {
+  // Possible hierarchical levels: 0 ~ domain_size-1.
+  const int domain_size = 128;
+  int start_level = 101;
+  int end_level = 102;
+
+  CBytes params[domain_size];
+  for (int i = 0; i < domain_size; i++) {
+    int log_domain_size = i + 1;
+    DpfParameters param;
+    param.set_log_domain_size(log_domain_size);
+    (*param.mutable_value_type()) = GetReachUint64TupleValueType();
+    if (log_domain_size + 40 > 128) {
+      param.set_security_parameter(128);
+    }
+
+    CBytes b_param;
+    ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&
+                param.SerializePartialToArray(b_param.c, b_param.l));
+    params[i] = b_param;
+  }
+
+  uint64_t nonzero_index = 100663296;
+  uint64_t end_nonzero_index = nonzero_index >> (domain_size - end_level - 1);
+  CUInt128 alpha = {.lo = nonzero_index, .hi = 0};
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+  CReachTuple betas[domain_size];
+  for (int i = 0; i < domain_size; i++) {
+    betas[i] = beta;
+  }
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(params, domain_size, &alpha, betas,
+                                    domain_size, &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(CCreateEvaluationContext(params, domain_size, &b_key1, &b_eval_ctx1,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(CCreateEvaluationContext(params, domain_size, &b_key2, &b_eval_ctx2,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateAtRangeReachTuple(&b_eval_ctx1, start_level, end_level,
+                                       &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateAtRangeReachTuple(&b_eval_ctx2, start_level, end_level,
+                                       &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  int64_t want_size = int64_t{1} << (end_level - start_level + 1);
+
+  EXPECT_EQ(vec1.vec_size, want_size)
+      << "expect vector size " << want_size << ", got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    if (i == end_nonzero_index) {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 1 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 2 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 3 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 4 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 0 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 0 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 0 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 0 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  for (int i = 0; i < domain_size; i++) {
+    free(params[i].c);
+  }
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
 }  // namespace

@@ -451,7 +451,7 @@ func TestReachUint64TupleDpfGenEvalFunctions(t *testing.T) {
 
 	wantTuple := &ReachTuple{C: 1, Rf: 2, R: 3, Qf: 4, Q: 5}
 	alpha := uint128.From64(123)
-	k1, k2, err := GenerateReachTupleKeys(params, alpha, wantTuple)
+	k1, k2, err := GenerateReachTupleKeys([]*dpfpb.DpfParameters{params}, alpha, []*ReachTuple{wantTuple})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestReachIntModNTupleDpfGenEvalFunctions(t *testing.T) {
 	wantTuple := &ReachTuple{C: 1, Rf: 2, R: 3, Qf: 4, Q: 5}
 	CreateReachIntModNTuple(wantTuple)
 	alpha := uint128.From64(123)
-	k1, k2, err := GenerateReachTupleKeys(params, alpha, wantTuple)
+	k1, k2, err := GenerateReachTupleKeys([]*dpfpb.DpfParameters{params}, alpha, []*ReachTuple{wantTuple})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -534,6 +534,70 @@ func TestReachIntModNTupleDpfGenEvalFunctions(t *testing.T) {
 		want[i] = &ReachTuple{}
 	}
 	want[alpha.Lo] = wantTuple
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("incorrect result (-want +got):\n%s", diff)
+	}
+}
+
+func TestReachUint64TupleDpfGenEvalAtRange(t *testing.T) {
+	os.Setenv("GODEBUG", "cgocheck=2")
+	keyBitSize := 128
+	startLevel, endLevel := 101, 102
+
+	params, err := GetDefaultTupleDPFParametersFullHierarchy(keyBitSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantTuple := &ReachTuple{C: 1, Rf: 2, R: 3, Qf: 4, Q: 5}
+	betas := make([]*ReachTuple, keyBitSize)
+	for i := range betas {
+		betas[i] = wantTuple
+	}
+
+	nonZeroIndex := uint64(100663296)
+	alpha := uint128.From64(nonZeroIndex)
+	k1, k2, err := GenerateReachTupleKeys(params, alpha, betas)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx1, err := CreateEvaluationContext(params, k1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded1, err := EvaluateReachTupleAtRange(evalCtx1, startLevel, endLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evalCtx2, err := CreateEvaluationContext(params, k2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded2, err := EvaluateReachTupleAtRange(evalCtx2, startLevel, endLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]*ReachTuple, len(expanded1))
+	for i := 0; i < len(expanded1); i++ {
+		got[i] = &ReachTuple{
+			C:  expanded1[i].C + expanded2[i].C,
+			Rf: expanded1[i].Rf + expanded2[i].Rf,
+			R:  expanded1[i].R + expanded2[i].R,
+			Qf: expanded1[i].Qf + expanded2[i].Qf,
+			Q:  expanded1[i].Q + expanded2[i].Q,
+		}
+	}
+
+	wantNonZeroIndex := nonZeroIndex >> (keyBitSize - endLevel - 1)
+	wantSize := 1 << (endLevel - startLevel + 1)
+	want := make([]*ReachTuple, wantSize)
+	for i := range want {
+		want[i] = &ReachTuple{}
+	}
+	want[wantNonZeroIndex] = wantTuple
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("incorrect result (-want +got):\n%s", diff)
 	}

@@ -411,8 +411,8 @@ TEST(DistributedPointFunctionBridge, TestReachUint64TupleKeyGenEval) {
 
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, &alpha, &beta, &b_key1, &b_key2,
-                                    &error),
+  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, 1, &alpha, &beta, 1, &b_key1,
+                                    &b_key2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
   CBytes b_eval_ctx1;
@@ -485,8 +485,8 @@ TEST(DistributedPointFunctionBridge, TestReachIntModNTupleKeyGenEval) {
 
   CBytes b_key1, b_key2;
   CBytes error;
-  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, &alpha, &beta, &b_key1, &b_key2,
-                                    &error),
+  EXPECT_EQ(CGenerateReachTupleKeys(&b_params, 1, &alpha, &beta, 1, &b_key1,
+                                    &b_key2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
   CBytes b_eval_ctx1;
@@ -535,4 +535,388 @@ TEST(DistributedPointFunctionBridge, TestReachIntModNTupleKeyGenEval) {
   free(vec2.vec);
 }
 
+TEST(DistributedPointFunctionBridge,
+     TestReachIntModNTupleKeyGenEvalFullHierarchy) {
+  // Possible hierarchical levels: 0 ~ domain_size-1.
+  const int domain_size = 18;
+  int prefix_level = 10;  // log_domain_size = 11
+  int eval_level = 12;    // log_domain_size = 13
+
+  CBytes params[domain_size];
+  for (int i = 0; i < domain_size; i++) {
+    int log_domain_size = i + 1;
+    DpfParameters param;
+    param.set_log_domain_size(log_domain_size);
+    (*param.mutable_value_type()) = GetReachIntModNTupleValueType();
+
+    CBytes b_param;
+    ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&
+                param.SerializePartialToArray(b_param.c, b_param.l));
+    params[i] = b_param;
+  }
+
+  uint64_t nonzero_index = 24;
+  uint64_t end_nonzero_index = nonzero_index >> (domain_size - eval_level - 1);
+  CUInt128 alpha = {.lo = nonzero_index, .hi = 0};
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+  CReachTuple betas[domain_size];
+  for (int i = 0; i < domain_size; i++) {
+    betas[i] = beta;
+  }
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(params, domain_size, &alpha, betas,
+                                    domain_size, &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(CCreateEvaluationContext(params, domain_size, &b_key1, &b_eval_ctx1,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(CCreateEvaluationContext(params, domain_size, &b_key2, &b_eval_ctx2,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx1, prefix_level,
+                                             eval_level, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx2, prefix_level,
+                                             eval_level, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  int64_t want_size = int64_t{1} << (eval_level - prefix_level);
+  EXPECT_EQ(vec1.vec_size, want_size)
+      << "expect vector size " << want_size << ", got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    CAddReachIntModNTuple(&vec1.vec[i], &vec2.vec[i]);
+    if (i == end_nonzero_index) {
+      ASSERT_TRUE(vec1.vec[i].c == 1 && vec1.vec[i].rf == 2 &&
+                  vec1.vec[i].r == 3 && vec1.vec[i].qf == 4 &&
+                  vec1.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c == 0 && vec1.vec[i].rf == 0 &&
+                  vec1.vec[i].r == 0 && vec1.vec[i].qf == 0 &&
+                  vec1.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  for (int i = 0; i < domain_size; i++) {
+    free(params[i].c);
+  }
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
+TEST(DistributedPointFunctionBridge,
+     TestReachUint64TupleKeyGenEvalFullHierarchyNonEmptyPrefix) {
+  // Possible hierarchical levels: 0 ~ domain_size-1.
+  const int kDomainSize = 128;
+  const int kPrefixLevel = 100;  // log_domain_size = 101
+  const int kEvalLevel = 102;    // log_domain_size = 103
+
+  CBytes params[kDomainSize];
+  for (int i = 0; i < kDomainSize; i++) {
+    int log_domain_size = i + 1;
+    DpfParameters param;
+    param.set_log_domain_size(log_domain_size);
+    (*param.mutable_value_type()) = GetReachUint64TupleValueType();
+    // By default security_parameter = log_domain_size + 40, but it cannot be
+    // greater than 128.
+    if (log_domain_size + 40 > 128) {
+      param.set_security_parameter(128);
+    }
+
+    CBytes b_param;
+    ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&
+                param.SerializePartialToArray(b_param.c, b_param.l));
+    params[i] = b_param;
+  }
+
+  uint64_t want_nonzero_index = 3;
+  absl::uint128 nonzero_bucket = absl::MakeUint128(0, want_nonzero_index) <<=
+      (kDomainSize - kEvalLevel - 1);
+  CUInt128 alpha = {.lo = absl::Uint128Low64(nonzero_bucket),
+                    .hi = absl::Uint128High64(nonzero_bucket)};
+
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+  CReachTuple betas[kDomainSize];
+  for (int i = 0; i < kDomainSize; i++) {
+    betas[i] = beta;
+  }
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(params, kDomainSize, &alpha, betas,
+                                    kDomainSize, &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(CCreateEvaluationContext(params, kDomainSize, &b_key1, &b_eval_ctx1,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(CCreateEvaluationContext(params, kDomainSize, &b_key2, &b_eval_ctx2,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx1, kPrefixLevel,
+                                             kEvalLevel, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx2, kPrefixLevel,
+                                             kEvalLevel, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  int64_t want_size = int64_t{1} << (kEvalLevel - kPrefixLevel);
+  EXPECT_EQ(vec1.vec_size, want_size)
+      << "expect vector size " << want_size << ", got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    if (i == want_nonzero_index) {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 1 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 2 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 3 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 4 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 0 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 0 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 0 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 0 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  for (int i = 0; i < kDomainSize; i++) {
+    free(params[i].c);
+  }
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
+TEST(DistributedPointFunctionBridge,
+     TestReachUint64TupleKeyGenEvalFullHierarchyEmptyPrefix) {
+  // Possible hierarchical levels: 0 ~ domain_size-1.
+  const int kDomainSize = 128;
+  const int kPrefixLevel = -1;
+  const int kEvalLevel = 1;  // log_domain_size = 2
+
+  CBytes params[kDomainSize];
+  for (int i = 0; i < kDomainSize; i++) {
+    int log_domain_size = i + 1;
+    DpfParameters param;
+    param.set_log_domain_size(log_domain_size);
+    (*param.mutable_value_type()) = GetReachUint64TupleValueType();
+    if (log_domain_size + 40 > 128) {
+      param.set_security_parameter(128);
+    }
+
+    CBytes b_param;
+    ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&
+                param.SerializePartialToArray(b_param.c, b_param.l));
+    params[i] = b_param;
+  }
+
+  uint64_t want_nonzero_index = 3;
+  absl::uint128 nonzero_bucket = absl::MakeUint128(0, want_nonzero_index) <<=
+      (kDomainSize - kEvalLevel - 1);
+  CUInt128 alpha = {.lo = absl::Uint128Low64(nonzero_bucket),
+                    .hi = absl::Uint128High64(nonzero_bucket)};
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+  CReachTuple betas[kDomainSize];
+  for (int i = 0; i < kDomainSize; i++) {
+    betas[i] = beta;
+  }
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(params, kDomainSize, &alpha, betas,
+                                    kDomainSize, &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(CCreateEvaluationContext(params, kDomainSize, &b_key1, &b_eval_ctx1,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(CCreateEvaluationContext(params, kDomainSize, &b_key2, &b_eval_ctx2,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx1, kPrefixLevel,
+                                             kEvalLevel, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx2, kPrefixLevel,
+                                             kEvalLevel, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  int64_t want_size = int64_t{1} << (kEvalLevel - kPrefixLevel);
+  EXPECT_EQ(vec1.vec_size, want_size)
+      << "expect vector size " << want_size << ", got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    if (i == want_nonzero_index) {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 1 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 2 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 3 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 4 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 0 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 0 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 0 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 0 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  for (int i = 0; i < kDomainSize; i++) {
+    free(params[i].c);
+  }
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
+
+TEST(DistributedPointFunctionBridge,
+     TestReachUint64TupleKeyGenEvalSelectedHierarchy) {
+  const int kDomainSize = 128;
+  const int kPrefixBitSize = 101;
+  const int kEvalBitSize = 103;
+  const int kLevelNum = 3;
+
+  std::vector<int> subdomain_sizes{kPrefixBitSize, kEvalBitSize, kDomainSize};
+  CBytes params[kLevelNum];
+  for (int i = 0; i < kLevelNum; i++) {
+    int log_domain_size = subdomain_sizes[i];
+    DpfParameters param;
+    param.set_log_domain_size(log_domain_size);
+    (*param.mutable_value_type()) = GetReachUint64TupleValueType();
+    if (log_domain_size + 40 > 128) {
+      param.set_security_parameter(128);
+    }
+
+    CBytes b_param;
+    ASSERT_TRUE(AllocateCBytes(param.ByteSizeLong(), &b_param) &&
+                param.SerializePartialToArray(b_param.c, b_param.l));
+    params[i] = b_param;
+  }
+
+  uint64_t nonzero_index = 100663296;
+  uint64_t end_nonzero_index = nonzero_index >> (kDomainSize - kEvalBitSize);
+  CUInt128 alpha = {.lo = nonzero_index, .hi = 0};
+
+  CReachTuple beta{};
+  beta.c = 1;
+  beta.rf = 2;
+  beta.r = 3;
+  beta.qf = 4;
+  beta.q = 5;
+  CReachTuple betas[3];
+  for (int i = 0; i < kLevelNum; i++) {
+    betas[i] = beta;
+  }
+
+  CBytes b_key1, b_key2;
+  CBytes error;
+  EXPECT_EQ(CGenerateReachTupleKeys(params, kLevelNum, &alpha, betas, kLevelNum,
+                                    &b_key1, &b_key2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CBytes b_eval_ctx1;
+  EXPECT_EQ(CCreateEvaluationContext(params, kLevelNum, &b_key1, &b_eval_ctx1,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CBytes b_eval_ctx2;
+  EXPECT_EQ(CCreateEvaluationContext(params, kLevelNum, &b_key2, &b_eval_ctx2,
+                                     &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  CReachTupleVec vec1;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx1, 0, 1, &vec1, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+  CReachTupleVec vec2;
+  EXPECT_EQ(CEvaluateReachTupleBetweenLevels(&b_eval_ctx2, 0, 1, &vec2, &error),
+            static_cast<int>(absl::StatusCode::kOk));
+
+  int64_t want_size = int64_t{1} << (kEvalBitSize - kPrefixBitSize);
+  EXPECT_EQ(vec1.vec_size, want_size)
+      << "expect vector size " << want_size << ", got" << vec1.vec_size;
+
+  EXPECT_EQ(vec1.vec_size, vec2.vec_size) << "vec size different";
+
+  for (int i = 0; i < vec1.vec_size; i++) {
+    if (i == end_nonzero_index) {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 1 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 2 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 3 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 4 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 5)
+          << "failed to recover";
+    } else {
+      ASSERT_TRUE(vec1.vec[i].c + vec2.vec[i].c == 0 &&
+                  vec1.vec[i].rf + vec2.vec[i].rf == 0 &&
+                  vec1.vec[i].r + vec2.vec[i].r == 0 &&
+                  vec1.vec[i].qf + vec2.vec[i].qf == 0 &&
+                  vec1.vec[i].q + vec2.vec[i].q == 0)
+          << "failed to recover";
+    }
+  }
+
+  for (int i = 0; i < kLevelNum; i++) {
+    free(params[i].c);
+  }
+  free(b_key1.c);
+  free(b_key2.c);
+  free(b_eval_ctx1.c);
+  free(b_eval_ctx2.c);
+  free(vec1.vec);
+  free(vec2.vec);
+}
 }  // namespace

@@ -48,7 +48,7 @@ type ReachTuple struct {
 
 // CreateReachUint64TupleDpfParameters generats the DPF parameters for Reach tuples with uint64 elements.
 func CreateReachUint64TupleDpfParameters(logDomainSize int32) *dpfpb.DpfParameters {
-	return &dpfpb.DpfParameters{
+	param := &dpfpb.DpfParameters{
 		LogDomainSize: logDomainSize,
 		ValueType: &dpfpb.ValueType{
 			Type: &dpfpb.ValueType_Tuple_{
@@ -64,6 +64,14 @@ func CreateReachUint64TupleDpfParameters(logDomainSize int32) *dpfpb.DpfParamete
 			},
 		},
 	}
+
+	// This value needs to be in the range [0, 128], and the default is kDefaultSecurityParameter(40) + log_domain_size.
+	// https://github.com/google/distributed_point_functions/blob/master/dpf/distributed_point_function.proto#L104
+	if logDomainSize+40 > 128 {
+		param.SecurityParameter = 128
+	}
+
+	return param
 }
 
 func getReachModule() uint64 {
@@ -103,6 +111,22 @@ func createCUInt128s(nums []uint128.Uint128) *C.struct_CUInt128 {
 		pSlice[i] = C.struct_CUInt128{lo: C.uint64_t(nums[i].Lo), hi: C.uint64_t(nums[i].Hi)}
 	}
 	return cNums
+}
+
+func createCReachTuples(tuples []*ReachTuple) *C.struct_CReachTuple {
+	len := len(tuples)
+	cTuples := (*C.struct_CReachTuple)(C.malloc(C.sizeof_struct_CReachTuple * C.uint64_t(len)))
+	pSlice := (*[1 << 30]C.struct_CReachTuple)(unsafe.Pointer(cTuples))[:len:len]
+	for i := range tuples {
+		pSlice[i] = C.struct_CReachTuple{
+			c:  C.uint64_t(tuples[i].C),
+			rf: C.uint64_t(tuples[i].Rf),
+			r:  C.uint64_t(tuples[i].R),
+			qf: C.uint64_t(tuples[i].Qf),
+			q:  C.uint64_t(tuples[i].Q),
+		}
+	}
+	return cTuples
 }
 
 func createCParams(params []*dpfpb.DpfParameters) (*C.struct_CBytes, []unsafe.Pointer, error) {
@@ -181,20 +205,23 @@ func GenerateKeys(params []*dpfpb.DpfParameters, alpha uint128.Uint128, betas []
 }
 
 // GenerateReachTupleKeys generates a pair of DpfKeys for given bucket ID and Reach tuple.
-func GenerateReachTupleKeys(params *dpfpb.DpfParameters, alpha uint128.Uint128, beta *ReachTuple) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
-	cParams, cParamPointers, err := createCParams([]*dpfpb.DpfParameters{params})
+func GenerateReachTupleKeys(params []*dpfpb.DpfParameters, alpha uint128.Uint128, betas []*ReachTuple) (*dpfpb.DpfKey, *dpfpb.DpfKey, error) {
+	cParamsSize := C.int64_t(len(params))
+	cParams, cParamPointers, err := createCParams(params)
 	defer freeCParams(cParams, cParamPointers)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	cAlpha := C.struct_CUInt128{lo: C.uint64_t(alpha.Lo), hi: C.uint64_t(alpha.Hi)}
-	betaTuple := C.struct_CReachTuple{c: C.uint64_t(beta.C), rf: C.uint64_t(beta.Rf), r: C.uint64_t(beta.R), qf: C.uint64_t(beta.Qf), q: C.uint64_t(beta.Q)}
+	cBetasSize := C.int64_t(len(betas))
+	betasPointer := createCReachTuples(betas)
+	defer C.free(unsafe.Pointer(betasPointer))
 
 	cKey1 := C.struct_CBytes{}
 	cKey2 := C.struct_CBytes{}
 	errStr := C.struct_CBytes{}
-	status := C.CGenerateReachTupleKeys(cParams, &cAlpha, &betaTuple, &cKey1, &cKey2, &errStr)
+	status := C.CGenerateReachTupleKeys(cParams, cParamsSize, &cAlpha, betasPointer, cBetasSize, &cKey1, &cKey2, &errStr)
 	defer freeCBytes(cKey1)
 	defer freeCBytes(cKey2)
 	defer freeCBytes(errStr)
@@ -642,6 +669,42 @@ func EvaluateReachTuple(evalCtx *dpfpb.EvaluationContext) ([]*ReachTuple, error)
 	return expanded, nil
 }
 
+// EvaluateReachTupleBetweenLevels expands DPF keys at given range of hierarchies into ReachTuple buckets.
+func EvaluateReachTupleBetweenLevels(evalCtx *dpfpb.EvaluationContext, prefixLevel, evalLevel int) ([]*ReachTuple, error) {
+	bEvalCtx, err := proto.Marshal(evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	cEvalCtx := C.struct_CBytes{c: (*C.char)(C.CBytes(bEvalCtx)), l: C.int(len(bEvalCtx))}
+	outExpanded := C.struct_CReachTupleVec{}
+	errStr := C.struct_CBytes{}
+	status := C.CEvaluateReachTupleBetweenLevels(&cEvalCtx, C.int(prefixLevel), C.int(evalLevel), &outExpanded, &errStr)
+	defer freeCBytes(cEvalCtx)
+	defer C.free(unsafe.Pointer(outExpanded.vec))
+	defer freeCBytes(errStr)
+	if status != 0 {
+		return nil, errors.New(C.GoStringN(errStr.c, errStr.l))
+	}
+
+	const maxLen = 1 << 30
+	vecLen := uint64(outExpanded.vec_size)
+	if vecLen > maxLen {
+		return nil, fmt.Errorf("vector length %d should not exceed %d", vecLen, maxLen)
+	}
+	es := (*[maxLen]C.struct_CReachTuple)(unsafe.Pointer(outExpanded.vec))[:vecLen:vecLen]
+	expanded := make([]*ReachTuple, vecLen)
+	for i := uint64(0); i < uint64(vecLen); i++ {
+		expanded[i] = &ReachTuple{
+			C:  uint64(es[i].c),
+			Rf: uint64(es[i].rf),
+			R:  uint64(es[i].r),
+			Qf: uint64(es[i].qf),
+			Q:  uint64(es[i].q),
+		}
+	}
+	return expanded, nil
+}
+
 // GetDefaultDPFParameters generates the DPF parameters for creating DPF keys or evaluation context for all possible prefix lengths.
 func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
 	if keyBitSize <= 0 {
@@ -661,4 +724,45 @@ func GetDefaultDPFParameters(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
 		}
 	}
 	return allParams, nil
+}
+
+func getTupleDPFParametersFullHierarchy(keyBitSize int) ([]*dpfpb.DpfParameters, error) {
+	if keyBitSize <= 0 {
+		return nil, fmt.Errorf("keyBitSize should be positive, got %d", keyBitSize)
+	}
+	allParams := make([]*dpfpb.DpfParameters, keyBitSize)
+	for i := int32(1); i <= int32(keyBitSize); i++ {
+		allParams[i-1] = CreateReachUint64TupleDpfParameters(i)
+	}
+	return allParams, nil
+}
+
+func getTupleDPFParametersSelectedHierarchy(prefixBitSize, evalBitSize, keyBitSize int) ([]*dpfpb.DpfParameters, error) {
+	if evalBitSize <= 0 {
+		return nil, fmt.Errorf("evalBitSize should be positive, got %d", evalBitSize)
+	}
+	if prefixBitSize >= evalBitSize {
+		return nil, fmt.Errorf("expect prefixBitSize < evalBitSize, got %d >= %d", prefixBitSize, evalBitSize)
+	}
+	if evalBitSize > keyBitSize {
+		return nil, fmt.Errorf("expect evalBitSize <= keyBitSize, got %d >= %d", evalBitSize, keyBitSize)
+	}
+
+	var allParams []*dpfpb.DpfParameters
+	if prefixBitSize > 0 {
+		allParams = append(allParams, CreateReachUint64TupleDpfParameters(int32(prefixBitSize)))
+	}
+	allParams = append(allParams, CreateReachUint64TupleDpfParameters(int32(evalBitSize)))
+	if evalBitSize < keyBitSize {
+		allParams = append(allParams, CreateReachUint64TupleDpfParameters(int32(keyBitSize)))
+	}
+	return allParams, nil
+}
+
+// GetTupleDPFParameters generates the DPF parameters for Reach tuples.
+func GetTupleDPFParameters(prefixBitSize, evalBitSize, keyBitSize int, fullHierarchy bool) ([]*dpfpb.DpfParameters, error) {
+	if fullHierarchy {
+		return getTupleDPFParametersFullHierarchy(keyBitSize)
+	}
+	return getTupleDPFParametersSelectedHierarchy(prefixBitSize, evalBitSize, keyBitSize)
 }

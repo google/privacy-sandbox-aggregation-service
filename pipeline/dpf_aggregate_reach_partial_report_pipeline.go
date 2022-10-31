@@ -42,6 +42,11 @@ var (
 
 	fileShards = flag.Int64("file_shards", 10, "The number of shards for the output file.")
 
+	useHierarchy  = flag.Bool("use_hierarchy", false, "Use hierarchies when creating DPF keys.")
+	fullHierarchy = flag.Bool("full_hierarchy", false, "Use every bit in the domain as a hierarchy.")
+	prefixBitSize = flag.Int("prefix_bit_size", 0, "Bit size of the zero prefixes.")
+	evalBitSize   = flag.Int("eval_bit_size", 0, "Bit size to evaluate.")
+
 	profilerService        = flag.String("profiler_service", "", "Service name for profiling pipelines.")
 	profilerServiceVersion = flag.String("profiler_service_version", "", "Service version for profiling pipelines.")
 )
@@ -88,6 +93,10 @@ func main() {
 			PartialValidityURI:  *partialValidityURI,
 			HelperPrivateKeys:   helperPrivKeys,
 			KeyBitSize:          *keyBitSize,
+			UseHierarchy:        *useHierarchy,
+			FullHierarchy:       *fullHierarchy,
+			PrefixBitSize:       *prefixBitSize,
+			EvalBitSize:         *evalBitSize,
 			CombineParams: &dpfaggregator.CombineParams{
 				DirectCombine: *directCombine,
 				SegmentLength: *segmentLength,

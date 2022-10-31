@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"lukechampine.com/uint128"
 )
 
 func TestWriteReadReachResults(t *testing.T) {
@@ -17,9 +18,9 @@ func TestWriteReadReachResults(t *testing.T) {
 	}
 	defer os.RemoveAll(fileDir)
 
-	want := map[uint64]*ReachResult{
-		0: &ReachResult{Verification: 1, Count: 2},
-		3: &ReachResult{Verification: 4, Count: 5},
+	want := map[uint128.Uint128]*ReachResult{
+		uint128.From64(0): &ReachResult{Verification: 1, Count: 2},
+		uint128.From64(3): &ReachResult{Verification: 4, Count: 5},
 	}
 
 	filePath := filepath.Join(fileDir, "reach_results")

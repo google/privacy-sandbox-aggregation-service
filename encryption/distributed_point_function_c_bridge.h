@@ -99,9 +99,9 @@ int CEvaluateAt64Default(int key_bit_size, const struct CBytes *key,
 // CGenerateReachTupleKeys also wraps GenerateKeys() in C, specifically for
 // generating keys for the Reach tuples:
 // http://google3/dpf/distributed_point_function.h?l=149&rcl=385165251
-int CGenerateReachTupleKeys(const struct CBytes *params,
+int CGenerateReachTupleKeys(const struct CBytes *params, int64_t params_size,
                             const struct CUInt128 *alpha,
-                            const struct CReachTuple *betas,
+                            const struct CReachTuple *betas, int64_t betas_size,
                             struct CBytes *out_key1, struct CBytes *out_key2,
                             struct CBytes *out_error);
 
@@ -110,6 +110,13 @@ int CGenerateReachTupleKeys(const struct CBytes *params,
 int CEvaluateReachTuple(const struct CBytes *in_context,
                         struct CReachTupleVec *out_vec,
                         struct CBytes *out_error);
+
+// CEvaluateReachTupleBetweenLevels evaluates keys in a given range of
+// hirearchies.
+int CEvaluateReachTupleBetweenLevels(const struct CBytes *in_context,
+                                     int prefix_level, int eval_level,
+                                     struct CReachTupleVec *out_vec,
+                                     struct CBytes *out_error);
 
 void CCreateReachIntModNTuple(struct CReachTuple *tuple);
 

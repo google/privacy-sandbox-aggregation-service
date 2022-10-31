@@ -29,6 +29,6 @@ type RawReport struct {
 type RawReachReport struct {
 	Campaign   uint64
 	Person     uint64
-	LLRegister uint64
+	LLRegister uint128.Uint128
 	Slice      string
 }

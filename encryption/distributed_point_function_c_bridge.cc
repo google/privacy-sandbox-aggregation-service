@@ -30,6 +30,7 @@ using ::distributed_point_functions::DpfParameters;
 using ::distributed_point_functions::EvaluationContext;
 using ::distributed_point_functions::IntModN;
 using ::distributed_point_functions::Tuple;
+using ::distributed_point_functions::Value;
 
 // ReachIntModN for Reach.
 using ReachIntModN = IntModN<uint64_t, reach_module>;
@@ -133,42 +134,66 @@ absl::StatusOr<bool> UseReachIntOrIntModN(DpfParameters& parameters) {
         "expect same element types for the Reach tuple");
 }
 
-int CGenerateReachTupleKeys(const struct CBytes* params,
+int CGenerateReachTupleKeys(const struct CBytes* params, int64_t params_size,
                             const struct CUInt128* alpha,
-                            const CReachTuple* beta, struct CBytes* out_key1,
-                            struct CBytes* out_key2, struct CBytes* out_error) {
-  DpfParameters parameters;
-  if (!parameters.ParseFromArray(params->c, params->l)) {
-    StrToCBytes("failed to parse DpfParameter", out_error);
-    return static_cast<int>(absl::StatusCode::kInvalidArgument);
+                            const CReachTuple* betas, int64_t betas_size,
+                            struct CBytes* out_key1, struct CBytes* out_key2,
+                            struct CBytes* out_error) {
+  std::vector<DpfParameters> parameters(params_size);
+  for (int i = 0; i < params_size; i++) {
+    if (!parameters[i].ParseFromArray(params[i].c, params[i].l)) {
+      StrToCBytes("failed to parse DpfParameter", out_error);
+      return static_cast<int>(absl::StatusCode::kInvalidArgument);
+    }
   }
 
-  absl::StatusOr<bool> use_int = UseReachIntOrIntModN(parameters);
+  absl::StatusOr<bool> use_int = UseReachIntOrIntModN(parameters[0]);
   if (!use_int.ok()) {
     StrToCBytes(use_int.status().message(), out_error);
     return use_int.status().raw_code();
   }
 
   absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
-      DistributedPointFunction::CreateIncremental({parameters});
+      CreateIncrementalDpf(params, params_size);
+  if (!dpf.ok()) {
+    StrToCBytes(dpf.status().message(), out_error);
+    return dpf.status().raw_code();
+  }
+
   if (!dpf.ok()) {
     StrToCBytes(dpf.status().message(), out_error);
     return dpf.status().raw_code();
   }
 
   absl::StatusOr<std::pair<DpfKey, DpfKey>> keys;
+  std::vector<Value> values(betas_size);
   if (use_int.value()) {
-    keys = (*dpf)->GenerateKeys(
-        ConvertCUInt128(alpha),
-        ReachTuple<uint64_t>{beta->c, beta->rf, beta->r, beta->qf, beta->q});
+    CHECK((*dpf)->RegisterValueType<ReachTuple<uint64_t>>().ok());
+    for (int i = 0; i < betas_size; i++) {
+      absl::StatusOr<Value> value = ToValue(ReachTuple<uint64_t>{
+          betas[i].c, betas[i].rf, betas[i].r, betas[i].qf, betas[i].q});
+      if (!value.ok()) {
+        StrToCBytes(value.status().message(), out_error);
+        return value.status().raw_code();
+      }
+      values[i] = *value;
+    }
   } else {
-    keys = (*dpf)->GenerateKeys(
-        ConvertCUInt128(alpha),
-        ReachTuple<ReachIntModN>{ReachIntModN(beta->c), ReachIntModN(beta->rf),
-                                 ReachIntModN(beta->r), ReachIntModN(beta->qf),
-                                 ReachIntModN(beta->q)});
+    CHECK((*dpf)->RegisterValueType<ReachTuple<ReachIntModN>>().ok());
+    for (int i = 0; i < betas_size; i++) {
+      absl::StatusOr<Value> value = ToValue(ReachTuple<ReachIntModN>{
+          ReachIntModN(betas[i].c), ReachIntModN(betas[i].rf),
+          ReachIntModN(betas[i].r), ReachIntModN(betas[i].qf),
+          ReachIntModN(betas[i].q)});
+      if (!value.ok()) {
+        StrToCBytes(value.status().message(), out_error);
+        return value.status().raw_code();
+      }
+      values[i] = *value;
+    }
   }
 
+  keys = (*dpf)->GenerateKeysIncremental(ConvertCUInt128(alpha), values);
   if (!keys.ok()) {
     StrToCBytes(keys.status().message(), out_error);
     return keys.status().raw_code();
@@ -454,6 +479,124 @@ int CEvaluateReachTuple(const struct CBytes* in_context,
   }
   return EvaluateTupleReachIntNodN(std::move(dpf.value()), eval_context,
                                    out_vec, out_error);
+}
+
+int EvaluateTupleReachIntNodNBetweenLevels(
+    std::unique_ptr<DistributedPointFunction> dpf,
+    EvaluationContext& eval_context, int prefix_level, int eval_level,
+    struct CReachTupleVec* out_vec, struct CBytes* out_error) {
+  absl::StatusOr<std::vector<ReachTuple<ReachIntModN>>> result;
+  std::vector<absl::uint128> evaluation_points;
+  if (prefix_level >= 0) {
+    result = dpf->EvaluateAt<ReachTuple<ReachIntModN>>(
+        prefix_level, std::vector<absl::uint128>{0}, eval_context);
+    if (!result.ok()) {
+      StrToCBytes(result.status().message(), out_error);
+      return result.status().raw_code();
+    }
+    evaluation_points.emplace_back(absl::MakeUint128(0, 0));
+  }
+
+  result = dpf->EvaluateUntil<ReachTuple<ReachIntModN>>(
+      eval_level, evaluation_points, eval_context);
+  if (!result.ok()) {
+    StrToCBytes(result.status().message(), out_error);
+    return result.status().raw_code();
+  }
+
+  int size = result->size();
+  out_vec->vec_size = size;
+  out_vec->vec =
+      reinterpret_cast<CReachTuple*>(calloc(size, sizeof(CReachTuple)));
+  if (out_vec->vec == nullptr) {
+    StrToCBytes("fail to allocate memory for expanded vector", out_error);
+    return static_cast<int>(absl::StatusCode::kInternal);
+  }
+  for (int i = 0; i < size; i++) {
+    out_vec->vec[i].c = std::get<0>((*result)[i].value()).value();
+    out_vec->vec[i].rf = std::get<1>((*result)[i].value()).value();
+    out_vec->vec[i].r = std::get<2>((*result)[i].value()).value();
+    out_vec->vec[i].qf = std::get<3>((*result)[i].value()).value();
+    out_vec->vec[i].q = std::get<4>((*result)[i].value()).value();
+  }
+  return static_cast<int>(absl::StatusCode::kOk);
+}
+
+int EvaluateTupleUint64BetweenLevels(
+    std::unique_ptr<DistributedPointFunction> dpf,
+    EvaluationContext& eval_context, int prefix_level, int eval_level,
+    struct CReachTupleVec* out_vec, struct CBytes* out_error) {
+  absl::StatusOr<std::vector<ReachTuple<uint64_t>>> result;
+  std::vector<absl::uint128> evaluation_points;
+  if (prefix_level >= 0) {
+    result = dpf->EvaluateAt<ReachTuple<uint64_t>>(
+        prefix_level, std::vector<absl::uint128>{0}, eval_context);
+    if (!result.ok()) {
+      StrToCBytes(result.status().message(), out_error);
+      return result.status().raw_code();
+    }
+    evaluation_points.emplace_back(absl::MakeUint128(0, 0));
+  }
+
+  result = dpf->EvaluateUntil<ReachTuple<uint64_t>>(
+      eval_level, evaluation_points, eval_context);
+  if (!result.ok()) {
+    StrToCBytes(result.status().message(), out_error);
+    return result.status().raw_code();
+  }
+
+  int size = result->size();
+  out_vec->vec_size = size;
+  out_vec->vec =
+      reinterpret_cast<CReachTuple*>(calloc(size, sizeof(CReachTuple)));
+  if (out_vec->vec == nullptr) {
+    StrToCBytes("fail to allocate memory for expanded vector", out_error);
+    return static_cast<int>(absl::StatusCode::kInternal);
+  }
+  for (int i = 0; i < size; i++) {
+    out_vec->vec[i].c = std::get<0>((*result)[i].value());
+    out_vec->vec[i].rf = std::get<1>((*result)[i].value());
+    out_vec->vec[i].r = std::get<2>((*result)[i].value());
+    out_vec->vec[i].qf = std::get<3>((*result)[i].value());
+    out_vec->vec[i].q = std::get<4>((*result)[i].value());
+  }
+  return static_cast<int>(absl::StatusCode::kOk);
+}
+
+int CEvaluateReachTupleBetweenLevels(const struct CBytes* in_context,
+                                     int prefix_level, int eval_level,
+                                     struct CReachTupleVec* out_vec,
+                                     struct CBytes* out_error) {
+  EvaluationContext eval_context;
+  if (!eval_context.ParseFromArray(in_context->c, in_context->l)) {
+    StrToCBytes("fail to parse EvaluationContext", out_error);
+    return static_cast<int>(absl::StatusCode::kInvalidArgument);
+  }
+
+  std::vector<DpfParameters> parameters(eval_context.parameters().begin(),
+                                        eval_context.parameters().end());
+
+  absl::StatusOr<bool> use_int = UseReachIntOrIntModN(parameters[0]);
+  if (!use_int.ok()) {
+    StrToCBytes(use_int.status().message(), out_error);
+    return use_int.status().raw_code();
+  }
+
+  absl::StatusOr<std::unique_ptr<DistributedPointFunction>> dpf =
+      DistributedPointFunction::CreateIncremental(parameters);
+  if (!dpf.ok()) {
+    StrToCBytes(dpf.status().message(), out_error);
+    return dpf.status().raw_code();
+  }
+
+  if (use_int.value()) {
+    return EvaluateTupleUint64BetweenLevels(std::move(dpf.value()),
+                                            eval_context, prefix_level,
+                                            eval_level, out_vec, out_error);
+  }
+  return EvaluateTupleReachIntNodNBetweenLevels(std::move(dpf.value()),
+                                                eval_context, prefix_level,
+                                                eval_level, out_vec, out_error);
 }
 
 uint64_t CCreateReachIntModN(uint64_t v) { return ReachIntModN(v).value(); }

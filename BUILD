@@ -11,6 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 
+load("//tools/build_defs/license:license.bzl", "license")
+
+package(default_applicable_licenses = ["//third_party/privacy_sandbox_aggregation:license"])
+
+license(
+    name = "license",
+    package_name = "privacy_sandbox_aggregation",
+)
+
 licenses(["notice"])
 
 exports_files([

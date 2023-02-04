@@ -15,11 +15,6 @@
 package dpfdataconverter
 
 import (
-	"context"
-	"io/ioutil"
-	"os"
-	"path"
-	"testing"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/io/textio"
@@ -33,6 +28,11 @@ import (
 	"github.com/google/privacy-sandbox-aggregation-service/pipeline/pipelinetypes"
 	"github.com/google/privacy-sandbox-aggregation-service/shared/reporttypes"
 	"github.com/google/privacy-sandbox-aggregation-service/shared/utils"
+	"context"
+	"io/ioutil"
+	"os"
+	"path"
+	"testing"
 
 	_ "github.com/apache/beam/sdks/go/pkg/beam/io/filesystem/local"
 

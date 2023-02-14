@@ -18,6 +18,8 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+package(default_applicable_licenses = ["//third_party/privacy_sandbox_aggregation:license"])
+
 go_test(
     name = "pipeline_integration_test",
     size = "small",

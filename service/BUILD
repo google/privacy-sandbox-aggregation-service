@@ -15,8 +15,6 @@ load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
 
-package(default_applicable_licenses = ["//third_party/privacy_sandbox_aggregation:license"])
-
 licenses(["notice"])
 
 package(

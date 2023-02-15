@@ -18,8 +18,6 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-package(default_applicable_licenses = ["//third_party/privacy_sandbox_aggregation:license"])
-
 licenses(["notice"])
 
 proto_library(

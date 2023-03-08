@@ -15,10 +15,16 @@
 environment = "privacy-aggregate-sample"
 project     = "sample-project"
 
+# Components of the infrastructure to be deployed.
+components = ["aggregator1", "aggregator2", "collector"]
+
 origins = {
   aggregator1 = {
     private_keys_manifest_uri = "gs://sample-project/keys/aggregator1/private-keys.json"
     public_keys_manifest_uri  = "gs://sample-project/keys/aggregator1/public-keys.json"
+    # if aggregator1 is deployed in another project, add its service account here when it's availible
+    # service_account = "<aggregator1 service account>"
+    # ip_address = "<aggregator1 IP address>"
     # below are optional values with their defaults
     pubsub_topic            = "aggregator1-topic"
     pipeline_runner         = "dataflow"
@@ -31,6 +37,9 @@ origins = {
   aggregator2 = {
     private_keys_manifest_uri = "gs://sample-project/keys/aggregator2/private-keys.json"
     public_keys_manifest_uri  = "gs://sample-project/keys/aggregator2/public-keys.json"
+    # if aggregator2 is deployed in another project, add its service account here when it's availible
+    # service_account = "<aggregator2 service account>"
+    # ip_address = "<aggregator1 IP address>"
     # below are optional values with their defaults
     pubsub_topic            = "aggregator2-topic"
     pipeline_runner         = "dataflow"

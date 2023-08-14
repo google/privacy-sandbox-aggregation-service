@@ -62,6 +62,7 @@ go_library(
         ":standardencrypt",
         "//shared:reporttypes",
         "//shared:utils",
+        "//third_party/golang/google_api/option",
         "@com_github_google_tink_go//aead:go_default_library",
         "@com_github_google_tink_go//core/registry:go_default_library",
         "@com_github_google_tink_go//integration/gcpkms:go_default_library",

@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"os"
 
+	"google3/third_party/golang/google_api/option/option"
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/uint128"
 	"github.com/pborman/uuid"
@@ -90,15 +91,16 @@ func ReadPublicKeys(ctx context.Context, filePath string) (*reporttypes.PublicKe
 	return keys, err
 }
 
-func getAEADForKMS(keyURI, credentialPath string) (tink.AEAD, error) {
+func getAEADForKMS(ctx context.Context, keyURI, credentialPath string) (tink.AEAD, error) {
 	var (
 		gcpclient registry.KMSClient
 		err       error
 	)
 	if credentialPath != "" {
-		gcpclient, err = gcpkms.NewClientWithCredentials(keyURI, credentialPath)
+		gcpclient, err = gcpkms.NewClientWithOptions(
+			ctx, keyURI, option.WithCredentialsFile(credentialPath))
 	} else {
-		gcpclient, err = gcpkms.NewClient(keyURI)
+		gcpclient, err = gcpkms.NewClientWithOptions(ctx, keyURI)
 	}
 	if err != nil {
 		return nil, err
@@ -119,7 +121,7 @@ func getAEADForKMS(keyURI, credentialPath string) (tink.AEAD, error) {
 // The key URI should be in the following format, and the key version is not needed.
 // "gcp-kms://projects/<GCP ID>/locations/<key location>/keyRings/<key ring name>/cryptoKeys/<key name>"
 func KMSEncryptData(ctx context.Context, keyURI, credentialPath string, data []byte) ([]byte, error) {
-	a, err := getAEADForKMS(keyURI, credentialPath)
+	a, err := getAEADForKMS(ctx, keyURI, credentialPath)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +131,7 @@ func KMSEncryptData(ctx context.Context, keyURI, credentialPath string, data []b
 
 // KMSDecryptData decrypts the input data with GCP KMS.
 func KMSDecryptData(ctx context.Context, keyURI, credentialPath string, encryptedData []byte) ([]byte, error) {
-	a, err := getAEADForKMS(keyURI, credentialPath)
+	a, err := getAEADForKMS(ctx, keyURI, credentialPath)
 	if err != nil {
 		return nil, err
 	}

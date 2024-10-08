@@ -13,6 +13,7 @@
 
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("//tools/build_defs/go:go_binary.bzl", "go_binary")
 
 package(
     default_visibility = ["//visibility:public"],

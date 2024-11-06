@@ -15,6 +15,7 @@
 #include "encryption/cbytes_utils.h"
 
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 

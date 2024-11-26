@@ -97,17 +97,31 @@ locals {
   }
   resource_prefix       = "${var.project}-${var.environment}"
   collector_bucket_name = "${local.resource_prefix}-${var.collector_settings.bucket_name}"
+  bucket_to_create = contains(var.components, "collector")? ["${local.collector_bucket_name}"] : []
   simulator_origins = [
     for k, v in var.origins : {
       origin          = k
       public_keys_uri = v.public_keys_manifest_uri
     }
   ]
+
+  aggregator_to_create = (
+    contains(var.components, "aggregator1") && contains(var.components, "aggregator2") ?
+    {aggregator1=var.origins["aggregator1"], aggregator2=var.origins["aggregator2"]} :
+    (
+      contains(var.components, "aggregator1") ?
+      {aggregator1=var.origins["aggregator1"]} :
+      (
+        contains(var.components, "aggregator2") ?
+        {aggregator2=var.origins["aggregator2"]} : {}
+      )
+    )
+  )
 }
 
 # One kubernetes namespace per origin
 resource "kubernetes_namespace" "namespaces" {
-  for_each = var.origins
+  for_each = local.aggregator_to_create
   metadata {
     name = each.key
     annotations = {
@@ -138,9 +152,7 @@ resource "google_project_iam_member" "privacyaggregate_uber_svc_account" {
 }
 
 module "gcs" {
-  for_each = toset([
-    local.collector_bucket_name
-  ])
+  for_each = toset(local.bucket_to_create)
   source          = "./modules/gcs"
   name            = each.value
   location        = var.collector_settings.storage_location
@@ -153,7 +165,7 @@ module "gcs" {
 }
 
 module "aggregator" {
-  for_each                  = var.origins
+  for_each                  = local.aggregator_to_create
   source                    = "./modules/aggregator"
   environment               = var.environment
   project                   = var.project
@@ -180,13 +192,16 @@ module "aggregator" {
 }
 
 locals {
+  collector_k8s_accounts = (
+    contains(var.components, "collector") ?
+    ["serviceAccount:${var.project}.svc.id.goog[collector/${var.project}-${var.environment}-collector-k8s-svc-acc]",
+     "serviceAccount:${var.project}.svc.id.goog[simulator/${var.project}-${var.environment}-simulator-k8s-svc-acc]"] :
+    []
+  )
   service_account_gcp_role_members = concat(
-    [for k, v in var.origins :
+    [for k, v in local.aggregator_to_create :
     "serviceAccount:${var.project}.svc.id.goog[${k}/${var.project}-${var.environment}-${k}-k8s-svc-acc]"],
-    [
-      "serviceAccount:${var.project}.svc.id.goog[collector/${var.project}-${var.environment}-collector-k8s-svc-acc]",
-      "serviceAccount:${var.project}.svc.id.goog[simulator/${var.project}-${var.environment}-simulator-k8s-svc-acc]"
-    ]
+    local.collector_k8s_accounts
   )
 }
 
@@ -201,16 +216,25 @@ resource "google_service_account_iam_binding" "binding" {
   ]
 }
 
+locals {
+  collector_role_members = (
+    contains(var.components, "collector") ?
+    module.collector[0].service_account_gcp_role_members :
+    []
+  )
+}
+
 resource "google_service_account_iam_binding" "tokens" {
   service_account_id = google_service_account.privacyaggregate_uber_svc_account.name
   role               = "roles/iam.serviceAccountTokenCreator"
-  members            = concat([for v in module.aggregator : v.service_account_gcp_role_member], module.collector.service_account_gcp_role_members)
+  members            = concat([for v in module.aggregator : v.service_account_gcp_role_member], local.collector_role_members)
 
   depends_on = [module.aggregator, module.collector]
 }
 
 
 module "collector" {
+  count = contains(var.components, "collector") ? 1 : 0
   source             = "./modules/collector"
   environment        = var.environment
   project            = var.project
@@ -227,4 +251,72 @@ module "collector" {
   worker_count       = var.collector_settings.worker_count
 
   depends_on = [module.gke]
+}
+
+locals {
+  aggregator_service_account1 = var.origins["aggregator1"].service_account
+  aggregator_service_account2 = var.origins["aggregator2"].service_account
+  result_bucket_name = "${local.resource_prefix}"
+  shared_bucket_suffix1 = coalesce(var.origins["aggregator1"].shared_location, "shared")
+  shared_bucket_suffix2 = coalesce(var.origins["aggregator2"].shared_location, "shared")
+}
+
+// Permission of aggregator1 to read the collected reports.
+resource "google_storage_bucket_iam_member" "agg1_report_reader" {
+  count = (
+    contains(var.components, "collector") && !contains(var.components, "aggregator1") && local.aggregator_service_account1 != "" ? 1 : 0
+  )
+  bucket = local.collector_bucket_name
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${local.aggregator_service_account1}"
+}
+
+// Permission of aggregator2 to read the collected reports.
+resource "google_storage_bucket_iam_member" "agg2_report_reader" {
+  count = (
+    contains(var.components, "collector") && !contains(var.components, "aggregator2") && local.aggregator_service_account2 != "" ? 1 : 0
+  )
+  bucket = local.collector_bucket_name
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${local.aggregator_service_account2}"
+}
+
+// Permission of aggregator1 to write results.
+resource "google_storage_bucket_iam_member" "agg1_result_writer" {
+  count = (
+    contains(var.components, "collector") && !contains(var.components, "aggregator1") && local.aggregator_service_account1 != "" ? 1 : 0
+  )
+  bucket = local.result_bucket_name
+  role = "roles/storage.objectCreator"
+  member = "serviceAccount:${local.aggregator_service_account1}"
+}
+
+// Permission of aggregator2 to write results.
+resource "google_storage_bucket_iam_member" "agg2_result_writer" {
+  count = (
+    contains(var.components, "collector") && !contains(var.components, "aggregator2") && local.aggregator_service_account2 != "" ? 1 : 0
+  )
+  bucket = local.result_bucket_name
+  role = "roles/storage.objectCreator"
+  member = "serviceAccount:${local.aggregator_service_account2}"
+}
+
+// Permission of aggregator2 to read the shared data.
+resource "google_storage_bucket_iam_member" "agg2_shared_data_reader" {
+  count = (
+    contains(var.components, "aggregator1") && !contains(var.components, "aggregator2") && local.aggregator_service_account2 != "" ? 1 : 0
+  )
+  bucket = "${var.project}-${var.environment}-aggregator1-${local.shared_bucket_suffix1}"
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${local.aggregator_service_account2}"
+}
+
+// Permission of aggregator1 to read the shared data.
+resource "google_storage_bucket_iam_member" "agg1_shared_data_reader" {
+  count = (
+    contains(var.components, "aggregator2") && !contains(var.components, "aggregator1") && local.aggregator_service_account1 != "" ? 1 : 0
+  )
+  bucket = "${var.project}-${var.environment}-aggregator2-${local.shared_bucket_suffix2}"
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${local.aggregator_service_account1}"
 }

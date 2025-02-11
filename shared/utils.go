@@ -38,9 +38,9 @@ import (
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/storage"
+	"github.com/ugorji/go/codec"
 	"google.golang.org/api/iamcredentials/v1"
 	"google.golang.org/api/idtoken"
-	"github.com/ugorji/go/codec"
 	"lukechampine.com/uint128"
 
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"

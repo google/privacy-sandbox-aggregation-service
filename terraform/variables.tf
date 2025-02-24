@@ -26,6 +26,8 @@ variable "origins" {
   type = map(object({
     private_keys_manifest_uri = string
     public_keys_manifest_uri  = string
+    service_account           = optional(string)
+    ip_address                = optional(string)
     pubsub_topic              = optional(string)
     pipeline_runner           = optional(string)
     dataflow_region           = optional(string)
@@ -150,4 +152,9 @@ variable "dataflow_settings" {
     staging_location = "df-staging"
   }
   description = "Dataflow job settings"
+}
+
+variable "components" {
+  type = list
+  default = ["aggregator1", "aggregator2", "collector"]
 }

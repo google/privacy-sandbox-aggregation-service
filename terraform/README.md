@@ -26,9 +26,11 @@ tfenv use 0.14.6
 
 ## Google Project Setup
 
-Create a [Google Cloud Platfrom](https://cloud.google.com) project and note down the project id.
+The three necessary components: collector(browser simulator), aggregator1 and aggregator2 can be deployed in the same or separated projects. For the latter, repeat the following process until 'Aggregator Environment Setup' for each of the projects.
 
-Install [Google Cloud SDK](https://cloud.google.com/sdk) or if already installed
+Note that the aggregator needs to be deployed before the collector if they are not in the same project, e.g. if you want to deploy the collector and aggregator1 in project A and aggregator2 in project B, project B should be set up before A.
+
+Create a [Google Cloud Platfrom](https://cloud.google.com) project and note down the project id. Install [Google Cloud SDK](https://cloud.google.com/sdk) or if already installed
 verify it's up-to-date.
 
 Setup your gcloud. Follow the prompts from `gcloud init`, use the project setup above.
@@ -147,8 +149,7 @@ gcloud kms keyrings create $ENVIRONMENT-packet-keyring --location $GKE_CLUSTER_L
 gcloud kms keys create packet-key --keyring $ENVIRONMENT-packet-keyring --location $GKE_CLUSTER_LOCATION --purpose=encryption
 ```
 
-Now create the keys for each origin. You need to run below command twice.
-Replace `<replace_with_origin_id>` with e.g. `aggregator1` and in the 2nd run with `aggregator2`.
+Now create the keys for each origin. You need to run below command for each aggregator you want to deploy in this project. Replace `<replace_with_origin_id>` with e.g. `aggregator1` or `aggregator2`.
 
 ```bash
 ORIGIN=<replace_with_origin_id>; bash bazel run -c opt tools:create_hybrid_key_pair -- \
@@ -177,6 +178,12 @@ Use your favorite editor to modify your `enviroment` tfvars.
 open variables/$ENVIRONMENT.tfvars
 ```
 
+Edit the `components` variable and remove any components that will be deployed in other projects, e.g. if you want to deploy the collector and aggregator1, use
+
+```
+components = ["aggregator1", "collector"]
+```
+
 Adjust *at a minimum* the following values:
 
 1. `environment`: replace `privacy-aggregate-sample` with the value picked for `$ENVIRONMENT`
@@ -202,6 +209,29 @@ terraform apply -var-file=variables/$ENVIRONMENT.tfvars
 Check the plan shown by `terraform apply` and confirm with yes. If it fails the first time, run it again.
 
 The output will show you endpoints you can send data and queries to.
+
+## [Multiple projects only] Grant permissions
+When the servers are managed in separated projects, we need to grant necessary permissions to process the query. All you need to do is adding some output information from the other projects in the `$ENVIRONMENT.tfvars` file, and run `terraform apply` again. If a project contains the collector, an example query command will be output with the command.
+
+**For example**, assuming you are deploying the collector and aggregator1 in project A, and aggregator2 in project B. After running the above command `terraform apply` in both projects, you should get output:
+
+* `Aggregator1 IP: <aggregator1_ip_address>` and `Service account: <project_a_sa>` from project A; and
+* `Aggregator2 IP: <aggregator2_ip_address>` and `Service account: <project_b_sa>` from project B
+
+On project B, uncomment and modify the following lines for `aggregator1` in file `$ENVIRONMENT.tfvars`, then rerun `terraform apply`.
+
+```
+    service_account = "<project_a_sa>"
+    ip_address = "<aggregator1_ip_address>"
+```
+
+On project A, uncomment and modify the following lines for `aggregator2` in file `$ENVIRONMENT.tfvars`, then rerun `terraform apply`, which will also output an example query command.
+
+```
+    service_account = "<project_b_sa>"
+    ip_address = "<aggregator2_ip_address>"
+```
+
 
 ## Send query for aggregation
 
@@ -244,7 +274,7 @@ UUID=<uuid_from_above_query>; gsutil cp gs://$PROJECT_ID-$ENVIRONMENT/results/$U
 
 ### Generate sample data
 
-If the sample data gets purged, you can regenerate it in two ways:
+If the sample data gets purged, you can regenerate it in two ways in the project where the collector is deployed:
 
 1. Set `simulator_settings.enabled = false`, and run `terraform apply`; then set `simulator_settings.enabled = true`, and run `terraform apply` again.
 

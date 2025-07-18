@@ -13,6 +13,8 @@
 
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+load("//third_party/bazel_rules/rules_cc/cc:cc_test.bzl", "cc_test")
 load("//third_party/protobuf/bazel:proto_library.bzl", "proto_library")
 load("//tools/build_defs/go:go_library.bzl", "go_library")
 load("//tools/build_defs/go:go_proto_library.bzl", "go_proto_library")

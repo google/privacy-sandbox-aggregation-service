@@ -59,7 +59,7 @@ TEST(DistributedPointFunctionBridge, TestKeyGenEval) {
                                      &b_eval_ctx2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
-  CUInt128 *prefixes;
+  CUInt128 *prefixes = nullptr;
   uint64_t prefixes_size = 0;
   CUInt64Vec vec1;
   EXPECT_EQ(
@@ -130,7 +130,7 @@ TEST(DistributedPointFunctionBridge, TestMultiLevelKeyGenEval) {
                                      &b_eval_ctx2, &error),
             static_cast<int>(absl::StatusCode::kOk));
 
-  CUInt128 *prefixes0;
+  CUInt128 *prefixes0 = nullptr;
   uint64_t prefixes0_size = 0;
   CUInt64Vec vec01;
   EXPECT_EQ(CEvaluateUntil64(0, prefixes0, prefixes0_size, &b_eval_ctx1, &vec01,
@@ -347,7 +347,7 @@ TEST(DistributedPointFunctionBridge, TestEvaluateUntil64Default) {
   ASSERT_TRUE(AllocateCBytes(eval_ctx2.ByteSizeLong(), &b_eval_ctx2) &&
               eval_ctx2.SerializePartialToArray(b_eval_ctx2.c, b_eval_ctx2.l));
 
-  CUInt128 *prefixes;
+  CUInt128 *prefixes = nullptr;
   uint64_t prefixes_size = 0;
   CUInt64Vec vec1;
 

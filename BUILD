@@ -13,7 +13,7 @@
 
 load("//tools/build_defs/license:license.bzl", "license")
 
-package(default_applicable_licenses = ["//third_party/privacy_sandbox_aggregation:license"])
+package(default_applicable_licenses = [":license"])
 
 license(
     name = "license",

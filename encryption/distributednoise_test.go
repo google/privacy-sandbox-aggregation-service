@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"gonum.org/v1/gonum/floats"
+	"google3/third_party/golang/gonum/floats/scalar/scalar"
 	"github.com/grd/stat"
 )
 
@@ -47,10 +47,10 @@ func TestGeometricMechanismNoise(t *testing.T) {
 			}
 		}
 		gotMean, gotVariance := stat.Mean(noisedSamples), stat.Variance(noisedSamples)
-		if !floats.EqualWithinAbsOrRel(gotMean, wantMean, tolerance, tolerance) {
+		if !scalar.EqualWithinAbsOrRel(gotMean, wantMean, tolerance, tolerance) {
 			t.Errorf("Mean mismatch, want: %v, got: %v", wantMean, gotMean)
 		}
-		if !floats.EqualWithinAbsOrRel(gotVariance, wantVariance, tolerance, tolerance) {
+		if !scalar.EqualWithinAbsOrRel(gotVariance, wantVariance, tolerance, tolerance) {
 			t.Errorf("Variance mismatch, want: %v, got: %v", wantVariance, gotVariance)
 		}
 	}

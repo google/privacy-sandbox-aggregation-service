@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"gonum.org/v1/gonum/floats"
+	"google3/third_party/golang/gonum/floats/scalar/scalar"
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
@@ -26,7 +26,7 @@ func polyaRand(r, p float64) int64 {
 // By substracting two geometric random values, we can get the noise that follows two-sided distribution.
 func DistributedGeometricMechanismRand(epsilon float64, l1Sensitivity, numNoiseShares uint64) (int64, error) {
 	roundingResult := float64(numNoiseShares) * (1.0 / float64(numNoiseShares))
-	if !floats.EqualWithinAbsOrRel(roundingResult, 1.0, 1e-6, 1e-6) {
+	if !scalar.EqualWithinAbsOrRel(roundingResult, 1.0, 1e-6, 1e-6) {
 		return 0, fmt.Errorf("rounding error, expect numNoiseShares*(1/numNoiseShares) == 1, got %v", roundingResult)
 	}
 

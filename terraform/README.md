@@ -71,7 +71,7 @@ export PROJECT_ID=<your-project-id>
 ```
 
 ```bash
-gsutil mb -b on gs://$PROJECT_ID-bazelcache
+gcloud storage buckets create gs://$PROJECT_ID-bazelcache --uniform-bucket-level-access
 ```
 
 ### Build Bazel Build Container Image with Cloud Build
@@ -123,7 +123,7 @@ export ENVIRONMENT=<your_env_name>
 Next, we need a bucket for the terraform state
 
 ```bash
-gsutil mb -b on gs://$PROJECT_ID-$ENVIRONMENT
+gcloud storage buckets create gs://$PROJECT_ID-$ENVIRONMENT --uniform-bucket-level-access
 ```
 
 Setup the Terrafrom backend
@@ -267,7 +267,7 @@ UUID=<uuid_from_above_query>; GODEBUG=netdns=go bazel run -c opt tools:dpf_merge
 You can then download the merged result with
 
 ```bash
-UUID=<uuid_from_above_query>; gsutil cp gs://$PROJECT_ID-$ENVIRONMENT/results/$UUID'_merged' .
+UUID=<uuid_from_above_query>; gcloud storage cp gs://$PROJECT_ID-$ENVIRONMENT/results/$UUID'_merged' .
 ```
 
 ## Troubleshooting
@@ -291,4 +291,3 @@ GODEBUG=netdns=go bazel run -c opt tools:browser_simulator -- \
 --helper_origin2 aggregator2 \
 -logtostderr=true
 ```
-

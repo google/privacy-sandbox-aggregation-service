@@ -46,7 +46,8 @@ absl::StatusOr<std::unique_ptr<DistributedPointFunction>> CreateIncrementalDpf(
     const struct CBytes* params, int64_t params_size) {
   std::vector<DpfParameters> parameters(params_size);
   for (int i = 0; i < params_size; i++) {
-    if (!parameters[i].ParseFromArray(params[i].c, params[i].l)) {
+    if (!parameters[i].ParseFromString(
+            absl::string_view(params[i].c, params[i].l))) {
       return absl::InvalidArgumentError("failed to parse DpfParameter");
     }
   }
@@ -141,7 +142,8 @@ int CGenerateReachTupleKeys(const struct CBytes* params, int64_t params_size,
                             struct CBytes* out_error) {
   std::vector<DpfParameters> parameters(params_size);
   for (int i = 0; i < params_size; i++) {
-    if (!parameters[i].ParseFromArray(params[i].c, params[i].l)) {
+    if (!parameters[i].ParseFromString(
+            absl::string_view(params[i].c, params[i].l))) {
       StrToCBytes("failed to parse DpfParameter", out_error);
       return static_cast<int>(absl::StatusCode::kInvalidArgument);
     }
@@ -214,7 +216,7 @@ int CCreateEvaluationContext(const struct CBytes* params, int64_t params_size,
   }
 
   DpfKey dpf_key;
-  if (!dpf_key.ParseFromArray(key->c, key->l)) {
+  if (!dpf_key.ParseFromString(absl::string_view(key->c, key->l))) {
     StrToCBytes("fail to parse DpfKey", out_error);
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
@@ -241,7 +243,8 @@ int Evaluate64(bool is_multilevel, int key_bit_size, int hierarchy_level,
                struct CBytes* mutable_context, struct CUInt64Vec* out_vec,
                struct CBytes* out_error) {
   EvaluationContext eval_context;
-  if (!eval_context.ParseFromArray(mutable_context->c, mutable_context->l)) {
+  if (!eval_context.ParseFromString(
+          absl::string_view(mutable_context->c, mutable_context->l))) {
     StrToCBytes("fail to parse EvaluationContext", out_error);
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
@@ -340,7 +343,7 @@ int EvaluateAt64(int key_bit_size, const struct CBytes* params,
   }
 
   DpfKey dpf_key;
-  if (!dpf_key.ParseFromArray(key->c, key->l)) {
+  if (!dpf_key.ParseFromString(absl::string_view(key->c, key->l))) {
     StrToCBytes("fail to parse DpfKey", out_error);
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
@@ -452,7 +455,8 @@ int CEvaluateReachTuple(const struct CBytes* in_context,
                         struct CReachTupleVec* out_vec,
                         struct CBytes* out_error) {
   EvaluationContext eval_context;
-  if (!eval_context.ParseFromArray(in_context->c, in_context->l)) {
+  if (!eval_context.ParseFromString(
+          absl::string_view(in_context->c, in_context->l))) {
     StrToCBytes("fail to parse EvaluationContext", out_error);
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }
@@ -568,7 +572,8 @@ int CEvaluateReachTupleBetweenLevels(const struct CBytes* in_context,
                                      struct CReachTupleVec* out_vec,
                                      struct CBytes* out_error) {
   EvaluationContext eval_context;
-  if (!eval_context.ParseFromArray(in_context->c, in_context->l)) {
+  if (!eval_context.ParseFromString(
+          absl::string_view(in_context->c, in_context->l))) {
     StrToCBytes("fail to parse EvaluationContext", out_error);
     return static_cast<int>(absl::StatusCode::kInvalidArgument);
   }

@@ -75,6 +75,7 @@ go_library(
         "@com_github_google_tink_go//tink:go_default_library",
         "@com_github_pborman_uuid//:uuid",
         "@com_lukechampine_uint128//:go_default_library",
+        "@org_golang_google_api//option:go_default_library",
         "@org_golang_google_protobuf//proto",
     ],
 )

